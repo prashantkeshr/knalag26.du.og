@@ -30,7 +30,7 @@ The same structured content powers all of these modes.
 ## Quick start
 
 ```bash
-git clone https://github.com/dhurta/kernal
+git clone https://github.com/prashantkeshr/knalag26.du.og
 cd kernal
 npm install
 npm run dev
