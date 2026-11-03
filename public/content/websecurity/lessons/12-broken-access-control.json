@@ -1,0 +1,80 @@
+{
+  "id": "12-broken-access-control",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "auth-and-access",
+  "title": "Broken Access Control",
+  "subtitle": "IDOR, privilege escalation, and implementing role-based access control that actually prevents unauthorized actions",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 13,
+  "status": "published",
+  "prerequisites": ["websecurity/11-jwt-security"],
+  "skillsTaught": ["websecurity.access-control", "websecurity.idor", "websecurity.privilege-escalation", "websecurity.rbac", "websecurity.abac"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "IDOR — Insecure Direct Object Reference"
+    },
+    {
+      "type": "paragraph",
+      "text": "IDOR is the #1 access control vulnerability: an API endpoint that uses a user-supplied ID to look up a resource without checking whether the requesting user is allowed to access that resource. It's simple, it's everywhere, and it's often missed in code review because it looks like normal CRUD code."
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "IDOR — vulnerable vs secure",
+      "code": "// VULNERABLE — no ownership check\napp.get('/api/invoices/:id', authenticate, async (req, res) => {\n  const invoice = await db.invoices.findById(req.params.id);\n  if (!invoice) return res.status(404).json({ error: 'Not found' });\n  res.json(invoice);  // Returns ANY invoice to ANY authenticated user\n});\n// Attack: attacker has invoice id=100 (their own)\n// They try GET /api/invoices/101, 102, 103... and read all invoices\n// Sequential or guessable IDs make this trivial\n\n// SECURE — ownership check on every request\napp.get('/api/invoices/:id', authenticate, async (req, res) => {\n  const invoice = await db.invoices.findById(req.params.id);\n\n  if (!invoice) return res.status(404).json({ error: 'Not found' });\n\n  // Check ownership — does this invoice belong to the requesting user?\n  if (invoice.userId !== req.user.id) {\n    // Return 404, not 403 — don't reveal the resource exists\n    // A 403 tells the attacker 'this id is valid but you can't access it'\n    return res.status(404).json({ error: 'Not found' });\n  }\n\n  res.json(invoice);\n});\n\n// ALTERNATIVE — query by user AND id simultaneously\n// Even cleaner: impossible to retrieve a resource you don't own\napp.get('/api/invoices/:id', authenticate, async (req, res) => {\n  const invoice = await db.invoices.findOne({\n    id: req.params.id,\n    userId: req.user.id,  // Combined query — no ownership check needed separately\n  });\n\n  if (!invoice) return res.status(404).json({ error: 'Not found' });\n  res.json(invoice);\n});"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Role-based access control (RBAC)"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "RBAC middleware",
+      "code": "// Define roles and their permissions\nconst PERMISSIONS = {\n  'user':  ['read:own-profile', 'read:own-invoices', 'write:own-profile'],\n  'admin': ['read:own-profile', 'read:own-invoices', 'write:own-profile',\n             'read:all-users', 'write:all-users', 'delete:users', 'read:all-invoices'],\n} as const;\n\ntype Role = keyof typeof PERMISSIONS;\ntype Permission = (typeof PERMISSIONS)[Role][number];\n\n// Permission check middleware factory\nfunction requirePermission(permission: Permission) {\n  return (req: Request, res: Response, next: NextFunction) => {\n    const userRole = req.user?.role as Role;\n    const userPermissions = PERMISSIONS[userRole] ?? [];\n\n    if (!userPermissions.includes(permission)) {\n      return res.status(403).json({ error: 'Forbidden' });\n    }\n    next();\n  };\n}\n\n// Apply at route level\napp.get('/api/admin/users', authenticate, requirePermission('read:all-users'), listUsers);\napp.delete('/api/admin/users/:id', authenticate, requirePermission('delete:users'), deleteUser);\n\n// PRIVILEGE ESCALATION — a common mistake\napp.put('/api/users/:id', authenticate, async (req, res) => {\n  // VULNERABLE: user can send { role: 'admin' } and escalate themselves\n  await db.users.update(req.params.id, req.body);\n\n  // SECURE: only allow updating fields the user is permitted to change\n  const { name, email, avatar } = req.body;  // Allowlist fields explicitly\n  await db.users.update(req.params.id, { name, email, avatar });\n  // 'role' is not in the allowlist — cannot be changed via this endpoint\n});\n\n// Admin-only endpoint to change roles\napp.put('/api/admin/users/:id/role',\n  authenticate,\n  requirePermission('write:all-users'),\n  async (req, res) => {\n    const { role } = req.body;\n    if (!['user', 'moderator', 'admin'].includes(role)) {\n      return res.status(400).json({ error: 'Invalid role' });\n    }\n    await db.users.update(req.params.id, { role });\n    res.json({ success: true });\n  }\n);"
+    },
+    {
+      "type": "tip",
+      "text": "<strong>Use UUIDs instead of sequential IDs for user-facing resources.</strong> Sequential IDs (1, 2, 3...) make IDOR trivial — an attacker just increments the number. UUIDs (550e8400-e29b-41d4-a716-446655440000) are unguessable. They don't replace ownership checks (you still need to verify the user owns the resource), but they dramatically increase the difficulty of a brute-force IDOR attack. Use <code>crypto.randomUUID()</code> (built into Node.js 15+) or the <code>uuid</code> package."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-12-q1",
+          "question": "An API endpoint GET /api/documents/:id returns a 403 Forbidden when a user tries to access a document they don't own. Is this correct?",
+          "type": "multiple-choice",
+          "options": [
+            "Yes — 403 correctly communicates that the resource exists but access is denied",
+            "No — returning 404 is better: it doesn't confirm whether the document ID exists, preventing information leakage to attackers enumerating IDs",
+            "Yes — 404 would confuse legitimate users who might have typed the wrong ID",
+            "No — the endpoint should return 401 Unauthorized instead"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Returning 403 is an information leak: it tells the attacker 'this document ID is valid and exists, you just can't access it.' This helps them confirm which IDs are valid during enumeration. A 404 'Not Found' response leaks nothing — the attacker doesn't know if the document doesn't exist, or exists but they can't see it. This is called 'security through ambiguity' (not the main defence, but a valid hardening measure). The only case where 403 is correct is when the user is unauthenticated trying to access an authenticated resource — in that case, 401 Unauthorized is actually the semantically correct response (prompting re-authentication)."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What's the difference between authentication and authorization?",
+      "a": "Authentication is 'who are you?' — verifying identity (login with password, JWT, session cookie). Authorization is 'what are you allowed to do?' — checking permissions after identity is confirmed. The access control bugs in this lesson are authorization failures: the user is authenticated (we know who they are) but the app doesn't check if they're authorized to access that specific resource. Both checks are required; most auth bugs are actually authorization bugs."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Access Control Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Access_Control_Cheat_Sheet.html", "verified": "2026-11-04" },
+    { "name": "OWASP IDOR Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["document APIs", "user management", "admin panels", "billing systems"],
+    "examples": [
+      "In 2019, Facebook had an IDOR vulnerability in their Business Manager tool that allowed an attacker to access the ad accounts of any Facebook business by modifying a numeric account ID in an API request. No authentication bypass was needed — just changing ?account_id=12345 to ?account_id=99999. Facebook's bug bounty paid out for the report",
+      "A 2021 bug in Peloton's API allowed unauthenticated access to any user's private workout data by supplying their user ID in the request. The fix was both authentication (require login) AND authorization (verify the requesting user owns that data). Security researcher Jan Masters reported it after noticing the API didn't check whether the requesting user matched the requested user ID"
+    ]
+  }
+}

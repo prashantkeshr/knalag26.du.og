@@ -1,0 +1,83 @@
+{
+  "id": "10-authentication-flaws",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "auth-and-access",
+  "title": "Authentication Flaws",
+  "subtitle": "Weak passwords, brute force, credential stuffing, and how to implement authentication that actually holds up",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": ["websecurity/09-clickjacking"],
+  "skillsTaught": ["websecurity.auth-flaws", "websecurity.rate-limiting", "websecurity.mfa", "websecurity.password-hashing", "websecurity.account-enumeration"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Common authentication failures"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Authentication failure patterns (OWASP A07:2021)",
+      "code": "WEAK PASSWORD POLICIES:\n  Allowing 'password123', '123456', common words\n  No minimum length (8+ chars; 12+ recommended)\n  No check against breached password lists\n  Fix: validate against Have I Been Pwned API, enforce complexity\n\nBRUTE FORCE / CREDENTIAL STUFFING:\n  No rate limiting on login endpoint\n  Attackers try millions of username/password pairs from leaked databases\n  Fix: rate limit by IP + username, lockout after N failures, CAPTCHA\n\nACCOUNT ENUMERATION:\n  Login returns 'User not found' vs 'Wrong password' — reveals valid usernames\n  Password reset returns 'Email not registered' — reveals account existence\n  Fix: return identical messages regardless of which check failed\n\nINSECURE PASSWORD STORAGE:\n  Storing passwords in plaintext or with MD5/SHA1 (reversible with rainbow tables)\n  Fix: use bcrypt, scrypt, or Argon2id — never MD5/SHA1/SHA256 for passwords\n\nMISSING SECURE FLAGS ON SESSION TOKENS:\n  Session cookies without HttpOnly/Secure/SameSite\n  Session IDs in URLs (?sessionId=abc) — logged by proxies, shared in URLs\n  Fix: HttpOnly + Secure + SameSite=Lax cookies, never expose session in URL\n\nNO MFA FOR HIGH-VALUE ACTIONS:\n  No second factor for password changes, payment additions, privilege escalation\n  Fix: require MFA for account changes and sensitive operations"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Password hashing with bcrypt"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Secure password storage and verification",
+      "code": "import bcrypt from 'bcrypt';  // npm install bcrypt\n\n// WHY bcrypt (not SHA256/MD5):\n// 1. Slow by design — cost factor makes brute force expensive\n// 2. Built-in salt — prevents rainbow table attacks\n// 3. Adaptive — increase cost as hardware gets faster\n\nconst SALT_ROUNDS = 12;  // 2^12 = 4096 iterations; adjust up as hardware improves\n// Rule of thumb: should take ~300ms on your server\n// 10 = 100ms, 12 = 400ms, 14 = 1.5s — higher is safer but slower on login\n\n// Registration\nasync function registerUser(email: string, password: string) {\n  // Check against breached passwords before hashing\n  const isPwned = await checkHaveIBeenPwned(password);\n  if (isPwned) {\n    throw new Error('This password appeared in a data breach. Choose a different one.');\n  }\n\n  const hash = await bcrypt.hash(password, SALT_ROUNDS);\n  // hash looks like: $2b$12$... (includes algorithm, cost, salt, and hash)\n  await db.users.create({ email, passwordHash: hash });\n}\n\n// Login — constant-time comparison (bcrypt.compare is already constant-time)\nasync function loginUser(email: string, password: string) {\n  const user = await db.users.findByEmail(email);\n\n  // CRITICAL: Always run bcrypt.compare even if user not found\n  // Otherwise, 'email not found' returns faster than 'wrong password'\n  // — a timing side-channel that reveals valid email addresses\n  const dummyHash = '$2b$12$invalidhashfortimingnormalization...';\n  const hash = user?.passwordHash ?? dummyHash;\n\n  const valid = await bcrypt.compare(password, hash);\n\n  // Return identical error regardless of whether email or password was wrong\n  if (!user || !valid) {\n    throw new Error('Invalid email or password');\n    // NOT: 'Email not found' or 'Wrong password' — those reveal too much\n  }\n\n  return user;\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Rate limiting and account lockout"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Login rate limiting with express-rate-limit",
+      "code": "import rateLimit from 'express-rate-limit';  // npm install express-rate-limit\nimport RedisStore from 'rate-limit-redis';    // npm install rate-limit-redis\n\n// IP-based rate limit for login — prevents brute force\nconst loginLimiter = rateLimit({\n  windowMs: 15 * 60 * 1000,  // 15 minutes\n  max: 10,                    // 10 attempts per IP per window\n  message: { error: 'Too many login attempts. Try again in 15 minutes.' },\n  standardHeaders: true,  // Return RateLimit-* headers\n  legacyHeaders: false,\n  // In production: use Redis to share limits across multiple servers\n  // store: new RedisStore({ client: redisClient }),\n});\n\n// Apply only to login endpoint\napp.post('/api/auth/login', loginLimiter, loginHandler);\n\n// Progressive account lockout (more sophisticated)\nasync function loginHandler(req, res) {\n  const { email, password } = req.body;\n\n  // Check if account is temporarily locked\n  const failCount = await redis.get(`login_fails:${email}`) || 0;\n  if (failCount >= 5) {\n    const ttl = await redis.ttl(`login_fails:${email}`);\n    return res.status(429).json({\n      error: `Account temporarily locked. Try again in ${Math.ceil(ttl / 60)} minutes.`\n    });\n  }\n\n  try {\n    const user = await loginUser(email, password);\n    await redis.del(`login_fails:${email}`);  // Reset on success\n    // ... issue session\n  } catch {\n    // Increment failure counter with 30-minute expiry\n    await redis.incr(`login_fails:${email}`);\n    await redis.expire(`login_fails:${email}`, 30 * 60);\n    res.status(401).json({ error: 'Invalid email or password' });\n  }\n}"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-10-q1",
+          "question": "Your login endpoint returns 'User not found' for unregistered emails and 'Incorrect password' for registered ones. Why is this a security issue?",
+          "type": "multiple-choice",
+          "options": [
+            "It's not an issue — giving more specific errors improves user experience",
+            "It allows account enumeration — attackers can confirm which email addresses have accounts, enabling targeted phishing and credential stuffing",
+            "It violates GDPR because it reveals database contents",
+            "It slows down bcrypt comparison"
+          ],
+          "correctAnswer": 1,
+          "explanation": "This is an account enumeration vulnerability. By returning different error messages, you're telling an attacker whether an email address is registered. They can automate this check: try 10,000 emails, note which get 'Incorrect password' (registered), and those become targets for credential stuffing (trying leaked passwords) or spear phishing. The fix: always return 'Invalid email or password' — the same message regardless of whether the email doesn't exist or the password is wrong. Same principle applies to password reset: return 'If that email is registered, you'll receive a link' rather than confirming/denying whether the email exists."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I implement my own authentication or use a library?",
+      "a": "Use a battle-tested library or service (Passport.js, Auth.js/NextAuth, Clerk, Auth0, Supabase Auth) unless you have a compelling reason to build from scratch. Authentication has many subtle failure modes — timing attacks, session fixation, concurrent login handling, secure token generation — that libraries have already solved. If you do build it yourself, have a security expert review it. The cost of a breach far exceeds the time saved by rolling your own auth."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Authentication Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html", "verified": "2026-11-04" },
+    { "name": "Have I Been Pwned API", "url": "https://haveibeenpwned.com/API/v3", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["login systems", "password reset flows", "account management"],
+    "examples": [
+      "The 2012 LinkedIn breach exposed 6.5 million password hashes — stored as unsalted SHA1. Crackers broke 90% of them within days using rainbow tables. Had LinkedIn used bcrypt, the same hardware would take centuries. LinkedIn later moved to bcrypt + salt, but the damage (credential stuffing attacks against users who reused those passwords) persisted for years",
+      "In 2016, 117 million LinkedIn credentials from the 2012 breach were sold on the dark web — 4 years later. Credential stuffing using those pairs was used to compromise accounts on GitHub, Yahoo, and other sites where users reused their LinkedIn password. This is why checking passwords against Have I Been Pwned at registration matters: if the password appeared in a breach, users will reuse it elsewhere, compounding the damage"
+    ]
+  }
+}

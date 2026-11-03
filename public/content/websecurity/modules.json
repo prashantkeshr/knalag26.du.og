@@ -1,0 +1,37 @@
+[
+  {
+    "id": "web-attack-fundamentals",
+    "title": "Attack Fundamentals",
+    "description": "How attackers think, the OWASP Top 10, and HTTP security basics",
+    "order": 1,
+    "lessons": ["01-what-is-web-security", "02-owasp-top-10", "03-http-security-basics"]
+  },
+  {
+    "id": "injection-attacks",
+    "title": "Injection Attacks",
+    "description": "SQL injection, XSS, and command injection — the most devastating attack classes",
+    "order": 2,
+    "lessons": ["04-sql-injection", "05-xss", "06-command-injection"]
+  },
+  {
+    "id": "client-side-attacks",
+    "title": "Client-Side Attacks",
+    "description": "CSRF, CORS misconfigurations, and clickjacking",
+    "order": 3,
+    "lessons": ["07-csrf", "08-cors-and-cookies", "09-clickjacking"]
+  },
+  {
+    "id": "auth-and-access",
+    "title": "Auth & Access Control",
+    "description": "Authentication flaws, JWT vulnerabilities, and broken access control",
+    "order": 4,
+    "lessons": ["10-authentication-flaws", "11-jwt-security", "12-broken-access-control"]
+  },
+  {
+    "id": "defense-and-testing",
+    "title": "Defense & Testing",
+    "description": "Dependency security, misconfiguration, and testing your own app",
+    "order": 5,
+    "lessons": ["13-dependency-security", "14-security-misconfiguration", "15-security-testing"]
+  }
+]

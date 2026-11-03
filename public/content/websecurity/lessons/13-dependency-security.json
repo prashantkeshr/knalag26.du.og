@@ -1,0 +1,82 @@
+{
+  "id": "13-dependency-security",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "defense-and-testing",
+  "title": "Dependency Security",
+  "subtitle": "Supply chain attacks, npm audit, lockfiles, and automated vulnerability scanning with Dependabot",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": ["websecurity/12-broken-access-control"],
+  "skillsTaught": ["websecurity.supply-chain", "websecurity.npm-audit", "websecurity.dependabot", "websecurity.lockfiles", "websecurity.sca"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The supply chain threat"
+    },
+    {
+      "type": "paragraph",
+      "text": "Modern Node.js projects average 700+ transitive dependencies. Each dependency is code you didn't write, review, or control — and each one is a potential attack vector. Supply chain attacks compromise a legitimate package to distribute malicious code to its users. They're high-value targets for attackers: compromise one popular package, infect thousands of projects automatically."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Supply chain attack patterns",
+      "code": "TYPOSQUATTING:\n  Attacker publishes 'lodahs' or 'expressjs' (looks like 'lodash'/'express')\n  Developer mistyped package name during install\n  Malicious package installs alongside legitimate code\n  Fix: always double-check package names; audit new dependencies\n\nACCOUNT TAKEOVER:\n  Attacker compromises the npm account of a popular package maintainer\n  Publishes a malicious update to a legitimate package\n  Example: event-stream 3.3.6 (2018) — attacker gained publish access,\n    added malicious code targeting bitcoin wallets in a postinstall script\n  Fix: lockfiles pin versions; automated alerts detect unexpected updates\n\nDEPENDENCY CONFUSION:\n  If your company uses private npm registry with package 'mycompany-utils'\n  Attacker publishes 'mycompany-utils' to public npm with higher version number\n  npm may prefer the public package over your private one\n  Fix: scoped packages (@mycompany/utils), explicit registry config in .npmrc\n\nMALICIOUS INSTALL SCRIPTS:\n  package.json can define postinstall scripts that run during npm install\n  Malicious package steals env vars, reads .env files, exfiltrates secrets\n  Fix: npm install --ignore-scripts for untrusted packages (breaks some legitimate ones)\n  Better: review postinstall scripts before installing unfamiliar packages"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "npm audit and lockfiles"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "Dependency security tooling",
+      "code": "# npm audit — check all dependencies against the npm advisory database\nnpm audit\n\n# Shows: package name, severity, CVE, description, fix available\n# Fix automatically fixable vulnerabilities (semver-compatible updates)\nnpm audit fix\n\n# Fix including breaking changes (major version bumps — review manually)\nnpm audit fix --force\n\n# Fail CI if any vulnerabilities above a threshold\nnpm audit --audit-level=high  # Exit code 1 if any HIGH or CRITICAL found\n# Use in GitHub Actions to gate deployments on clean audit\n\n# View full dependency tree to understand where a vulnerability comes from\nnpm ls lodash  # Show all packages that depend on lodash\n\n# WHY lockfiles matter for security:\n# package.json: 'express': '^4.18.0'  ← accepts 4.18.0, 4.18.1, 4.19.0...\n# If express@4.18.2 is compromised, npm install with no lockfile installs it\n# package-lock.json pins EXACT versions of all transitive dependencies\n# With lockfile: npm install always installs the same versions\n# npm ci (in CI/CD): fails if package-lock.json doesn't match package.json\n\n# NEVER add package-lock.json to .gitignore\n# ALWAYS commit package-lock.json to source control\n# Use npm ci instead of npm install in CI/CD pipelines"
+    },
+    {
+      "type": "code",
+      "lang": "yaml",
+      "filename": ".github/dependabot.yml — automated vulnerability alerts",
+      "code": "# Dependabot automatically:\n# 1. Scans your dependencies daily against the GitHub Advisory Database\n# 2. Opens PRs to update vulnerable packages\n# 3. Optionally auto-merges patch/minor updates after CI passes\n\nversion: 2\nupdates:\n  # npm dependencies\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"  # Check for updates every week\n    open-pull-requests-limit: 10\n    # Group minor and patch updates into a single PR (less noise)\n    groups:\n      minor-and-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\"\n    # Auto-merge patch updates after CI passes\n    # (requires Branch protection + 'Require status checks' enabled)\n    # auto-merge: true  # Uncomment after setting up branch protection\n\n  # GitHub Actions versions\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\""
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-13-q1",
+          "question": "Your package.json specifies 'moment': '^2.29.0'. A vulnerability is found in moment@2.29.1. Your package-lock.json pins moment to 2.28.0. Are you affected?",
+          "type": "multiple-choice",
+          "options": [
+            "Yes — the vulnerability is in the 2.x line which your version range accepts",
+            "No — your lockfile pins you to 2.28.0, which predates the vulnerability in 2.29.1; you'd only be affected if you ran npm install to update",
+            "Yes — npm automatically updates to the latest when you run any npm command",
+            "No — moment is deprecated and no longer receives security updates"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Your lockfile pins you to moment@2.28.0 specifically. The vulnerability is in 2.29.1 — a version you've never installed. You're not affected right now. However, if someone runs npm install (without --frozen-lockfile) or you run npm update, you might pull in 2.29.1 and become vulnerable. The lockfile is your protection. In CI/CD, always use 'npm ci' (which reads the lockfile exactly and fails if it doesn't match package.json) rather than 'npm install'. This is exactly why committing lockfiles matters for security, not just reproducibility."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "npm audit shows hundreds of vulnerabilities. Do I need to fix all of them?",
+      "a": "Not necessarily all at once. Prioritize by: (1) severity — fix CRITICAL and HIGH first; (2) reachability — is the vulnerable code path actually used in your app? (a vulnerability in a testing library that's never in production is low risk); (3) fix availability — npm audit fix handles many automatically. For low-severity vulnerabilities in dev-only dependencies, they can often wait. Use 'npm audit --audit-level=high' to focus on what matters most. Many projects have legitimate 'accepted' low-severity vulnerabilities that are tracked and reviewed periodically."
+    }
+  ],
+  "sources": [
+    { "name": "npm audit documentation", "url": "https://docs.npmjs.com/cli/v10/commands/npm-audit", "verified": "2026-11-04" },
+    { "name": "GitHub Dependabot documentation", "url": "https://docs.github.com/en/code-security/dependabot", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["all Node.js projects", "CI/CD pipelines", "open-source maintenance"],
+    "examples": [
+      "The event-stream incident (November 2018): a malicious maintainer added the 'flatmap-stream' package as a dependency of event-stream (2M downloads/week). The package contained encrypted code that activated only if the target app had the Copay Bitcoin wallet library installed — it would steal wallet credentials. The malicious version was downloaded ~8 million times before detection. The attack was undetected because the malicious payload was in a transitive dependency, not in event-stream itself",
+      "The colors.js and faker.js incident (January 2022): the creator of both packages (tens of millions of downloads/week combined) intentionally broke them, publishing versions that printed gibberish instead of working. Projects using floating version ranges ('colors': '^1.4.0') auto-updated to the broken versions. Lockfiles and pinned versions would have prevented the automatic breakage"
+    ]
+  }
+}

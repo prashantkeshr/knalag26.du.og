@@ -1,0 +1,89 @@
+{
+  "id": "11-jwt-security",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "auth-and-access",
+  "title": "JWT Security",
+  "subtitle": "Critical JWT vulnerabilities — the 'none' algorithm attack, weak secrets, missing expiry — and how to implement tokens safely",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 13,
+  "status": "published",
+  "prerequisites": ["websecurity/10-authentication-flaws"],
+  "skillsTaught": ["websecurity.jwt", "websecurity.jwt-none-attack", "websecurity.jwt-algorithm-confusion", "websecurity.jwt-expiry", "websecurity.refresh-tokens"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "JWT structure and common vulnerabilities"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "JWT anatomy",
+      "code": "A JWT has three base64url-encoded parts separated by dots:\n\neyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9    ← HEADER\n.eyJ1c2VySWQiOiIxMjMiLCJyb2xlIjoidXNlciIsImV4cCI6MTcwMDAwMDAwMH0  ← PAYLOAD\n.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c  ← SIGNATURE\n\nDecoded header:  { \"alg\": \"HS256\", \"typ\": \"JWT\" }\nDecoded payload: { \"userId\": \"123\", \"role\": \"user\", \"exp\": 1700000000 }\n\nThe SIGNATURE is computed by the server:\n  HMACSHA256(base64url(header) + '.' + base64url(payload), secret)\n\nThe payload is NOT encrypted — anyone can decode it (base64 is encoding, not encryption).\nThe signature prevents TAMPERING — you can't change the payload without invalidating the signature\n(unless the secret is weak, or the server accepts 'none' as the algorithm).\n\nDO store in JWT: userId, role, sessionId, expiry (exp), issued-at (iat)\nDO NOT store in JWT: passwords, credit card numbers, PII, secrets\n  (the payload is readable by anyone who has the token)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The 'none' algorithm attack"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "none algorithm attack — and the fix",
+      "code": "// THE ATTACK:\n// Early JWT libraries allowed the 'alg' header field to be 'none'\n// meaning: 'no signature verification needed'\n// An attacker could:\n// 1. Decode any JWT (they're just base64)\n// 2. Modify the payload: change role: 'user' → role: 'admin'\n// 3. Change the header: alg: 'HS256' → alg: 'none'\n// 4. Remove the signature part (or leave it empty)\n// 5. Submit the forged token — vulnerable servers would accept it!\n\n// Forged token example:\n// Header: { \"alg\": \"none\" }\n// Payload: { \"userId\": \"123\", \"role\": \"admin\" }  ← escalated role\n// Signature: (empty)\n\n// THE FIX — always specify allowed algorithms explicitly:\nimport jwt from 'jsonwebtoken';  // npm install jsonwebtoken\n\nconst JWT_SECRET = process.env.JWT_SECRET!;  // Must be strong random string\n\n// SIGNING — specify algorithm explicitly\nfunction issueToken(userId: string, role: string): string {\n  return jwt.sign(\n    { userId, role },\n    JWT_SECRET,\n    {\n      algorithm: 'HS256',  // Always explicit\n      expiresIn: '15m',    // Short expiry — use refresh tokens for longer sessions\n      issuer: 'myapp.com',\n      audience: 'myapp.com',\n    }\n  );\n}\n\n// VERIFICATION — explicitly reject 'none' and other algorithms you don't use\nfunction verifyToken(token: string) {\n  return jwt.verify(token, JWT_SECRET, {\n    algorithms: ['HS256'],  // CRITICAL: only accept HS256 — rejects 'none', RS256, etc.\n    issuer: 'myapp.com',\n    audience: 'myapp.com',\n  });\n  // jwt.verify throws JsonWebTokenError if the token is invalid\n  // jwt.verify throws TokenExpiredError if the token has expired\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Algorithm confusion — HS256 vs RS256"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Algorithm confusion attack",
+      "code": "// BACKGROUND:\n// HS256 uses a SYMMETRIC secret (same secret to sign and verify)\n// RS256 uses ASYMMETRIC keys (private key to sign, PUBLIC key to verify)\n\n// ALGORITHM CONFUSION ATTACK:\n// Imagine a server that uses RS256 (public/private key pair)\n// The server's PUBLIC key is... public. Anyone can read it.\n// If the server accepts both RS256 and HS256:\n//   1. Attacker takes the server's public key\n//   2. Creates a new HS256 token signed with the PUBLIC key as the HMAC secret\n//   3. Server tries to verify HS256... using what secret?\n//      If it uses the PUBLIC key as the HS256 secret, the token verifies!\n\n// THE FIX — never mix symmetric and asymmetric in the same system:\n\n// If you use HS256 (symmetric — simpler, good for single-service auth):\nconst secret = process.env.JWT_SECRET!;  // Must be a strong random 256-bit value\n// Generation: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"\njwt.verify(token, secret, { algorithms: ['HS256'] });\n\n// If you use RS256 (asymmetric — better for multi-service, public key verification):\nimport { readFileSync } from 'fs';\nconst privateKey = readFileSync('private.pem');\nconst publicKey = readFileSync('public.pem');\n\n// Sign with private key:\njwt.sign(payload, privateKey, { algorithm: 'RS256' });\n\n// Verify with public key ONLY:\njwt.verify(token, publicKey, { algorithms: ['RS256'] });  // NOT ['RS256', 'HS256']\n\n// KEY RULE: never accept multiple algorithm families in the same verify call"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Refresh token pattern — short-lived access tokens",
+      "code": "// SHORT-LIVED ACCESS TOKEN (15 minutes) + LONG-LIVED REFRESH TOKEN (7 days)\n// Access tokens can't be revoked (stateless), so keep them short\n// Refresh tokens are stored server-side — they CAN be revoked\n\n// On login:\nasync function login(email: string, password: string, res: Response) {\n  const user = await verifyCredentials(email, password);\n\n  // Short-lived access token — stateless, no DB lookup needed\n  const accessToken = jwt.sign(\n    { userId: user.id, role: user.role },\n    process.env.JWT_ACCESS_SECRET!,\n    { expiresIn: '15m', algorithm: 'HS256' }\n  );\n\n  // Long-lived refresh token — stored in DB for revocation\n  const refreshToken = crypto.randomBytes(40).toString('hex');\n  await db.refreshTokens.create({\n    token: refreshToken,\n    userId: user.id,\n    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7 days\n  });\n\n  // Access token: in response body (SPA reads it)\n  // Refresh token: in HttpOnly cookie (JS can't read it)\n  res.cookie('refreshToken', refreshToken, {\n    httpOnly: true, secure: true, sameSite: 'lax',\n    maxAge: 7 * 24 * 60 * 60 * 1000,\n  });\n  return { accessToken };  // Client stores in memory, NOT localStorage\n}\n\n// Refresh endpoint — called when access token expires\nasync function refresh(req: Request, res: Response) {\n  const refreshToken = req.cookies.refreshToken;\n  const stored = await db.refreshTokens.findOne({ token: refreshToken });\n\n  if (!stored || stored.expiresAt < new Date()) {\n    return res.status(401).json({ error: 'Please log in again' });\n  }\n\n  const user = await db.users.findById(stored.userId);\n  const newAccessToken = jwt.sign(\n    { userId: user.id, role: user.role },\n    process.env.JWT_ACCESS_SECRET!,\n    { expiresIn: '15m', algorithm: 'HS256' }\n  );\n  return res.json({ accessToken: newAccessToken });\n}"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-11-q1",
+          "question": "A JWT has payload { userId: 123, role: 'admin', exp: 9999999999 } and was signed with alg: 'HS256'. Your JWT_SECRET is 'secret'. What is wrong with this token setup?",
+          "type": "multiple-choice",
+          "options": [
+            "The expiry (exp) timestamp is too far in the future, but the signature is valid",
+            "Both the secret ('secret' is a dictionary word) and the expiry (never expires in practice) are problems — weak secrets can be brute-forced offline, and a token that never expires can be used indefinitely after a breach",
+            "HS256 is deprecated and should be RS256",
+            "The userId should not be in the JWT payload"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Two independent problems: (1) 'secret' is a terrible JWT secret. JWTs can be brute-forced offline — an attacker who intercepts a token can try dictionary words against the signature without hitting your server. JWT secrets should be a cryptographically random 256-bit value (32 bytes hex). (2) exp: 9999999999 is year 2286 — this token never expires in practice. If it's ever leaked or stolen, it's valid forever. Access tokens should expire in 15-60 minutes. The fact that the payload shows role: 'admin' makes this especially dangerous — a never-expiring admin token stolen from one breach gives permanent access."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I store JWTs in localStorage or cookies?",
+      "a": "Cookies (HttpOnly) for the refresh token; memory (React state) for the short-lived access token. Never localStorage for long-lived tokens. localStorage is accessible to any JavaScript on your page — a single XSS vulnerability can steal every stored token. HttpOnly cookies can't be read by JavaScript. Memory is safest but tokens are lost on page refresh, which is why the refresh token (in HttpOnly cookie) is used to re-issue a new access token automatically. This is the recommended pattern."
+    }
+  ],
+  "sources": [
+    { "name": "JWT Best Practices RFC 8725", "url": "https://www.rfc-editor.org/rfc/rfc8725", "verified": "2026-11-04" },
+    { "name": "PortSwigger JWT Attacks", "url": "https://portswigger.net/web-security/jwt", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["API authentication", "single-sign-on", "microservices auth"],
+    "examples": [
+      "The 'none' algorithm vulnerability affected many early JWT implementations including php-jwt, pyjwt, and node-jsonwebtoken before they patched it. Applications that relied on these libraries without pinning to a specific algorithm were vulnerable. The lesson: always specify algorithms=['HS256'] (or your chosen algorithm) in both signing and verification calls",
+      "In 2022, auth0's jwt-decode library (100M+ downloads/week) had a vulnerability where crafted tokens could bypass expiry validation in some edge cases. Even widely-used, well-maintained libraries have security bugs — stay updated via npm audit and Dependabot"
+    ]
+  }
+}

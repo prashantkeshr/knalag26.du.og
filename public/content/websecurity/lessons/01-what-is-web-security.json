@@ -1,0 +1,100 @@
+{
+  "id": "01-what-is-web-security",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "web-attack-fundamentals",
+  "title": "What is Web Security?",
+  "subtitle": "The attacker's mindset, threat modelling, and why security is every developer's job",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": ["websecurity.threat-model", "websecurity.attacker-mindset", "websecurity.cia-triad", "websecurity.attack-surface"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Security is a developer problem"
+    },
+    {
+      "type": "paragraph",
+      "text": "The majority of security breaches aren't caused by nation-state hackers exploiting zero-day vulnerabilities — they're caused by common coding mistakes that have been understood and documented for decades. SQL injection was first described in 1998. XSS attacks were systematically catalogued in the early 2000s. Yet both still appear in production code every year. Web security isn't a specialisation you hand off to a 'security team' — it's a set of patterns every developer must know, like how to handle async code or how to write a database query."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The CIA Triad"
+    },
+    {
+      "type": "definition",
+      "term": "CIA Triad",
+      "definition": "The three goals of information security: Confidentiality (data is only readable by authorised parties), Integrity (data has not been tampered with), and Availability (the system is accessible when needed). Every security control protects one or more of these three properties."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "CIA Triad — practical examples",
+      "code": "CONFIDENTIALITY:\n  Threat: attacker reads your database (user passwords, PII, credit cards)\n  Controls: encryption at rest, access control, least privilege\n  Broken by: SQL injection, path traversal, misconfigured S3 bucket\n\nINTEGRITY:\n  Threat: attacker modifies data (changes order total, forges a review)\n  Controls: input validation, digital signatures, audit logs, CSRF tokens\n  Broken by: CSRF, parameter tampering, broken access control\n\nAVAILABILITY:\n  Threat: system becomes unreachable (site is down, users can't pay)\n  Controls: rate limiting, DDoS protection, backups, redundancy\n  Broken by: DoS attacks, resource exhaustion, ransomware"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Threat modelling — think like an attacker"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Four questions of threat modelling (STRIDE)",
+      "code": "Before writing security controls, ask:\n\n1. WHAT ARE WE BUILDING?\n   Draw a data flow diagram: browser → API → database\n   Mark trust boundaries (where data crosses from untrusted to trusted)\n\n2. WHAT CAN GO WRONG? (STRIDE categories)\n   S — Spoofing:         attacker pretends to be someone else\n   T — Tampering:        attacker modifies data or code\n   R — Repudiation:      attacker denies having done something\n   I — Information Disc: attacker reads data they shouldn't see\n   D — Denial of Service: attacker makes the system unavailable\n   E — Elevation of Privilege: attacker gains more access than allowed\n\n3. WHAT ARE WE GOING TO DO ABOUT IT?\n   For each threat: mitigate (fix it), accept (risk is low), transfer (insurance)\n\n4. DID WE DO A GOOD JOB?\n   Test your controls. 'We added a check' doesn't mean the check works.\n\nTHE ATTACKER'S MINDSET:\n  'What is the application supposed to do — and what else can I make it do?'\n  Every input is a potential attack vector. Every API endpoint is a door.\n  Attackers are patient, creative, and not bound by your documentation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Attack surface — what attackers target"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Common attack surface components",
+      "code": "NETWORK:\n  Open ports (every public port is a potential entry point)\n  Unencrypted traffic (HTTP instead of HTTPS)\n  Misconfigured firewalls\n\nAPPLICATION:\n  Every user input (forms, URL params, headers, file uploads)\n  Every API endpoint (authenticated and unauthenticated)\n  Third-party dependencies (your npm packages)\n  Authentication flows (login, password reset, OAuth)\n\nINFRASTRUCTURE:\n  Exposed admin panels (pgAdmin, Kibana, Redis at a public port)\n  Default credentials never changed\n  Overly permissive cloud IAM roles\n  Unpatched software versions\n\nHUMAN:\n  Phishing (attacker emails staff with a malicious link)\n  Social engineering (attacker calls support pretending to be a customer)\n  Insider threat (disgruntled employee)\n\nREDUCING ATTACK SURFACE (the first line of defence):\n  → Expose as little as possible (principle of least functionality)\n  → Turn off what you don't use\n  → Keep dependencies updated\n  → Validate ALL input at every trust boundary"
+    },
+    {
+      "type": "tip",
+      "text": "<strong>Security is not about being unbreakable — it's about raising the cost of attack.</strong> An attacker has limited time and resources. If your app requires 10,000 hours to breach while a competitor's takes 10 minutes, you will not be breached first. Defence-in-depth (multiple layers of protection) means that bypassing one control doesn't immediately give full access. No single control is perfect; the combination is what makes an application secure."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-01-q1",
+          "question": "An attacker forges a request that transfers money from a user's bank account without their knowledge. Which CIA property is violated?",
+          "type": "multiple-choice",
+          "options": [
+            "Confidentiality — the attacker read the account balance",
+            "Integrity — the attacker modified data (account balance) without authorisation",
+            "Availability — the user's account is now inaccessible",
+            "None — this is a fraud problem, not a security problem"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Integrity is violated — the attacker modified data (the account balance) that they were not authorised to change. The attack described is CSRF (Cross-Site Request Forgery), which falls under the Tampering category of STRIDE. The attacker didn't necessarily read the data (confidentiality) or take the system down (availability) — they just made an unauthorised modification. Understanding which CIA property is threatened by each attack type helps you choose the right defences."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I hire a security specialist or can developers handle this?",
+      "a": "Both. Developers must know the fundamentals — writing parameterized queries, validating input, setting security headers, using HTTPS. This baseline prevents 90% of attacks. For high-risk applications (fintech, healthcare), additionally hire a penetration tester to audit the code once it's built, and a security engineer to design the architecture. Outsourcing basic security to a specialist doesn't work — the specialist isn't there when a developer writes an SQL query at 11pm."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP — Web Security Testing Guide", "url": "https://owasp.org/www-project-web-security-testing-guide/", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["every web application", "fintech", "healthcare", "e-commerce"],
+    "examples": [
+      "The 2017 Equifax breach exposed 147 million people's personal data — SSNs, birth dates, addresses. The cause: a known vulnerability in Apache Struts that had a patch available for 2 months. No zero-day, no sophisticated attack. Just an unpatched dependency and an attacker who checked",
+      "Facebook paid $20,000 to a security researcher who found an authentication bypass that would have allowed anyone to view private photos. Bug bounty programs exist because companies know attackers will find vulnerabilities — better to pay researchers than to get breached"
+    ]
+  }
+}

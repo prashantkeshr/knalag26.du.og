@@ -1,0 +1,96 @@
+{
+  "id": "05-xss",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "injection-attacks",
+  "title": "Cross-Site Scripting (XSS)",
+  "subtitle": "How attackers inject JavaScript into web pages — stored, reflected, and DOM-based XSS with real defences",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 15,
+  "status": "published",
+  "prerequisites": ["websecurity/04-sql-injection"],
+  "skillsTaught": ["websecurity.xss", "websecurity.stored-xss", "websecurity.reflected-xss", "websecurity.dom-xss", "websecurity.csp", "websecurity.output-encoding"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is XSS?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cross-Site Scripting (XSS) lets an attacker inject JavaScript into a web page that runs in other users' browsers. Once JavaScript is running in your page's context, the attacker has the same access as your own scripts: cookies, localStorage, DOM content, form values, and the ability to make requests to your API using the victim's session. XSS is consistently in the OWASP Top 10 and is the root cause of many high-profile data breaches."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Three types of XSS"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "XSS types compared",
+      "code": "STORED XSS (persistent, highest impact):\n  Payload stored in the database, served to all users who visit the page\n  Example: comment field stores <script>stealCookies()</script>\n  Victim: every user who views the comment\n  Fix: sanitize HTML on output, use textContent instead of innerHTML\n\nREFLECTED XSS (non-persistent):\n  Payload in the URL, reflected back in the response\n  Example: /search?q=<script>alert(1)</script>\n  Victim: user who clicks a crafted URL (attacker sends via email/phishing)\n  Fix: encode output, validate input\n\nDOM-BASED XSS (client-side only):\n  Payload never hits the server — attacker controls client-side data flows\n  Example: page reads location.hash and writes it to innerHTML\n  // Malicious URL: https://myapp.com/#<img src=x onerror=alert(1)>\n  Victim: user who visits the malicious URL\n  Fix: never write untrusted data to innerHTML/document.write/eval\n\nBLIND XSS:\n  Payload fires in an admin panel or logging system, not the public page\n  Example: support ticket input field viewed by an admin\n  Victim: the admin user\n  Fix: treat all stored content as untrusted, regardless of the source"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "XSS in React (safer but not immune)"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "XSS in React — safe vs dangerous patterns",
+      "code": "// SAFE — React escapes all expressions by default\nfunction Comment({ text }: { text: string }) {\n  // If text = '<script>alert(1)</script>'\n  // React renders it as the literal string, not as HTML\n  return <p>{text}</p>;\n  // Rendered: <p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n}\n\n// DANGEROUS — dangerouslySetInnerHTML bypasses React's escaping\nfunction RichComment({ html }: { html: string }) {\n  // If html contains <script> or <img onerror=...>, it RUNS\n  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n  // XSS is possible — only use with sanitized HTML\n}\n\n// SAFE usage of dangerouslySetInnerHTML — sanitize first\nimport DOMPurify from 'dompurify';\n\nfunction SafeRichComment({ html }: { html: string }) {\n  const clean = DOMPurify.sanitize(html);  // Strips dangerous tags/attrs\n  return <div dangerouslySetInnerHTML={{ __html: clean }} />;\n}\n\n// OTHER DANGEROUS PATTERNS IN REACT:\n// href injection — if href comes from user input:\nconst url = userInput;  // 'javascript:alert(1)' is a valid URL!\nreturn <a href={url}>Click</a>;  // XSS via javascript: protocol\n\n// SAFE — validate URL scheme\nconst safeUrl = url.startsWith('http') ? url : '#';\nreturn <a href={safeUrl}>Click</a>;"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Output encoding — the primary defence"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Output encoding on the server side",
+      "code": "// When rendering HTML on the server (SSR, templates, email)\n// EVERY user-provided value must be HTML-encoded before insertion\n\n// VULNERABLE — template string with raw user data\nconst html = `<h1>Hello, ${req.query.name}!</h1>`;\n// If name = '<script>alert(1)</script>'\n// Rendered: <h1>Hello, <script>alert(1)</script>!</h1>  ← XSS\n\n// SAFE — HTML-encode the value\nfunction htmlEncode(str: string): string {\n  return str\n    .replace(/&/g, '&amp;')   // Must be first!\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#x27;');\n}\n\nconst html = `<h1>Hello, ${htmlEncode(req.query.name)}!</h1>`;\n// If name = '<script>alert(1)</script>'\n// Rendered: <h1>Hello, &lt;script&gt;alert(1)&lt;/script&gt;!</h1>\n// Browser displays: Hello, <script>alert(1)</script>!\n// No script runs.\n\n// In practice, use a templating engine that auto-escapes:\n// Handlebars: {{name}}         ← auto-escaped\n//             {{{name}}}       ← raw, not escaped (dangerous)\n// EJS:        <%= name %>      ← auto-escaped\n//             <%- name %>      ← raw, not escaped (dangerous)"
+    },
+    {
+      "type": "tip",
+      "text": "<strong>DOMPurify is the standard library for sanitising HTML.</strong> If you allow users to input rich text (bold, links, images) and need to display it as HTML, use DOMPurify: <code>const clean = DOMPurify.sanitize(dirty)</code>. It strips all dangerous tags (<code>&lt;script&gt;</code>, event handlers, <code>javascript:</code> URLs) while preserving safe formatting. It's maintained by the security community, used by millions of sites, and updated as new bypass techniques emerge. Don't write your own HTML sanitiser."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-05-q1",
+          "question": "A page reads: const name = new URLSearchParams(location.search).get('name'); div.innerHTML = 'Hello, ' + name; An attacker sends: /page?name=<img src=x onerror=alert(document.cookie)>. What type of XSS is this?",
+          "type": "multiple-choice",
+          "options": [
+            "Stored XSS — the payload is saved to the database",
+            "Reflected XSS — the payload comes from the server response",
+            "DOM-based XSS — the payload is read from the URL and written to the DOM in client-side JavaScript, never touching the server",
+            "Blind XSS — the payload fires in an admin panel"
+          ],
+          "correctAnswer": 2,
+          "explanation": "This is DOM-based XSS. The key clue: the payload comes from location.search (the URL's query string) and is written to innerHTML — entirely in client-side JavaScript. The server never sees the malicious payload; it's processed entirely in the browser. The fix: use textContent instead of innerHTML (which displays text literally, never parses as HTML), or sanitize with DOMPurify before setting innerHTML. DOM-based XSS is harder for WAFs and server-side filtering to catch because the attack is invisible to the server."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "I use React — am I safe from XSS?",
+      "a": "Mostly, but not completely. React escapes JSX expressions by default, which prevents the most common XSS patterns. But React doesn't protect you from: dangerouslySetInnerHTML with unclean HTML, href/src attributes set to user-controlled values (javascript: URL injection), string concatenation in template literals used to build HTML, or server-side rendering with unencoded data. The principle is the same: never trust user input, encode output."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP XSS Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html", "verified": "2026-11-04" },
+    { "name": "DOMPurify", "url": "https://github.com/cure53/DOMPurify", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["comment systems", "search pages", "user profile fields", "rich text editors"],
+    "examples": [
+      "The Samy Worm (MySpace, 2005) was the fastest-spreading XSS worm in history. It added Samy Kamkar as a friend and hero to every MySpace user who visited an infected profile. Within 20 hours, over 1 million users were infected. The fix took MySpace offline. The payload was 4 kilobytes of JavaScript in a CSS attribute",
+      "Twitter had an XSS vulnerability in 2010 (the 'onMouseOver worm') where hovering over a tweet caused it to retweet itself. Within hours, hundreds of thousands of users had retweeted the infected tweet. XSS vulnerabilities spread virally — one infected page can compromise every visitor"
+    ]
+  }
+}

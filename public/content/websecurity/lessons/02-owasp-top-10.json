@@ -1,0 +1,84 @@
+{
+  "id": "02-owasp-top-10",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "web-attack-fundamentals",
+  "title": "OWASP Top 10",
+  "subtitle": "The ten most critical web application security risks — what they are, how common they are, and how to prevent each one",
+  "difficulty": "beginner",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": ["websecurity/01-what-is-web-security"],
+  "skillsTaught": ["websecurity.owasp", "websecurity.risk-classification", "websecurity.broken-access-control", "websecurity.insecure-design"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is OWASP?"
+    },
+    {
+      "type": "paragraph",
+      "text": "OWASP (Open Worldwide Application Security Project) is a non-profit foundation that publishes free security resources. Their most famous document is the OWASP Top 10 — a consensus list of the ten most critical security risks for web applications, updated every few years based on data from hundreds of organisations. It's not a law, but it's become the industry benchmark: compliance frameworks, security audits, and job interviews all reference it. Understanding the Top 10 gives you a mental map of the web security landscape."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "OWASP Top 10 (2021 edition)"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "OWASP Top 10 — 2021",
+      "code": "A01 — BROKEN ACCESS CONTROL          (most common, was #5 in 2017)\n  Users can act outside their intended permissions\n  Example: change ?user_id=123 to ?user_id=456 and see another user's data\n  Prevention: deny by default, check permissions server-side, never trust client\n\nA02 — CRYPTOGRAPHIC FAILURES         (was 'Sensitive Data Exposure')\n  Weak encryption, plaintext transmission, weak hashing\n  Example: storing passwords as MD5 hashes; using HTTP not HTTPS\n  Prevention: TLS everywhere, bcrypt for passwords, AES-256 for data at rest\n\nA03 — INJECTION                      (was #1 for many years)\n  SQL, NoSQL, OS command, LDAP injection — untrusted data as commands\n  Example: ' OR '1'='1 in a login form returning all users\n  Prevention: parameterized queries, input validation, escaping\n\nA04 — INSECURE DESIGN\n  Missing security controls at design time, not just implementation bugs\n  Example: a password-reset flow that asks 'What city were you born in?'\n  Prevention: threat modelling, secure design patterns from the start\n\nA05 — SECURITY MISCONFIGURATION      (most common in practice)\n  Default passwords, unnecessary features enabled, overly permissive CORS\n  Example: debug mode enabled in production, pgAdmin exposed to internet\n  Prevention: hardened configs, infrastructure as code, regular audits\n\nA06 — VULNERABLE AND OUTDATED COMPONENTS\n  Unpatched libraries, old frameworks, unsupported software\n  Example: Equifax breach (Apache Struts), Log4Shell (Log4j)\n  Prevention: Dependabot, npm audit, Software Composition Analysis (SCA)\n\nA07 — IDENTIFICATION AND AUTHENTICATION FAILURES\n  Weak passwords, broken session management, missing MFA\n  Example: session tokens that never expire; no rate limiting on login\n  Prevention: strong password policies, MFA, secure session management\n\nA08 — SOFTWARE AND DATA INTEGRITY FAILURES\n  Code and data not verified before use; insecure CI/CD pipelines\n  Example: auto-updating dependencies without verification (supply chain attack)\n  Prevention: code signing, pin dependency versions, review CI/CD permissions\n\nA09 — SECURITY LOGGING AND MONITORING FAILURES\n  Not detecting, alerting, or responding to breaches\n  Example: an attacker exfiltrates data for 200 days before detection (average)\n  Prevention: log security events, alert on anomalies, have an incident plan\n\nA10 — SERVER-SIDE REQUEST FORGERY (SSRF)\n  Server fetches a URL provided by the attacker, reaching internal services\n  Example: image upload feature fetches http://169.254.169.254/ (AWS metadata)\n  Prevention: validate and allowlist URLs, block internal IP ranges"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Risk scoring — how OWASP ranks vulnerabilities"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "OWASP risk formula",
+      "code": "Risk = Likelihood × Impact\n\nLIKELIHOOD factors:\n  - How easy is it to exploit? (SQL injection in a text box = easy)\n  - How common is it? (Broken access control = extremely common)\n  - How detectable is the attack? (SQL errors visible = easy to detect)\n\nIMPACT factors:\n  - What data can be accessed? (all user records = high)\n  - What actions can be taken? (admin access = critical)\n  - Business impact (GDPR fine, reputation damage, legal liability)\n\nCRITICAL:  Broken access control to admin panel (high likelihood, high impact)\nHIGH:      SQL injection in a search box (medium likelihood, high impact)\nMEDIUM:    Missing CSRF token on a low-value form\nLOW:       Missing security header with no immediate exploit"
+    },
+    {
+      "type": "tip",
+      "text": "<strong>A06 (Vulnerable Components) is the easiest win.</strong> Run <code>npm audit</code> in your project right now. If you have high or critical vulnerabilities, run <code>npm audit fix</code>. Enable Dependabot on GitHub (it's free) and it will open PRs when your dependencies have security patches. This one automation addresses A06 entirely and takes 5 minutes to set up. Most teams skip it and get breached by vulnerabilities that had patches available for months."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-02-q1",
+          "question": "A developer builds an admin dashboard and checks permissions with: 'if (user.isAdmin) { showAdminPanel() }' — but only in the frontend JavaScript. The API endpoints still return data for any authenticated user. Which OWASP category is this?",
+          "type": "multiple-choice",
+          "options": [
+            "A03 — Injection, because data is not being sanitised",
+            "A01 — Broken Access Control, because authorisation is enforced only on the client, not the server",
+            "A05 — Security Misconfiguration, because admin features should be disabled",
+            "A07 — Identification and Authentication Failures"
+          ],
+          "correctAnswer": 1,
+          "explanation": "This is A01 — Broken Access Control. Checking permissions only in the frontend JavaScript is worthless: an attacker opens the browser DevTools, calls the API directly (or modifies the JavaScript), and bypasses the check entirely. Access control must ALWAYS be enforced on the server. The API endpoint must verify the requesting user has admin privileges before returning data, regardless of what the client claims. 'Never trust the client' is the golden rule of web security."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does passing OWASP Top 10 mean my app is secure?",
+      "a": "No — it means you've addressed the most common vulnerabilities, which puts you ahead of most apps. The Top 10 is a minimum bar, not a complete security standard. It doesn't cover business logic flaws (which are app-specific), cryptographic implementation details, physical security, or many advanced attack techniques. After the Top 10, consider SOC 2, ISO 27001, or a penetration test for a more thorough assessment."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Top 10 — 2021", "url": "https://owasp.org/Top10/", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["security audits", "compliance", "developer training", "penetration testing"],
+    "examples": [
+      "PCI-DSS (Payment Card Industry standard — required if you process card payments) explicitly references OWASP Top 10. If you want to process payments without a third-party processor, your app must pass a PCI security assessment that checks for OWASP vulnerabilities",
+      "GitHub's Security Advisory Database tracks CVEs in open-source packages. In 2023, over 2,000 npm packages were found to have critical vulnerabilities. The vast majority were A06 (Vulnerable Components) — fixed by updating the package, never fixed because no one checked"
+    ]
+  }
+}

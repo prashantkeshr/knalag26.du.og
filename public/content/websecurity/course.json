@@ -1,0 +1,17 @@
+{
+  "id": "websecurity",
+  "version": "1.0.0",
+  "title": "Web Security",
+  "subtitle": "Understand how attacks work so you can defend against them — OWASP Top 10, XSS, SQL injection, CSRF, auth flaws, and secure coding",
+  "description": "Every developer who ships to the internet needs to understand web security. This track teaches the most common attack types, how they work from an attacker's perspective, and the defensive patterns that stop them. You'll learn to write secure code by default — parameterized queries, CSP headers, JWT best practices, dependency scanning, and how to test your own app for vulnerabilities.",
+  "icon": "shield",
+  "color": "#ef4444",
+  "stage": 15,
+  "order": 21,
+  "difficulty": "intermediate",
+  "estimatedHours": 20,
+  "prerequisites": ["deployment/15-production-checklist", "nodejs/01-introduction", "apis/01-what-is-an-api"],
+  "certificationAvailable": true,
+  "modules": ["web-attack-fundamentals", "injection-attacks", "client-side-attacks", "auth-and-access", "defense-and-testing"],
+  "tags": ["security", "owasp", "xss", "sql-injection", "csrf", "authentication", "jwt", "csp", "penetration-testing"]
+}

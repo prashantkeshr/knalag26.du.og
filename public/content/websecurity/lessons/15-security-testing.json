@@ -1,0 +1,84 @@
+{
+  "id": "15-security-testing",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "defense-and-testing",
+  "title": "Security Testing",
+  "subtitle": "OWASP ZAP, manual testing methodology, code review for security, and building a security mindset",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": ["websecurity/14-security-misconfiguration"],
+  "skillsTaught": ["websecurity.security-testing", "websecurity.owasp-zap", "websecurity.manual-testing", "websecurity.secure-code-review", "websecurity.threat-modelling"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Security testing approaches"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Security testing categories",
+      "code": "STATIC APPLICATION SECURITY TESTING (SAST):\n  Analyzes source code without running the application\n  Tools: ESLint security plugins, Semgrep, SonarQube, Snyk Code\n  Good at: detecting patterns (hardcoded secrets, SQL concat, eval usage)\n  Misses: runtime logic flaws, business logic vulnerabilities, auth issues\n  When: integrated into CI/CD — runs on every pull request\n\nDYNAMIC APPLICATION SECURITY TESTING (DAST):\n  Tests the running application from the outside, like an attacker would\n  Tools: OWASP ZAP, Burp Suite Community/Pro\n  Good at: XSS, SQLi, misconfiguration, exposed headers\n  Misses: code-level issues, business logic, things behind auth (mostly)\n  When: against staging environment after deployment\n\nINTERACTIVE APPLICATION SECURITY TESTING (IAST):\n  Instruments the running app to trace vulnerabilities during normal use\n  Tools: Contrast Security, Seeker\n  Good at: very accurate results — traces the actual data flow\n  Cost: requires agents in the app, expensive commercial tools\n\nMANUAL PENETRATION TESTING:\n  Human testers actively try to break the app\n  Most thorough — can find business logic and chained vulnerabilities\n  When: before major releases, after significant architecture changes\n  Cost: expensive (thousands to tens of thousands of dollars)\n  For small teams: developers doing security code reviews + automated tooling"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Manual testing methodology"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Testing checklist for your own application",
+      "code": "AUTHENTICATION:\n  [ ] Try login with an unregistered email — does it reveal 'user not found'?\n  [ ] Try brute force: 20+ wrong passwords — does rate limiting kick in?\n  [ ] Does 'Forgot Password' confirm/deny email existence?\n  [ ] Can session tokens be decoded? (They shouldn't contain sensitive data)\n  [ ] Does logout actually invalidate the session server-side?\n\nAUTHORIZATION (IDOR):\n  [ ] Create two accounts. Log in as User A. Access User B's resources:\n      GET /api/users/{user_b_id}\n      GET /api/invoices/{user_b_invoice_id}\n      GET /api/documents/{user_b_doc_id}\n  [ ] Can User A edit/delete User B's data?\n  [ ] Can a regular user access /api/admin/* endpoints?\n\nINJECTION:\n  [ ] Enter ' (single quote) in every form field — does the app crash or error?\n  [ ] Try <script>alert(1)</script> in text inputs — is it reflected?\n  [ ] Try ../../../etc/passwd in file name fields\n\nBUSINESS LOGIC:\n  [ ] Apply a discount code twice\n  [ ] Change a price parameter: POST /checkout with { price: 0.01 }\n  [ ] Access step 3 of a multi-step flow without completing step 2\n  [ ] Set a quantity to -1 (negative numbers)\n\nHEADERS AND CONFIGURATION:\n  [ ] Check response headers: is X-Frame-Options set? Content-Security-Policy?\n      (Browser DevTools → Network tab → click any request → Response Headers)\n  [ ] Is X-Powered-By revealing the framework?\n  [ ] Is the app accessible over HTTP (no redirect to HTTPS)?\n  [ ] What does an error page return? (Try /api/nonexistent-endpoint)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ESLint security plugin in CI"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Setting up static security analysis",
+      "code": "// npm install --save-dev eslint-plugin-security eslint-plugin-no-unsanitized\n\n// .eslintrc.js — add security rules\nmodule.exports = {\n  plugins: ['security', 'no-unsanitized'],\n  extends: [\n    'plugin:security/recommended',\n  ],\n  rules: {\n    // Flag uses of eval() — almost never needed, often exploitable\n    'no-eval': 'error',\n    // Flag innerHTML assignments — potential XSS\n    'no-unsanitized/method': 'error',\n    'no-unsanitized/property': 'error',\n    // Flag hardcoded secrets — catches 'password: \"abc123\"' patterns\n    'security/detect-possible-timing-attacks': 'error',\n    // Flag regex that could cause ReDoS (Catastrophic Backtracking)\n    'security/detect-unsafe-regex': 'warn',\n    // Flag child_process.exec with non-literal strings\n    'security/detect-child-process': 'error',\n    // Flag non-literal require() calls\n    'security/detect-non-literal-require': 'warn',\n  },\n};\n\n// Add to package.json scripts:\n// \"lint:security\": \"eslint . --ext .ts,.js --rule 'security/detect-object-injection: error'\"\n\n// In GitHub Actions:\n// - name: Security lint\n//   run: npm run lint:security\n\n// Semgrep (more powerful, free tier):\n// npx semgrep --config=p/nodejs-security .\n// Catches: SQL injection, path traversal, SSRF, ReDoS and more\n// Integrates with GitHub as a PR check"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-15-q1",
+          "question": "You find that submitting a POST to /api/checkout with a modified 'price' field in the request body charges the user $0.01 for a $100 item. What type of vulnerability is this, and how is it fixed?",
+          "type": "multiple-choice",
+          "options": [
+            "SQL injection — sanitize the price field with a regex",
+            "Business logic flaw — the server must always calculate the final price from its own database (product ID → server-side price lookup), never trust client-submitted prices",
+            "XSS — the price field allows script injection",
+            "CSRF — add a CSRF token to the checkout form"
+          ],
+          "correctAnswer": 1,
+          "explanation": "This is a classic business logic vulnerability (also called 'mass assignment' or 'parameter tampering'). The server is trusting the price submitted by the client rather than looking up the authoritative price from its own database. The fix: the checkout endpoint should receive product IDs and quantities, then look up each product's price server-side. Never trust client-submitted prices, discount amounts, or totals. This pattern extends to many fields: user role (don't let clients set their own role), subscription tier, transaction amounts. The principle: the server owns the source of truth for business-critical values; clients can express intent (what to buy, how many) but not determine outcomes (how much to charge)."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I get better at finding security vulnerabilities?",
+      "a": "Practice on intentionally vulnerable apps: OWASP WebGoat (Java), OWASP Juice Shop (Node.js — the most modern), DVWA (PHP), and HackTheBox / TryHackMe for broader penetration testing skills. Reading bug bounty writeups on HackerOne Hacktivity and Bugcrowd shows real-world vulnerability patterns. The Portswigger Web Security Academy (free) is the best structured curriculum with hands-on labs. Security comes from developing a threat modeling mindset: for every feature you build, ask 'what could an attacker do with this input?'"
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Testing Guide v4.2", "url": "https://owasp.org/www-project-web-security-testing-guide/", "verified": "2026-11-04" },
+    { "name": "PortSwigger Web Security Academy", "url": "https://portswigger.net/web-security", "verified": "2026-11-04" },
+    { "name": "OWASP Juice Shop", "url": "https://github.com/juice-shop/juice-shop", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["pre-launch security audits", "CI/CD pipelines", "ongoing security posture"],
+    "examples": [
+      "OWASP Juice Shop is a deliberately insecure Node.js/Express/Angular app with 100+ challenges covering all OWASP Top 10 categories. It's used by OWASP to train developers. You can run it locally with 'docker run -p 3000:3000 bkimminich/juice-shop' and practice every vulnerability type covered in this track — SQL injection, XSS, CSRF, broken access control — in a legal, safe environment",
+      "HackerOne's bug bounty platform has paid out over $300 million to security researchers. Reading public disclosures (hackerone.com/hacktivity) shows how real vulnerabilities are found and reported. Many are simple IDOR issues, logic flaws, and misconfigurations — not sophisticated 0-days. Most bugs are found through methodical manual testing of every API endpoint, not automated tools"
+    ]
+  }
+}

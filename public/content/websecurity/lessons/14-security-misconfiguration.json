@@ -1,0 +1,77 @@
+{
+  "id": "14-security-misconfiguration",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "defense-and-testing",
+  "title": "Security Misconfiguration",
+  "subtitle": "Default credentials, exposed debug endpoints, verbose error messages, and production hardening checklist",
+  "difficulty": "beginner",
+  "estimatedMinutes": 11,
+  "status": "published",
+  "prerequisites": ["websecurity/13-dependency-security"],
+  "skillsTaught": ["websecurity.misconfiguration", "websecurity.default-credentials", "websecurity.debug-endpoints", "websecurity.error-handling", "websecurity.cloud-iam"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Common misconfiguration patterns"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Security misconfiguration (OWASP A05:2021)",
+      "code": "DEFAULT CREDENTIALS:\n  Database installed with root/admin + no password (MySQL, MongoDB, Redis)\n  Admin panels with admin/admin or admin/password (Jenkins, Grafana, phpMyAdmin)\n  Cloud services with default IAM policies (wide-open S3 buckets)\n  Fix: change all defaults before connecting to any network\n\nEXPOSED DEBUG ENDPOINTS:\n  /debug, /status, /metrics — internal endpoints publicly accessible\n  Spring Boot Actuator /actuator/env exposing environment variables\n  Rails /rails/info/properties in production\n  GraphQL introspection enabled in production (reveals full schema)\n  Fix: disable in production, restrict to internal network / VPN IP ranges\n\nVERBOSE ERROR MESSAGES:\n  Stack traces with file paths, library versions, internal IPs in production\n  SQL errors exposing table/column names: 'column password_hash does not exist'\n  Fix: catch all errors, log internally, return generic messages to clients\n\nDIRECTORY LISTING:\n  Web server configured to show file lists for directories without index.html\n  Exposes source files, config files, uploaded documents\n  Fix: disable in nginx (autoindex off;) and Apache (Options -Indexes)\n\nUNNECESSARY OPEN PORTS:\n  Database port 5432 (PostgreSQL) exposed to public internet\n  Redis port 6379 open — Redis has no auth by default\n  Fix: firewall rules to allow database access only from app servers\n  Cloud: security groups should only allow necessary traffic"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Error handling — don't leak internals"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Secure error handling in Express",
+      "code": "// VULNERABLE — sends stack trace and internal details to client\napp.get('/user/:id', async (req, res) => {\n  const user = await db.query(`SELECT * FROM users WHERE id = ${req.params.id}`);\n  res.json(user);\n  // If this fails: stack trace including file paths, DB schema, library versions\n  // goes directly to the client — a goldmine for attackers\n});\n\n// SECURE — catch errors, log internally, return generic message\napp.get('/user/:id', async (req, res) => {\n  try {\n    const user = await db.users.findById(req.params.id);\n    res.json(user);\n  } catch (error) {\n    // Log the full error internally for debugging\n    logger.error({ err: error, userId: req.params.id }, 'Failed to fetch user');\n    // Return nothing useful to the client\n    res.status(500).json({ error: 'Internal server error' });\n  }\n});\n\n// Global error handler — catches any unhandled errors\napp.use((err: Error, req: Request, res: Response, next: NextFunction) => {\n  // Log full error (including stack trace) to your logging service\n  logger.error({ err, url: req.url, method: req.method }, 'Unhandled error');\n\n  // In development: show the error (useful for debugging)\n  if (process.env.NODE_ENV === 'development') {\n    return res.status(500).json({ error: err.message, stack: err.stack });\n  }\n\n  // In production: generic message only\n  res.status(500).json({ error: 'Something went wrong' });\n});\n\n// Disable framework fingerprinting headers\napp.disable('x-powered-by');  // Remove 'X-Powered-By: Express' header\n// Attackers use this to identify your framework and look for version-specific exploits"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Disabling debug features in production",
+      "code": "// GraphQL — disable introspection in production\nimport { ApolloServer } from '@apollo/server';\n\nconst server = new ApolloServer({\n  typeDefs,\n  resolvers,\n  // Introspection lets anyone query your entire schema\n  // Useful in development, a recon tool in production\n  introspection: process.env.NODE_ENV !== 'production',\n});\n\n// Express — disable development-only middleware in production\nif (process.env.NODE_ENV !== 'production') {\n  app.use('/debug/config', (req, res) => {\n    res.json({\n      env: process.env.NODE_ENV,\n      dbHost: process.env.DB_HOST,\n      // ... other debug info\n    });\n  });\n}\n// This endpoint ONLY exists in development — never in production\n\n// Environment check middleware for admin/monitoring endpoints\nfunction internalOnly(req: Request, res: Response, next: NextFunction) {\n  const internalIPs = ['127.0.0.1', '10.0.0.0/8'];  // Localhost + internal network\n  const clientIP = req.ip || req.socket.remoteAddress;\n\n  // Simple check — in production use a proper IP range library (ip-range-check)\n  if (clientIP === '127.0.0.1' || clientIP?.startsWith('10.')) {\n    return next();\n  }\n  res.status(404).json({ error: 'Not found' });\n}\n\napp.use('/metrics', internalOnly, metricsHandler);\napp.use('/health', internalOnly, healthHandler);  // Or make /health public for load balancers"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-14-q1",
+          "question": "Your production API returns this error: 'PG::UndefinedColumn: ERROR: column users.password_hash does not exist'. What security issues does this expose?",
+          "type": "multiple-choice",
+          "options": [
+            "None — it's just a database error, not a security issue",
+            "It reveals that you use PostgreSQL (PG::), the table name (users), a column name (password_hash), and that the app has a bug an attacker can probe — all useful reconnaissance information",
+            "It only reveals that there's a bug, which is public knowledge once the error is visible",
+            "It exposes the password hash of a user"
+          ],
+          "correctAnswer": 1,
+          "explanation": "This error message is free reconnaissance. It tells an attacker: (1) you're using PostgreSQL (PG:: prefix — they know which SQL injection syntax to use); (2) there's a table called 'users'; (3) there's (or was) a column called 'password_hash' — they now know how your auth schema is structured; (4) there's a bug they can potentially probe further. In production, this should be caught and logged internally, while the client receives only 'Something went wrong'. The detailed error goes to your logging service (Pino/Sentry), not the HTTP response. Remove X-Powered-By header for the same reason — don't give attackers a free fingerprint."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I make sure debug configuration is never accidentally deployed to production?",
+      "a": "Gate all debug behavior on NODE_ENV checks, and enforce that NODE_ENV=production in your deployment environment via your hosting platform's environment variable config (Railway, Render, Vercel, etc.). Never hardcode NODE_ENV in your committed code — set it in the deployment environment. For extra safety, use a separate startup script for production that validates required env vars and fails fast if debug flags are set. Many teams also run configuration audits as part of their CI pipeline."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Security Misconfiguration", "url": "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["all production deployments", "cloud infrastructure", "database setup"],
+    "examples": [
+      "In 2017, a misconfigured Amazon S3 bucket belonging to a defense contractor exposed 1.8 billion scraped social media posts and 400GB of sensitive data. The bucket was set to public-read. AWS has since added 'Block Public Access' features and alerts for public buckets, but misconfigured cloud storage remains one of the most common causes of data breaches",
+      "The 2020 SolarWinds supply chain attack involved attackers who had persistent access exploiting a misconfigured build system. Attackers had been present for months before detection. One contributing factor: insufficient internal network segmentation and overly permissive internal access controls meant that once inside, they could move freely. Defense-in-depth (principle of least privilege, network segmentation) limits blast radius when prevention fails"
+    ]
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "id": "04-sql-injection",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "injection-attacks",
+  "title": "SQL Injection",
+  "subtitle": "How attackers turn input fields into database commands — and how parameterized queries stop them completely",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 15,
+  "status": "published",
+  "prerequisites": ["websecurity/03-http-security-basics"],
+  "skillsTaught": ["websecurity.sql-injection", "websecurity.parameterized-queries", "websecurity.orm-security", "websecurity.error-disclosure"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How SQL injection works"
+    },
+    {
+      "type": "paragraph",
+      "text": "SQL injection (SQLi) happens when user input is concatenated into a SQL query without sanitisation. The attacker's input becomes part of the query's logic — not just a value, but a command. It has been in every OWASP Top 10 since the list began (now under A03 — Injection). A single SQLi vulnerability can result in full database read access, data modification, authentication bypass, and sometimes OS command execution."
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Vulnerable code — string concatenation",
+      "code": "// VULNERABLE: user input concatenated directly into SQL\napp.get('/user', async (req, res) => {\n  const { username } = req.query;\n\n  // If username = 'alice', the query is:\n  // SELECT * FROM users WHERE username = 'alice'\n  // Safe-looking, right? Now see what an attacker does:\n\n  const query = `SELECT * FROM users WHERE username = '${username}'`;\n  const user = await db.query(query);\n  res.json(user);\n});\n\n// ATTACK 1 — Authentication bypass\n// username = ' OR '1'='1\n// Query becomes: SELECT * FROM users WHERE username = '' OR '1'='1'\n// '1'='1' is always true → returns ALL users\n\n// ATTACK 2 — Dump entire table\n// username = '; SELECT * FROM users; --\n// Query becomes: SELECT * FROM users WHERE username = '';\n//               SELECT * FROM users; --'\n// Drops first query, runs second → all user records\n\n// ATTACK 3 — Drop a table\n// username = '; DROP TABLE users; --\n// This is a 'classic' but usually fails on modern DBs with limited user perms\n\n// ATTACK 4 — Union attack (exfiltrate other tables)\n// username = ' UNION SELECT username, password, email FROM admin_users --\n// Appends results from admin_users to the original query"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The fix — parameterized queries"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Parameterized queries (the correct approach)",
+      "code": "// SAFE: parameterized query with pg (node-postgres)\nimport { Pool } from 'pg';\nconst db = new Pool();\n\napp.get('/user', async (req, res) => {\n  const { username } = req.query;\n\n  // $1 is a placeholder — the value is passed separately\n  // The database driver escapes it automatically\n  // Even if username = \"' OR '1'='1\", it is treated as a LITERAL STRING\n  const result = await db.query(\n    'SELECT id, username, email FROM users WHERE username = $1',\n    [username]  // Value passed separately, never interpolated into SQL\n  );\n\n  res.json(result.rows[0] ?? null);\n});\n\n// The database sees:\n// SQL: SELECT id, username, email FROM users WHERE username = $1\n// Parameters: [\"' OR '1'='1\"]\n// It looks for a user with the literal name \"' OR '1'='1\" — finds none\n// The injection payload is never parsed as SQL\n\n// Other database drivers:\n// MySQL (mysql2):   db.query('SELECT * FROM users WHERE id = ?', [id])\n// SQLite (better-sqlite3): db.prepare('SELECT * FROM users WHERE id = ?').get(id)\n// Prisma:           prisma.user.findUnique({ where: { id } })  // always safe"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ORMs — parameterized by default"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Prisma and Drizzle — safe by default",
+      "code": "// Prisma — all queries are parameterized automatically\nimport { PrismaClient } from '@prisma/client';\nconst prisma = new PrismaClient();\n\n// SAFE — Prisma generates parameterized SQL\nconst user = await prisma.user.findUnique({\n  where: { username: req.query.username },\n  select: { id: true, username: true, email: true },\n});\n\n// DANGEROUS EVEN WITH PRISMA — raw SQL query\n// If you bypass the ORM, you bypass the protection\nconst result = await prisma.$queryRaw(\n  `SELECT * FROM users WHERE username = '${req.query.username}'`  // ← VULNERABLE\n);\n\n// Safe raw query with Prisma (use Prisma.sql template literal):\nimport { Prisma } from '@prisma/client';\nconst result = await prisma.$queryRaw(\n  Prisma.sql`SELECT * FROM users WHERE username = ${req.query.username}`\n  // Prisma.sql is a tagged template that parameterizes automatically\n);\n\n// RULE: Never concatenate user input into SQL, even inside an ORM's raw query"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Defence in depth for SQL injection"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Layers of SQLi protection",
+      "code": "LAYER 1 — Parameterized queries (primary defence, mandatory)\n  Never concatenate user input into SQL. Always use ? or $1 placeholders.\n\nLAYER 2 — Least privilege database user\n  Your app's DB user should only have SELECT/INSERT/UPDATE/DELETE\n  It should NOT have DROP TABLE, CREATE USER, FILE (reads OS files)\n  Limits damage if injection occurs\n\nLAYER 3 — Input validation\n  If an ID should be a number: verify it's a number before the query\n  parseInt(id) === NaN → reject the request\n  But don't rely on this as your primary defence — validate AND parameterize\n\nLAYER 4 — Error handling — don't leak schema\n  NEVER return raw database errors to users:\n  'ERROR: column \"usernaem\" does not exist at character 42' tells attacker\n  your schema, column names, and DB type\n  Return generic error messages; log the full error server-side only\n\nLAYER 5 — WAF (Web Application Firewall)\n  Cloudflare and AWS WAF can detect and block common SQLi patterns\n  Not a replacement for parameterized queries — a last line of defence"
+    },
+    {
+      "type": "warning",
+      "text": "<strong>Input escaping is NOT a sufficient defence.</strong> You may have seen advice to 'escape user input' (replacing quotes with escaped quotes). This approach is fragile — different databases have different escaping rules, escaping can be bypassed in multi-byte character encodings, and it only works for certain injection contexts (string values, not identifiers). Parameterized queries separate the SQL command from the data at the protocol level — they are the only reliable defence."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-04-q1",
+          "question": "A developer validates that req.query.id is a number before using it: 'const id = parseInt(req.query.id); const q = `SELECT * FROM orders WHERE id = ${id}`'. Is this safe?",
+          "type": "multiple-choice",
+          "options": [
+            "Yes — since id is confirmed to be a number, concatenation is safe",
+            "Yes — parseInt prevents any string injection",
+            "No — validation reduces the attack surface but still allows numeric-based injection techniques like UNION attacks",
+            "No — it's still vulnerable because parseInt could return NaN which gets into the query"
+          ],
+          "correctAnswer": 0,
+          "explanation": "In this specific case — an integer ID validated with parseInt — the concatenation is actually safe, because a number can never contain SQL metacharacters. However, this is a fragile pattern that breaks immediately for any other data type (strings, emails, names). The correct approach is always a parameterized query: 'db.query(\"SELECT * FROM orders WHERE id = $1\", [id])'. This works for all types, is immune to all SQL injection techniques, and is readable. Relying on type validation as a security control is a habit that leads to vulnerabilities when requirements change."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can NoSQL databases (MongoDB) be injected?",
+      "a": "Yes — 'NoSQL injection' is different from SQL injection but real. MongoDB queries are JavaScript objects: if you take user input and directly use it as a query filter, an attacker can inject query operators. Example: { password: { $gt: '' } } — the $gt operator matches all non-empty passwords, bypassing login. Defence: use Mongoose (which sanitizes input) or manually validate that query values are strings/numbers, not objects."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP SQL Injection Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["login forms", "search inputs", "API parameters", "URL path segments"],
+    "examples": [
+      "Sony Pictures (2011) was breached via SQL injection in a fan site. Attackers extracted the personal data of 1 million users, including plaintext passwords (another problem), internal documents, and unreleased films. The breach used a union-based SQL injection on a search field",
+      "SQLMap is an open-source tool that automates SQL injection detection and exploitation. A security researcher can point it at any URL and it will automatically test dozens of injection techniques. If your app is vulnerable, a non-expert attacker can find it in minutes using automated tools"
+    ]
+  }
+}

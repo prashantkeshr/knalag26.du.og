@@ -1,0 +1,81 @@
+{
+  "id": "09-clickjacking",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "client-side-attacks",
+  "title": "Clickjacking & UI Attacks",
+  "subtitle": "How attackers overlay invisible iframes to steal clicks — and the one-line header fix",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": ["websecurity/08-cors-and-cookies"],
+  "skillsTaught": ["websecurity.clickjacking", "websecurity.x-frame-options", "websecurity.csp-frame-ancestors", "websecurity.ui-redressing"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How clickjacking works"
+    },
+    {
+      "type": "paragraph",
+      "text": "Clickjacking (UI redressing) tricks users into clicking on something they didn't intend to click. The attacker embeds your site in a transparent iframe on their page, then positions their content underneath your site's buttons. When the user thinks they're clicking 'Close Ad', they're actually clicking 'Confirm Transfer' on your bank site. The attack requires the victim to be logged into your site and visit the attacker's page."
+    },
+    {
+      "type": "code",
+      "lang": "html",
+      "filename": "Clickjacking attack example",
+      "code": "<!-- evil.com embeds bank.com in a transparent iframe -->\n<!DOCTYPE html>\n<html>\n<style>\n  iframe {\n    position: absolute;\n    top: 0; left: 0;\n    width: 100%; height: 100%;\n    opacity: 0.0001;  /* Nearly invisible — attacker overlays decoy content */\n    z-index: 2;\n  }\n  .decoy {\n    position: absolute;\n    top: 300px;\n    left: 500px;\n    z-index: 1;\n  }\n</style>\n<body>\n  <!-- The transparent bank iframe is on top -->\n  <!-- Positioned so the 'Confirm Transfer' button is directly under the decoy -->\n  <iframe src=\"https://bank.com/transfer?amount=10000&to=attacker\"></iframe>\n\n  <!-- User sees this and thinks they're clicking a prize button -->\n  <button class=\"decoy\">Click here to claim $100!</button>\n</body>\n</html>\n\n<!-- User clicks what appears to be a prize button -->\n<!-- They're actually clicking 'Confirm Transfer' in the iframe -->\n<!-- The bank processes the transfer (user is authenticated via session cookie) -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Defence — frame-busting headers"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "Preventing iframe embedding",
+      "code": "// METHOD 1 — X-Frame-Options header (older, widely supported)\n// DENY: page cannot be embedded anywhere\n// SAMEORIGIN: page can only be embedded by pages on the same origin\n// ALLOW-FROM https://trusted.com: only this origin can embed (deprecated)\n\napp.use((req, res, next) => {\n  res.setHeader('X-Frame-Options', 'DENY');\n  // or\n  res.setHeader('X-Frame-Options', 'SAMEORIGIN');  // for same-origin iframes\n  next();\n});\n\n// METHOD 2 — CSP frame-ancestors (modern, more flexible, preferred)\n// Supersedes X-Frame-Options — set both for backward compatibility\n\n// Deny all iframes:\nres.setHeader('Content-Security-Policy', \"frame-ancestors 'none'\");\n\n// Allow same origin only:\nres.setHeader('Content-Security-Policy', \"frame-ancestors 'self'\");\n\n// Allow specific trusted origins:\nres.setHeader(\n  'Content-Security-Policy',\n  \"frame-ancestors 'self' https://dashboard.myapp.com\"\n);\n\n// Using helmet (sets both automatically):\nimport helmet from 'helmet';\napp.use(helmet({\n  frameguard: { action: 'deny' },  // Sets X-Frame-Options: DENY\n  contentSecurityPolicy: {\n    directives: {\n      frameAncestors: [\"'none'\"],  // Sets CSP frame-ancestors 'none'\n    },\n  },\n}));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "When to allow iframes",
+      "code": "DENY everything (most apps):\n  Login pages, payment flows, account settings, admin panels\n  Any page where a click has significant consequences\n\nSAMEORIGIN (same-domain embeds):\n  Documentation embeds your own code examples\n  Your app embeds its own sub-pages in an iframe\n\nALLOW specific origins (partner embeds):\n  A widget meant to be embedded by paying customers\n  A YouTube-style embed for third parties\n  Use CSP frame-ancestors 'self' https://trusted-partner.com\n\nNEVER use frame-ancestors 'self' for:\n  Payment pages\n  Pages that take irreversible actions\n  Authentication pages\n  These should always be DENY or 'none'"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-09-q1",
+          "question": "You set X-Frame-Options: SAMEORIGIN on your bank's transfer page. A user visits evil.com which iframes bank.com/transfer. What happens?",
+          "type": "multiple-choice",
+          "options": [
+            "The iframe loads but the user can't interact with it",
+            "The browser refuses to render bank.com inside evil.com's iframe — SAMEORIGIN blocks cross-origin framing",
+            "The transfer page loads but the submit button is disabled",
+            "The user's session cookie is not sent inside the iframe"
+          ],
+          "correctAnswer": 1,
+          "explanation": "SAMEORIGIN tells the browser: only display this page in an iframe if the parent page is from the same origin. evil.com is a different origin from bank.com, so the browser refuses to render the bank.com iframe at all — the user sees a blank iframe or an error. The clickjacking attack fails completely. This is why setting X-Frame-Options (or the equivalent CSP frame-ancestors) on sensitive pages is such a high-value, low-effort security control — one header stops the entire attack class."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does the X-Frame-Options header need to be set on every page?",
+      "a": "It should be set globally (on all responses), not just sensitive pages. Attackers can target any page — even a 'safe' page might have a form or link that can be abused. Add it as middleware that applies to all routes. The only pages that legitimately need to be iframeable are widgets you intentionally share for embedding — exclude those specifically."
+    }
+  ],
+  "sources": [
+    { "name": "OWASP Clickjacking Defence Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["payment pages", "account settings", "social media actions"],
+    "examples": [
+      "Facebook's 'Like' button was famously used in a Likejacking attack — attackers embedded an invisible 'Like' button on top of decoy content. Users thought they were clicking something else and unknowingly liked attacker pages, which then spread spam. Facebook fixed this by adding frame-busting JavaScript and later X-Frame-Options",
+      "Paypal was vulnerable to a clickjacking attack that could cause logged-in users to send money to an attacker's account. Combining clickjacking with autofill exploitation meant users could confirm a payment with a single click on what appeared to be an unrelated element"
+    ]
+  }
+}

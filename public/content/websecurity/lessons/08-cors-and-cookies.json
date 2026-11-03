@@ -1,0 +1,87 @@
+{
+  "id": "08-cors-and-cookies",
+  "version": "1.0.0",
+  "technology": "websecurity",
+  "module": "client-side-attacks",
+  "title": "CORS & Cookie Security",
+  "subtitle": "What CORS actually does, common misconfigurations that break security, and cookie security patterns for SPAs",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 13,
+  "status": "published",
+  "prerequisites": ["websecurity/07-csrf"],
+  "skillsTaught": ["websecurity.cors", "websecurity.cors-misconfiguration", "websecurity.preflight", "websecurity.credentials-cors"],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "CORS — relaxing the Same-Origin Policy"
+    },
+    {
+      "type": "paragraph",
+      "text": "The Same-Origin Policy blocks JavaScript from reading cross-origin responses. CORS (Cross-Origin Resource Sharing) is the mechanism that lets a server say 'it's OK for other origins to read my responses'. Servers opt into it via response headers. CORS is not a security feature — it's a way to selectively relax a security feature (SOP). A misconfigured CORS policy can undo the protection SOP provides."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "How CORS works — the browser flow",
+      "code": "SIMPLE REQUESTS (GET, POST with safe content types):\n  1. Browser sends request with 'Origin: https://myapp.com' header\n  2. Server responds with 'Access-Control-Allow-Origin: https://myapp.com'\n  3. Browser checks: does origin match? Yes → JavaScript can read the response\n\nPREFLIGHT (OPTIONS) — for non-simple requests:\n  1. Browser first sends: OPTIONS /api/users with:\n       Origin: https://myapp.com\n       Access-Control-Request-Method: DELETE\n       Access-Control-Request-Headers: Authorization, Content-Type\n  2. Server responds:\n       Access-Control-Allow-Origin: https://myapp.com\n       Access-Control-Allow-Methods: GET, POST, DELETE\n       Access-Control-Allow-Headers: Authorization, Content-Type\n       Access-Control-Max-Age: 86400  (cache preflight for 24 hours)\n  3. If approved: browser sends the actual DELETE request\n\nKEY POINT:\n  CORS is enforced by the browser, not the server.\n  curl, Postman, and direct server-to-server calls bypass CORS entirely.\n  CORS prevents one website from reading another's data in a browser context.\n  It does NOT prevent a server from being directly attacked."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Safe vs dangerous CORS configurations"
+    },
+    {
+      "type": "code",
+      "lang": "typescript",
+      "filename": "CORS configuration in Express",
+      "code": "import cors from 'cors';  // npm install cors\n\n// DANGEROUS — wildcard origin with credentials\n// The browser actually blocks credentials with wildcard origin\n// (Access-Control-Allow-Credentials: true + Access-Control-Allow-Origin: * is invalid)\n// But this misconfiguration pattern is extremely common and confusing:\napp.use(cors({ origin: '*' }));  // Fine for public APIs, bad for credentialed ones\n\n// DANGEROUS — reflecting the Origin header (trusts ANY origin)\napp.use((req, res, next) => {\n  res.header('Access-Control-Allow-Origin', req.headers.origin);  // ← NEVER do this\n  res.header('Access-Control-Allow-Credentials', 'true');\n  next();\n});\n// This means ANY origin can read your API with user credentials\n// A malicious site can read your users' private data\n\n// SAFE — explicit allowlist of trusted origins\nconst ALLOWED_ORIGINS = [\n  'https://myapp.com',\n  'https://staging.myapp.com',\n  process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : '',\n].filter(Boolean);\n\napp.use(cors({\n  origin: (origin, callback) => {\n    // Allow requests with no origin (mobile apps, curl, Postman)\n    if (!origin || ALLOWED_ORIGINS.includes(origin)) {\n      callback(null, true);\n    } else {\n      callback(new Error(`CORS: origin ${origin} not allowed`));\n    }\n  },\n  credentials: true,  // Allow cookies to be sent cross-origin\n  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],\n  allowedHeaders: ['Content-Type', 'Authorization'],\n  maxAge: 86400,  // Cache preflight response for 24 hours\n}));"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cookie vs token auth for SPAs"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "Comparing auth storage strategies",
+      "code": "OPTION 1: HttpOnly Cookie (recommended for web apps)\n  Storage:    Browser sends automatically — not accessible to JS\n  CSRF risk:  Yes — mitigated by SameSite=Lax\n  XSS risk:   Low — JavaScript can't steal the cookie\n  CORS:       Requires credentials: true + specific origin\n  Best for:   Traditional web apps, first-party SPAs\n\nOPTION 2: localStorage + Authorization header\n  Storage:    Explicitly managed by JavaScript\n  CSRF risk:  None — attacker can't read localStorage cross-site\n  XSS risk:   HIGH — XSS can read localStorage and steal the token\n  CORS:       Just needs Authorization header allowed\n  Best for:   Mobile apps, non-browser clients, cross-origin SPAs\n  WARNING:    If XSS exists, tokens are stolen and sessions persisted\n\nOPTION 3: sessionStorage\n  Like localStorage but cleared when tab closes\n  Same XSS risk as localStorage\n  Slightly better (token dies with the tab)\n\nOPTION 4: Memory (React state, not stored)\n  Most secure against XSS and CSRF\n  Lost on page refresh — need refresh token in httpOnly cookie to restore\n  Complex to implement\n\nRECOMMENDATION FOR NEW APPS:\n  Use HttpOnly + SameSite=Lax cookie for the session\n  Use short-lived JWT (15 min) in memory + refresh token in httpOnly cookie\n  Never store long-lived tokens in localStorage"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "websecurity-08-q1",
+          "question": "Your API sets 'Access-Control-Allow-Origin: *' and 'Access-Control-Allow-Credentials: true'. A user on evil.com makes a fetch() to your API with credentials. What happens?",
+          "type": "multiple-choice",
+          "options": [
+            "The browser allows it — the wildcard grants everyone access",
+            "The browser blocks the request — wildcard origin and credentials: true are mutually exclusive in the CORS spec",
+            "The server rejects the request because it detects a cross-origin header",
+            "The credentials are stripped but the request goes through"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The CORS specification explicitly forbids combining Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true. When a browser sees both, it treats the CORS request as failed and blocks JavaScript from reading the response. This is a safeguard — if wildcard + credentials were allowed, any website could read your authenticated users' data. The fix is to use a dynamic origin check (allowlist) instead of the wildcard when credentials are needed. This is a very common misconfiguration that developers hit when building SPAs with cookie-based auth."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "My React app and API are on different domains. How do I set up cookies?",
+      "a": "Set your session cookie with SameSite=None; Secure=true (required for cross-site cookies). Configure your API's CORS to specify the React app's exact origin and credentials: true. On the frontend, use fetch() or axios with credentials: 'include'. This is the standard pattern for SPAs on a different domain from their API. Without credentials: 'include', cookies are never sent with cross-origin requests."
+    }
+  ],
+  "sources": [
+    { "name": "MDN — CORS", "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS", "verified": "2026-11-04" },
+    { "name": "OWASP HTML5 Security Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html", "verified": "2026-11-04" }
+  ],
+  "realWorld": {
+    "usedIn": ["SPA APIs", "third-party integrations", "CDN-hosted assets"],
+    "examples": [
+      "In 2018, researchers found that 14.7% of CORS-enabled websites were misconfigured with reflect-origin (trusting any origin). This affected major websites including airlines, banks, and government sites. A single line of JavaScript on a malicious site could read an authenticated user's private data from these APIs",
+      "The Portswigger Web Security Academy (labs.portswigger.net) has interactive CORS labs where you can practice exploiting misconfigured CORS policies. This hands-on approach is how security professionals learn to identify and exploit these vulnerabilities in penetration tests"
+    ]
+  }
+}

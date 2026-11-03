@@ -259,7 +259,7 @@
     "order": 21,
     "stage": 15,
     "playground": "javascript",
-    "enabled": false,
+    "enabled": true,
     "description": "OWASP top 10, XSS, CSRF, SQL injection, and secure coding",
     "estimatedHours": 20
   },
