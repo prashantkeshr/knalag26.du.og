@@ -50,9 +50,9 @@ export interface SearchEntry {
 }
 
 export function getLessonUrl(techId: string, lessonId: string): string {
-  return `#/learn/${techId}/${lessonId}`;
+  return `/learn/${techId}/${lessonId}`;
 }
 
 export function getTechUrl(techId: string): string {
-  return `#/learn/${techId}`;
+  return `/learn/${techId}`;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Circle, ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, Clock, ExternalLink } from 'lucide-react';
 import { loadLesson, loadCourse, loadModules } from '@/lib/content-engine';
+import { useSeo } from '@/lib/seo';
 import { useStore } from '@/store';
 import type { Lesson, Course, Module } from '@/types/content';
 import ContentRenderer from '@/components/content/ContentRenderer';
@@ -62,6 +63,41 @@ export default function LearnPage() {
 
   // FAQ section
   const faq = lesson?.faq ?? [];
+
+  // Per-lesson SEO: title, description, canonical, structured data
+  useSeo({
+    title: lesson ? lesson.title : (course?.name ?? tech ?? 'Learn'),
+    description: lesson
+      ? lesson.subtitle
+      : (course ? `Learn ${course.name} — free interactive lessons on KERNAL` : ''),
+    path: lesson && tech && lessonId
+      ? `/learn/${tech}/${lessonId}`
+      : `/learn/${tech ?? ''}`,
+    jsonLd: lesson && tech ? {
+      '@context': 'https://schema.org',
+      '@type': 'LearningResource',
+      name: lesson.title,
+      description: lesson.subtitle,
+      url: `https://kernal.dhurta.org/learn/${tech}/${lessonId}`,
+      educationalLevel: lesson.difficulty === 'beginner' ? 'Beginner'
+        : lesson.difficulty === 'intermediate' ? 'Intermediate' : 'Advanced',
+      learningResourceType: 'Lesson',
+      isAccessibleForFree: true,
+      inLanguage: 'en',
+      timeRequired: `PT${lesson.estimatedMinutes}M`,
+      provider: {
+        '@type': 'Organization',
+        name: 'KERNAL by Dhurta.Org',
+        url: 'https://kernal.dhurta.org',
+      },
+      isPartOf: course ? {
+        '@type': 'Course',
+        name: course.name,
+        url: `https://kernal.dhurta.org/learn/${tech}`,
+      } : undefined,
+      teaches: lesson.skillsTaught,
+    } : undefined,
+  });
 
   if (error) {
     return (

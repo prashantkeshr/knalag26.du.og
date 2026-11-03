@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useStore } from '@/store';
 import { initSearch } from '@/lib/search';
 import { detectDevice } from '@/lib/device';
@@ -26,7 +26,7 @@ export default function App() {
   }, [hydrate]);
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
@@ -38,6 +38,6 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
