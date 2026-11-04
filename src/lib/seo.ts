@@ -19,21 +19,23 @@ export interface SeoProps {
   description: string;
   path: string;
   jsonLd?: object;
+  ogType?: 'article' | 'website';
 }
 
-export function useSeo({ title, description, path, jsonLd }: SeoProps) {
+export function useSeo({ title, description, path, jsonLd, ogType = 'article' }: SeoProps) {
   useEffect(() => {
     const fullUrl = `${BASE_URL}${path}`;
     const fullTitle = `${title} | KERNAL`;
 
     document.title = fullTitle;
+    setMeta('title', fullTitle);
 
     setMeta('description', description);
 
     setMeta('og:title', fullTitle, 'property');
     setMeta('og:description', description, 'property');
     setMeta('og:url', fullUrl, 'property');
-    setMeta('og:type', 'article', 'property');
+    setMeta('og:type', ogType, 'property');
 
     setMeta('twitter:title', fullTitle);
     setMeta('twitter:description', description);
@@ -60,6 +62,7 @@ export function useSeo({ title, description, path, jsonLd }: SeoProps) {
 
     return () => {
       document.title = DEFAULT_TITLE;
+      setMeta('title', DEFAULT_TITLE);
       setMeta('description', DEFAULT_DESC);
       setMeta('og:title', DEFAULT_TITLE, 'property');
       setMeta('og:description', DEFAULT_DESC, 'property');
@@ -71,5 +74,5 @@ export function useSeo({ title, description, path, jsonLd }: SeoProps) {
       const canon = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
       if (canon) canon.href = BASE_URL + '/';
     };
-  }, [title, description, path, jsonLd]);
+  }, [title, description, path, jsonLd, ogType]);
 }

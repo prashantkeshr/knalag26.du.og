@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Lock } from 'lucide-react';
 import { loadTechnologies } from '@/lib/content-engine';
+import { useSeo } from '@/lib/seo';
 import { useStore } from '@/store';
 import type { Technology } from '@/types/content';
 
@@ -26,6 +27,13 @@ const STAGE_META: Record<number, { label: string; color: string }> = {
 };
 
 export default function RoadmapPage() {
+  useSeo({
+    title: 'Learning Roadmap',
+    description: 'Visualise the full KERNAL curriculum — 18 tracks, 270 lessons, structured from beginner to expert.',
+    path: '/roadmap',
+    ogType: 'website',
+  });
+
   const [technologies, setTechnologies] = useState<Technology[]>([]);
   const progress = useStore(s => s.progress);
 

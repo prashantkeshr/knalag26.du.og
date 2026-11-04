@@ -8,6 +8,7 @@ import {
   getUserName, setUserName,
 } from '@/lib/storage';
 import { loadTechnologies, loadModules } from '@/lib/content-engine';
+import { useSeo } from '@/lib/seo';
 import type { Technology, Module } from '@/types/content';
 import type { Certificate } from '@/types/storage';
 import clsx from 'clsx';
@@ -21,6 +22,13 @@ interface TechProgressData {
 
 
 export default function ProgressPage() {
+  useSeo({
+    title: 'My Progress',
+    description: 'Track your learning journey — lessons completed, streaks, badges, and certifications across all KERNAL courses.',
+    path: '/progress',
+    ogType: 'website',
+  });
+
   const { streak, badges, progress, quizScores, earnCertificate } = useStore();
   const completedCount = Object.values(progress).filter(Boolean).length;
   const avgQuiz = getAverageQuizScore();

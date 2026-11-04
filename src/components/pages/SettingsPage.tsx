@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react';
 import { Sun, Moon, BookOpen, Code2, Trash2, Upload } from 'lucide-react';
 import { useStore } from '@/store';
 import { clearAllData, importAllData, getStorageEstimate } from '@/lib/storage';
+import { useSeo } from '@/lib/seo';
 
 export default function SettingsPage() {
+  useSeo({
+    title: 'Settings',
+    description: 'Customise your KERNAL learning environment — theme, font size, code style, and data management.',
+    path: '/settings',
+    ogType: 'website',
+  });
+
   const { theme, mode, fontSize, setTheme, setMode, setFontSize } = useStore();
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
   const [cleared, setCleared] = useState(false);
