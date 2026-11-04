@@ -76,7 +76,7 @@ export default function CommandPalette() {
         if ('_isAction' in item) {
           (item as Action).action();
         } else {
-          navigate((item as SearchEntry).url.replace('#', ''));
+          navigate((item as SearchEntry).url);
         }
         setCommandPaletteOpen(false);
       }
@@ -120,7 +120,7 @@ export default function CommandPalette() {
                 {results.map((r, i) => (
                   <button
                     key={r.id}
-                    onClick={() => { navigate(r.url.replace('#', '')); setCommandPaletteOpen(false); }}
+                    onClick={() => { navigate(r.url); setCommandPaletteOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-kernal ${
                       i === selectedIdx ? 'bg-k-accent/15' : 'hover:bg-k-surface-2'
                     }`}

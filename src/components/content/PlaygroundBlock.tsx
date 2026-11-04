@@ -164,8 +164,7 @@ export default function PlaygroundBlock({ lang, starterCode, title }: Props) {
         </button>
         <button
           onClick={() => {
-            const hash = btoa(unescape(encodeURIComponent(JSON.stringify({ lang, code }))));
-            navigator.clipboard.writeText(`${window.location.origin}#/playground?code=${hash}`).catch(() => {});
+            navigator.clipboard.writeText(window.location.href).catch(() => {});
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-k-border text-k-muted text-xs hover:text-k-text transition-kernal ml-auto"
         >

@@ -25,7 +25,7 @@ export default function TopNav() {
   const handleResultClick = (entry: SearchEntry) => {
     setShowResults(false);
     setQuery('');
-    navigate(entry.url.replace('#', ''));
+    navigate(entry.url);
   };
 
   return (
