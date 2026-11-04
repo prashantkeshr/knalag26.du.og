@@ -1,0 +1,88 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "embedded-basics",
+  "title": "Introduction to Embedded Systems",
+  "subtitle": "What embedded systems are and how they differ from general-purpose computers",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "embedded.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is an Embedded System?"
+    },
+    {
+      "type": "paragraph",
+      "text": "An embedded system is a computer designed for a specific purpose, embedded within a larger device. It has limited resources (RAM, CPU) and runs dedicated software."
+    },
+    {
+      "type": "definition",
+      "term": "Microcontroller",
+      "definition": "A compact integrated circuit with a CPU, flash memory, RAM, and I/O peripherals on a single chip."
+    },
+    {
+      "type": "definition",
+      "term": "Microprocessor",
+      "definition": "A CPU that requires external RAM, flash, and peripherals — like the chip in a laptop."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "examples.txt",
+      "code": "Embedded systems everywhere:\n  - Arduino Uno:     ATmega328P @ 16 MHz, 2 KB RAM, 32 KB flash\n  - Raspberry Pi 4:  ARM Cortex-A72 @ 1.8 GHz, 1-8 GB RAM\n  - ESP32:           Dual-core @ 240 MHz, 520 KB RAM, WiFi + BT built-in\n  - STM32:           ARM Cortex-M4 @ 168 MHz, 192 KB RAM"
+    },
+    {
+      "type": "tip",
+      "text": "Arduino is great for learning. For production IoT, consider ESP32 (built-in WiFi) or STM32 (more powerful)."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the key difference between a microcontroller and a microprocessor?",
+          "type": "multiple-choice",
+          "options": [
+            "Microcontrollers are faster",
+            "Microcontrollers include CPU, memory, and I/O on one chip",
+            "Microprocessors are cheaper",
+            "Microcontrollers run Linux"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A microcontroller integrates CPU, flash, RAM, and I/O on a single chip, designed for embedded use."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can an Arduino run Linux?",
+      "a": "No. Arduino has only 2 KB of RAM and 32 KB of flash — far too little for Linux. Use a Raspberry Pi if you need a full OS."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Arduino Introduction",
+      "url": "https://www.arduino.cc/en/Guide/Introduction",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "robotics",
+      "industrial automation",
+      "consumer electronics",
+      "IoT sensors"
+    ],
+    "examples": [
+      "A thermostat that reads temperature and controls a relay"
+    ]
+  }
+}

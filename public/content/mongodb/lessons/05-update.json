@@ -1,0 +1,78 @@
+{
+  "id": "05-update",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "crud-operations",
+  "title": "Updating Documents",
+  "subtitle": "updateOne, updateMany, upsert, and update operators",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.crud-read"
+  ],
+  "skillsTaught": [
+    "mongodb.crud-update"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Update Operators"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB update operators like $set, $inc, and $push modify specific fields without replacing the whole document."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "update.js",
+      "code": "// Set a field\nawait products.updateOne(\n  { name: \"Laptop\" },\n  { $set: { price: 899 } }\n);\n\n// Increment a counter\nawait products.updateOne(\n  { _id: id },\n  { $inc: { views: 1 } }\n);\n\n// Upsert: insert if not found\nawait products.updateOne(\n  { sku: \"ABC123\" },\n  { $set: { name: \"Widget\", price: 10 } },\n  { upsert: true }\n);"
+    },
+    {
+      "type": "tip",
+      "text": "$set only modifies the specified fields; using {} without an operator replaces the entire document."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which operator adds 1 to a numeric field?",
+          "type": "multiple-choice",
+          "options": [
+            "$set",
+            "$push",
+            "$inc",
+            "$add"
+          ],
+          "correctAnswer": 2,
+          "explanation": "$inc increments a numeric field by the given amount."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I update all documents in a collection?",
+      "a": "Use updateMany({}, { $set: { field: value } }) — the empty filter {} matches all documents."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Update Operators",
+      "url": "https://www.mongodb.com/docs/manual/reference/operator/update/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "inventory management",
+      "user preferences"
+    ],
+    "examples": [
+      "Incrementing page view counters"
+    ]
+  }
+}

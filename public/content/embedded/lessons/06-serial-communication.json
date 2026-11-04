@@ -1,0 +1,79 @@
+{
+  "id": "06-serial-communication",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "arduino",
+  "title": "Serial Communication",
+  "subtitle": "UART debugging, sending data to a computer, and parsing",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "embedded.sensors"
+  ],
+  "skillsTaught": [
+    "embedded.serial"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Serial / UART"
+    },
+    {
+      "type": "paragraph",
+      "text": "Serial is the simplest way to debug Arduino code and exchange data with a computer. The Arduino IDE Serial Monitor connects at the configured baud rate."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "serial.ino",
+      "code": "void setup() {\n  Serial.begin(115200);  // baud rate must match Serial Monitor\n  Serial.println(\"Boot complete\");\n}\n\nvoid loop() {\n  // Send structured CSV data\n  float temp = readTemp();\n  int light = analogRead(A0);\n  Serial.print(millis()); Serial.print(\",\");\n  Serial.print(temp);    Serial.print(\",\");\n  Serial.println(light);\n  delay(500);\n}\n\n// Read serial command from PC\nvoid serialEvent() {\n  if (Serial.available()) {\n    char cmd = Serial.read();\n    if (cmd == 'L') digitalWrite(13, HIGH);\n    if (cmd == 'l') digitalWrite(13, LOW);\n  }\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Use 115200 baud instead of 9600 for faster data transfer. Both ends must use the same rate."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What must match between the Arduino and Serial Monitor?",
+          "type": "multiple-choice",
+          "options": [
+            "LED pin number",
+            "Baud rate",
+            "Library version",
+            "Board type"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Both the Arduino sketch and the Serial Monitor must use the same baud rate, or you will see garbled data."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use Serial while also using other libraries?",
+      "a": "Most libraries are compatible. Watch out for SoftwareSerial conflicts and libraries that disable interrupts, which can corrupt serial data."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Serial Reference",
+      "url": "https://www.arduino.cc/reference/en/language/functions/communication/serial/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "debugging",
+      "data logging",
+      "PC-Arduino communication"
+    ],
+    "examples": [
+      "Logging sensor data to a Python script via serial"
+    ]
+  }
+}

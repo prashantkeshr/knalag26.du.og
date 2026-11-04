@@ -1,0 +1,78 @@
+{
+  "id": "12-lua-scripting",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "messaging",
+  "title": "Lua Scripting",
+  "subtitle": "EVAL, EVALSHA, and atomic multi-command operations",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.streams"
+  ],
+  "skillsTaught": [
+    "redis.lua"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lua Scripts in Redis"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis executes Lua scripts atomically. This lets you combine multiple commands without race conditions."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "lua.js",
+      "code": "// Atomic \"get and increment\" with Lua\nconst script = `\n  local val = redis.call(\"GET\", KEYS[1])\n  if not val then val = 0 end\n  redis.call(\"SET\", KEYS[1], tonumber(val) + ARGV[1])\n  return tonumber(val) + ARGV[1]\n`;\n\nconst result = await redis.eval(script, 1, \"counter:page1\", 1);\n\n// Cache the script SHA for efficiency\nconst sha = await redis.scriptLoad(script);\nconst val = await redis.evalsha(sha, 1, \"counter:page1\", 1);"
+    },
+    {
+      "type": "tip",
+      "text": "Scripts run atomically and block the server. Keep them short and fast."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why are Redis Lua scripts atomic?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis locks the key",
+            "Redis is single-threaded and runs the script without interruption",
+            "Lua has built-in locks",
+            "Redis uses transactions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis's single-threaded execution model means no other commands run while a Lua script is executing."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is EVALSHA?",
+      "a": "EVALSHA runs a previously loaded script by its SHA1 hash, avoiding resending the script text on every call."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Scripting",
+      "url": "https://redis.io/docs/manual/programmability/eval-intro/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "atomic counters",
+      "conditional updates"
+    ],
+    "examples": [
+      "Atomic check-and-set for distributed locks"
+    ]
+  }
+}

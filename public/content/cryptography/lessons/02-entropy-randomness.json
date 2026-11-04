@@ -1,0 +1,84 @@
+{
+  "id": "02-entropy-randomness",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "crypto-fundamentals",
+  "title": "Entropy and Randomness",
+  "subtitle": "Why randomness matters and how to generate it securely",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "crypto.basics"
+  ],
+  "skillsTaught": [
+    "crypto.randomness"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cryptographic Randomness"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cryptographic security depends on unpredictable random numbers. Weak randomness has caused catastrophic breaks in real systems."
+    },
+    {
+      "type": "definition",
+      "term": "CSPRNG",
+      "definition": "Cryptographically Secure Pseudo-Random Number Generator. Suitable for key generation, nonces, and tokens."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "random_secure.py",
+      "code": "import os\nimport secrets\n\n# Generate 32 cryptographically random bytes\nkey = os.urandom(32)\nprint(key.hex())\n\n# Secure token for password reset links\ntoken = secrets.token_urlsafe(32)\nprint(token)  # e.g., \"jLDQvb3rFMBk9N2...\"\n\n# NEVER use random.random() for security\n# import random\n# random.random()  <- NOT CRYPTOGRAPHICALLY SECURE"
+    },
+    {
+      "type": "tip",
+      "text": "Always use os.urandom() or the secrets module for security-critical randomness in Python. Never use the random module."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which Python function generates cryptographically secure random bytes?",
+          "type": "multiple-choice",
+          "options": [
+            "random.randint()",
+            "math.random()",
+            "os.urandom()",
+            "uuid.uuid1()"
+          ],
+          "correctAnswer": 2,
+          "explanation": "os.urandom() reads from the OS CSPRNG (/dev/urandom on Linux). The random module is not cryptographically secure."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a nonce?",
+      "a": "A Number used ONCE. A nonce is a random value that must never be reused with the same key. Reusing a nonce with stream ciphers or GCM can be catastrophic."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Python secrets module",
+      "url": "https://docs.python.org/3/library/secrets.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "key generation",
+      "session tokens",
+      "password reset links"
+    ],
+    "examples": [
+      "Generating a secure password reset token with secrets.token_urlsafe()"
+    ]
+  }
+}

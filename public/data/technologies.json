@@ -151,7 +151,7 @@
     "order": 12,
     "stage": 11,
     "playground": "javascript",
-    "enabled": false,
+    "enabled": true,
     "description": "Document databases, aggregation pipelines, and schema design",
     "estimatedHours": 15
   },
@@ -163,7 +163,7 @@
     "order": 13,
     "stage": 11,
     "playground": "terminal",
-    "enabled": false,
+    "enabled": true,
     "description": "In-memory data structures, caching, and pub/sub messaging",
     "estimatedHours": 10
   },
@@ -235,7 +235,7 @@
     "order": 19,
     "stage": 14,
     "playground": "python",
-    "enabled": false,
+    "enabled": true,
     "description": "ML fundamentals, scikit-learn, model training, and evaluation",
     "estimatedHours": 40
   },
@@ -247,7 +247,7 @@
     "order": 20,
     "stage": 14,
     "playground": "python",
-    "enabled": false,
+    "enabled": true,
     "description": "Working with language models, APIs, RAG, and prompt design",
     "estimatedHours": 15
   },
@@ -271,7 +271,7 @@
     "order": 22,
     "stage": 15,
     "playground": "javascript",
-    "enabled": false,
+    "enabled": true,
     "description": "Hashing, encryption, TLS/SSL, and secure key management",
     "estimatedHours": 15
   },
@@ -283,7 +283,7 @@
     "order": 23,
     "stage": 16,
     "playground": "terminal",
-    "enabled": false,
+    "enabled": true,
     "description": "Microcontrollers, Arduino, Raspberry Pi, and IoT protocols",
     "estimatedHours": 25
   }

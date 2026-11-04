@@ -1,0 +1,85 @@
+{
+  "id": "03-gpio",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "embedded-basics",
+  "title": "GPIO: Digital and Analog I/O",
+  "subtitle": "Pins, voltage levels, pull-up resistors, and ADC",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.mcu-arch"
+  ],
+  "skillsTaught": [
+    "embedded.gpio"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "General Purpose Input/Output"
+    },
+    {
+      "type": "paragraph",
+      "text": "GPIO pins let your microcontroller interact with the physical world: read buttons, control LEDs, talk to sensors."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "gpio.ino",
+      "code": "// Arduino GPIO example\nconst int LED_PIN = 13;\nconst int BTN_PIN = 2;\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  pinMode(BTN_PIN, INPUT_PULLUP); // internal pull-up resistor\n}\n\nvoid loop() {\n  // LOW when button pressed (pull-up inverts logic)\n  if (digitalRead(BTN_PIN) == LOW) {\n    digitalWrite(LED_PIN, HIGH);\n  } else {\n    digitalWrite(LED_PIN, LOW);\n  }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "adc.ino",
+      "code": "// Read analog sensor (potentiometer on A0)\nint raw = analogRead(A0);         // 0-1023\nfloat voltage = raw * (5.0 / 1023.0); // convert to volts\nSerial.println(voltage);"
+    },
+    {
+      "type": "tip",
+      "text": "Always use INPUT_PULLUP instead of INPUT when reading buttons. Floating inputs give random readings."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does INPUT_PULLUP do?",
+          "type": "multiple-choice",
+          "options": [
+            "Sets the pin as output",
+            "Connects an internal resistor to Vcc so unconnected pins read HIGH",
+            "Disables the pin",
+            "Doubles the read speed"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A pull-up resistor keeps the pin at HIGH when nothing is connected. When the button is pressed, it pulls the pin to LOW/GND."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I connect a 5V signal to a Raspberry Pi GPIO?",
+      "a": "No! Raspberry Pi GPIO is 3.3V. A 5V signal will damage it. Use a voltage divider or a logic level converter."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Arduino GPIO",
+      "url": "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "LED control",
+      "button reading",
+      "sensor interfacing"
+    ],
+    "examples": [
+      "Reading a push button to toggle an LED on Arduino"
+    ]
+  }
+}

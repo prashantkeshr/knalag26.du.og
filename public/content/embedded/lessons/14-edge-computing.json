@@ -1,0 +1,79 @@
+{
+  "id": "14-edge-computing",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "iot-projects",
+  "title": "Edge Computing",
+  "subtitle": "Processing data on the device vs sending to the cloud",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "embedded.mqtt"
+  ],
+  "skillsTaught": [
+    "embedded.edge"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Process at the Edge?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sending all raw sensor data to the cloud is expensive and slow. Edge computing processes data locally on the device, sending only summaries or alerts."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "edge_process.py",
+      "code": "import statistics\nfrom collections import deque\n\n# Keep a rolling window of 60 readings (5 mins @ 5s interval)\nwindow = deque(maxlen=60)\n\ndef process_reading(raw_temp: float):\n    window.append(raw_temp)\n\n    # Only send data to cloud if anomaly detected\n    if len(window) >= 10:\n        avg = statistics.mean(window)\n        stdev = statistics.stdev(window)\n\n        if abs(raw_temp - avg) > 2 * stdev:\n            # Anomaly: send immediately\n            cloud_send({\"alert\": \"anomaly\", \"value\": raw_temp, \"avg\": avg})\n        elif len(window) == 60:\n            # Normal: send 5-minute summary once per window\n            cloud_send({\"avg\": avg, \"min\": min(window), \"max\": max(window)})"
+    },
+    {
+      "type": "tip",
+      "text": "Classify data at the edge: only send anomalies in real time; batch aggregate normal data to reduce cloud costs by 10-100x."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the main benefit of edge processing?",
+          "type": "multiple-choice",
+          "options": [
+            "Faster internet speeds",
+            "Reduced data volume to the cloud, lower latency for decisions",
+            "More accurate sensors",
+            "Longer battery life of the broker"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Processing data locally reduces the volume sent to the cloud, cutting bandwidth costs and enabling faster local decisions."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is TinyML?",
+      "a": "Running small machine learning models directly on microcontrollers. TensorFlow Lite Micro can run on devices with as little as 256 KB RAM for tasks like wake-word detection."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Edge Computing",
+      "url": "https://www.raspberrypi.com/tutorials/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "industrial monitoring",
+      "smart cameras",
+      "agriculture"
+    ],
+    "examples": [
+      "Pi detecting machine vibration anomalies locally before alerting"
+    ]
+  }
+}

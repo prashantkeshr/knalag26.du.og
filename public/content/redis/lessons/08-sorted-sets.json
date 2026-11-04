@@ -1,0 +1,90 @@
+{
+  "id": "08-sorted-sets",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "advanced-structures",
+  "title": "Sorted Sets",
+  "subtitle": "Leaderboards, rate limiting, and range queries",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "redis.lists-sets"
+  ],
+  "skillsTaught": [
+    "redis.sorted-sets"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sorted Sets"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sorted Sets store members with a floating-point score. Members are always returned in score order."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Leaderboard\nZADD scores 1500 \"alice\" 2000 \"bob\" 1800 \"carol\"\n\n# Top 3\nZRANGE scores 0 2 WITHSCORES REV\n\n# Rank of a player (0-based)\nZRANK scores \"alice\"\n\n# Range by score\nZRANGEBYSCORE scores 1700 2000"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Rate Limiting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sorted Sets can implement sliding-window rate limits by storing timestamps as scores."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "rate-limit.js",
+      "code": "const now = Date.now();\nconst window = 60000;\nawait redis.zremRangeByScore(`rl:${ip}`, 0, now - window);\nawait redis.zAdd(`rl:${ip}`, { score: now, value: `${now}` });\nconst count = await redis.zCard(`rl:${ip}`);\nif (count > 100) throw new Error(\"Rate limit exceeded\");"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What command returns members of a sorted set by rank?",
+          "type": "multiple-choice",
+          "options": [
+            "LRANGE",
+            "SMEMBERS",
+            "ZRANGE",
+            "HGETALL"
+          ],
+          "correctAnswer": 2,
+          "explanation": "ZRANGE returns members by their rank (position) in a sorted set."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can sorted set scores be negative?",
+      "a": "Yes. Scores are double-precision floats and can be any value including negative numbers."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Sorted Sets",
+      "url": "https://redis.io/docs/data-types/sorted-sets/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "leaderboards",
+      "rate limiting",
+      "priority queues"
+    ],
+    "examples": [
+      "Game leaderboard updating in real time"
+    ]
+  }
+}

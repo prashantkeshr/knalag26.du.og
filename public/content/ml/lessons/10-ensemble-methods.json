@@ -1,0 +1,79 @@
+{
+  "id": "10-ensemble-methods",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "advanced-algorithms",
+  "title": "Ensemble Methods",
+  "subtitle": "Bagging, boosting, Random Forest, and XGBoost",
+  "difficulty": "advanced",
+  "estimatedMinutes": 16,
+  "status": "published",
+  "prerequisites": [
+    "ml.regularization"
+  ],
+  "skillsTaught": [
+    "ml.ensembles"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Ensemble Learning"
+    },
+    {
+      "type": "paragraph",
+      "text": "Ensembles combine multiple models to outperform any single model. The two main strategies are bagging (parallel, reduces variance) and boosting (sequential, reduces bias)."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "ensemble.py",
+      "code": "from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier\n\n# Random Forest (bagging)\nrf = RandomForestClassifier(n_estimators=200, max_depth=None, random_state=42)\nrf.fit(X_train, y_train)\n\n# XGBoost (gradient boosting)\nfrom xgboost import XGBClassifier\nxgb = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=6)\nxgb.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=10)\n\nprint(\"RF score:\", rf.score(X_test, y_test))\nprint(\"XGB score:\", xgb.score(X_test, y_test))"
+    },
+    {
+      "type": "tip",
+      "text": "XGBoost and LightGBM win most structured-data Kaggle competitions. Use them as a strong baseline."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does Random Forest use to create diversity among trees?",
+          "type": "multiple-choice",
+          "options": [
+            "Different algorithms",
+            "Random subsets of data and features",
+            "Different learning rates",
+            "Different loss functions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Random Forest samples both rows and features randomly for each tree, creating diverse trees that together are more accurate."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "When should I use boosting vs bagging?",
+      "a": "Bagging (Random Forest) works well out of the box and is hard to overfit. Boosting (XGBoost) is more accurate but needs careful tuning of learning_rate and n_estimators."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Ensemble Methods",
+      "url": "https://scikit-learn.org/stable/modules/ensemble.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "Kaggle competitions",
+      "fraud detection",
+      "click prediction"
+    ],
+    "examples": [
+      "XGBoost for a customer churn prediction model"
+    ]
+  }
+}

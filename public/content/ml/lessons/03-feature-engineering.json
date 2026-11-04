@@ -1,0 +1,78 @@
+{
+  "id": "03-feature-engineering",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-foundations",
+  "title": "Feature Engineering",
+  "subtitle": "Creating and selecting features that improve model performance",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.data-prep"
+  ],
+  "skillsTaught": [
+    "ml.features"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is Feature Engineering?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Feature engineering is transforming raw data into informative inputs (features) that help the model learn."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "features.py",
+      "code": "import pandas as pd\nfrom sklearn.preprocessing import OneHotEncoder\n\n# Create a new feature\ndf[\"price_per_sqft\"] = df[\"price\"] / df[\"sqft\"]\n\n# Bin a continuous variable\ndf[\"age_group\"] = pd.cut(df[\"age\"], bins=[0,18,35,60,100], labels=[\"child\",\"young\",\"adult\",\"senior\"])\n\n# One-hot encode a categorical column\nenc = OneHotEncoder(sparse_output=False)\ncity_encoded = enc.fit_transform(df[[\"city\"]])\n\n# Log-transform a skewed feature\nimport numpy as np\ndf[\"log_income\"] = np.log1p(df[\"income\"])"
+    },
+    {
+      "type": "tip",
+      "text": "Domain knowledge beats fancy algorithms. A well-engineered feature often improves accuracy more than switching models."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does one-hot encoding do?",
+          "type": "multiple-choice",
+          "options": [
+            "Scales values to 0-1",
+            "Converts each category value into a binary column",
+            "Fills missing values",
+            "Removes outliers"
+          ],
+          "correctAnswer": 1,
+          "explanation": "One-hot encoding creates a binary column for each category, so models can use categorical variables."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is feature leakage?",
+      "a": "Including a feature that directly encodes the target label (e.g., using tomorrow's price to predict today's). It makes the model look accurate but it won't generalise."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Feature Engineering",
+      "url": "https://scikit-learn.org/stable/modules/feature_extraction.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "predictive analytics",
+      "NLP pipelines"
+    ],
+    "examples": [
+      "Deriving day-of-week from a timestamp for a sales forecast"
+    ]
+  }
+}

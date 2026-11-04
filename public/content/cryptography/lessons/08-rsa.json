@@ -1,0 +1,79 @@
+{
+  "id": "08-rsa",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "asymmetric-crypto",
+  "title": "RSA Cryptography",
+  "subtitle": "How RSA works, key sizes, and secure usage",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.public-key"
+  ],
+  "skillsTaught": [
+    "crypto.rsa"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How RSA Works"
+    },
+    {
+      "type": "paragraph",
+      "text": "RSA security is based on the difficulty of factoring large integers. Generating the key pair involves choosing two large primes; breaking RSA requires factoring their product."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rsa_sign.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes, serialization\n\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npublic_key = private_key.public_key()\n\n# Sign a message\nsignature = private_key.sign(\n    b\"Important document\",\n    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),\n    hashes.SHA256()\n)\n\n# Verify (raises if invalid)\npublic_key.verify(\n    signature, b\"Important document\",\n    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),\n    hashes.SHA256()\n)\nprint(\"Signature valid\")"
+    },
+    {
+      "type": "tip",
+      "text": "Use RSA-2048 at minimum. RSA-4096 for long-lived keys. For new systems, prefer ECDSA which is smaller and faster."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is RSA security based on?",
+          "type": "multiple-choice",
+          "options": [
+            "The difficulty of computing discrete logarithms",
+            "The difficulty of factoring large integers",
+            "The difficulty of solving elliptic curve equations",
+            "The difficulty of inverting hash functions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RSA is based on the integer factorization problem: it is easy to multiply two large primes but very hard to factor their product."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I implement RSA myself?",
+      "a": "Never implement cryptography yourself. Use a well-audited library like Python's cryptography package. Home-grown crypto is almost always broken."
+    }
+  ],
+  "sources": [
+    {
+      "name": "RSA",
+      "url": "https://en.wikipedia.org/wiki/RSA_(cryptosystem)",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "digital signatures",
+      "key exchange",
+      "certificate signing"
+    ],
+    "examples": [
+      "RSA signature on a software release package"
+    ]
+  }
+}

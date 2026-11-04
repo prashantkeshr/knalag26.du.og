@@ -1,0 +1,79 @@
+{
+  "id": "05-chain-of-thought",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "prompt-engineering",
+  "title": "Chain-of-Thought Prompting",
+  "subtitle": "Step-by-step reasoning and extended thinking",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.prompting"
+  ],
+  "skillsTaught": [
+    "llms.cot"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Chain-of-Thought (CoT)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Asking the model to reason step by step before giving an answer dramatically improves accuracy on complex tasks."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cot.py",
+      "code": "# Standard prompt (may get wrong answer)\nprompt = \"If I have 5 apples and give 2 away, then buy 3 more, then eat 1, how many do I have?\"\n\n# CoT prompt\nprompt_cot = \"\"\"Solve this step by step:\nIf I have 5 apples and give 2 away, then buy 3 more, then eat 1, how many do I have?\n\nReasoning:\"\"\"\n# Model now walks through: 5 - 2 = 3, 3 + 3 = 6, 6 - 1 = 5\n\n# Zero-shot CoT\nprompt_zscot = prompt + \"\\nLet's think step by step.\""
+    },
+    {
+      "type": "tip",
+      "text": "For Claude, enable extended thinking with thinking: {type: \"enabled\"} for the hardest reasoning tasks."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why does chain-of-thought prompting improve accuracy?",
+          "type": "multiple-choice",
+          "options": [
+            "It uses more tokens",
+            "It forces the model to allocate intermediate computation to each step",
+            "It increases model temperature",
+            "It bypasses safety filters"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Step-by-step reasoning lets the model dedicate tokens to working through each part of the problem before answering."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does CoT always help?",
+      "a": "No. For simple factual retrieval, CoT wastes tokens. Use it for multi-step reasoning, math, and planning tasks."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Chain-of-Thought Prompting",
+      "url": "https://www.anthropic.com/research/chain-of-thought",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "math problem solving",
+      "complex analysis",
+      "planning"
+    ],
+    "examples": [
+      "Using CoT to build a financial analysis assistant"
+    ]
+  }
+}

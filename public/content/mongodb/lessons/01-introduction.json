@@ -1,0 +1,87 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-basics",
+  "title": "Introduction to MongoDB",
+  "subtitle": "What MongoDB is, why NoSQL, and when to use it",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "mongodb.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is MongoDB?"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB is a document-oriented NoSQL database that stores data as flexible JSON-like documents called BSON. Unlike relational databases, collections do not enforce a fixed schema."
+    },
+    {
+      "type": "definition",
+      "term": "Document",
+      "definition": "A JSON-like record stored in MongoDB. Equivalent to a row in SQL but with no fixed columns."
+    },
+    {
+      "type": "definition",
+      "term": "Collection",
+      "definition": "A group of documents, like a SQL table but schema-free."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "example.js",
+      "code": "// A MongoDB document\n{\n  _id: ObjectId(\"507f1f77bcf86cd799439011\"),\n  name: \"Alice\",\n  age: 30,\n  tags: [\"admin\", \"user\"]\n}"
+    },
+    {
+      "type": "tip",
+      "text": "MongoDB auto-creates a collection when you first insert into it."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a MongoDB document?",
+          "type": "multiple-choice",
+          "options": [
+            "A table row with fixed columns",
+            "A JSON-like record with flexible fields",
+            "A SQL view",
+            "A database index"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MongoDB documents are flexible JSON-like records; they do not require a fixed schema."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "When should I use MongoDB over SQL?",
+      "a": "MongoDB excels when your data is hierarchical or when the schema changes frequently. SQL is better for complex joins and strict consistency requirements."
+    }
+  ],
+  "sources": [
+    {
+      "name": "MongoDB Overview",
+      "url": "https://www.mongodb.com/docs/manual/introduction/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "e-commerce product catalogs",
+      "content management systems"
+    ],
+    "examples": [
+      "Storing user profiles with varying attributes",
+      "Logging app events with different schemas per event type"
+    ]
+  }
+}

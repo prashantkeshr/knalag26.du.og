@@ -1,0 +1,78 @@
+{
+  "id": "03-commands",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-basics",
+  "title": "Essential Redis Commands",
+  "subtitle": "GET, SET, DEL, KEYS, SCAN, EXPIRE, and TTL",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.data-types"
+  ],
+  "skillsTaught": [
+    "redis.commands"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Working with Keys"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every Redis value lives under a key. Key naming conventions (like user:1:profile) help organise data."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Key operations\nSET greeting \"Hello\"\nGET greeting\nDEL greeting\nEXISTS greeting  # 0\n\n# Expiry\nSET session:abc \"data\" EX 3600  # expires in 1 hour\nTTL session:abc  # seconds remaining\n\n# Pattern scan (use SCAN not KEYS in production)\nSCAN 0 MATCH user:* COUNT 100"
+    },
+    {
+      "type": "tip",
+      "text": "Never use KEYS * in production — it blocks the server. Use SCAN instead."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does TTL return when a key has no expiry?",
+          "type": "multiple-choice",
+          "options": [
+            "0",
+            "-1",
+            "-2",
+            "null"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TTL returns -1 for keys that exist but have no expiry set."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I rename a key?",
+      "a": "RENAME oldkey newkey. If newkey already exists it is overwritten."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Commands Reference",
+      "url": "https://redis.io/commands/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "session management",
+      "temporary data"
+    ],
+    "examples": [
+      "Storing a password-reset token with 15-minute expiry"
+    ]
+  }
+}

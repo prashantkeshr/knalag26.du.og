@@ -1,0 +1,79 @@
+{
+  "id": "05-classification",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "supervised-learning",
+  "title": "Classification",
+  "subtitle": "Logistic regression, decision boundaries, and class probabilities",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "ml.regression"
+  ],
+  "skillsTaught": [
+    "ml.classification"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Classification vs Regression"
+    },
+    {
+      "type": "paragraph",
+      "text": "Classification predicts a discrete label (spam/not-spam, cat/dog). Logistic regression outputs a probability that is thresholded to produce a class."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "classify.py",
+      "code": "from sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import classification_report\n\nmodel = LogisticRegression(max_iter=1000)\nmodel.fit(X_train, y_train)\n\npreds = model.predict(X_test)\nprobs = model.predict_proba(X_test)[:, 1]  # probability of class 1\n\nprint(classification_report(y_test, preds))"
+    },
+    {
+      "type": "tip",
+      "text": "Adjust the classification threshold (default 0.5) based on the cost of false positives vs false negatives."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does logistic regression output before thresholding?",
+          "type": "multiple-choice",
+          "options": [
+            "A class label directly",
+            "A probability between 0 and 1",
+            "A continuous regression value",
+            "A cluster assignment"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Logistic regression outputs a probability; the class label is determined by a threshold (usually 0.5)."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I handle imbalanced classes?",
+      "a": "Use class_weight=\"balanced\" in scikit-learn, or oversample the minority class with SMOTE."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Logistic Regression",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "spam detection",
+      "fraud classification",
+      "medical diagnosis"
+    ],
+    "examples": [
+      "Email spam classifier with logistic regression"
+    ]
+  }
+}

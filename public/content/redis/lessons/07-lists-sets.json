@@ -1,0 +1,89 @@
+{
+  "id": "07-lists-sets",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "advanced-structures",
+  "title": "Lists and Sets",
+  "subtitle": "LPUSH, RPOP, SADD, SINTER, and queue patterns",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "redis.distributed"
+  ],
+  "skillsTaught": [
+    "redis.lists-sets"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lists as Queues"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis Lists support O(1) push and pop from both ends, making them perfect for queues and stacks."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Producer\nRPUSH jobs \"job1\" \"job2\" \"job3\"\n\n# Consumer (blocking — waits up to 30s)\nBLPOP jobs 30\n\n# Check length\nLLEN jobs"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sets for Unique Members"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sets store unique strings. Use them for tags, followers, or any \"is X in group Y?\" queries."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "SADD user:1:friends \"alice\" \"bob\"\nSADD user:2:friends \"bob\" \"carol\"\n\n# Common friends\nSINTER user:1:friends user:2:friends  # \"bob\""
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does BLPOP do when the list is empty?",
+          "type": "multiple-choice",
+          "options": [
+            "Returns nil immediately",
+            "Blocks until an element is pushed",
+            "Throws an error",
+            "Creates an empty element"
+          ],
+          "correctAnswer": 1,
+          "explanation": "BLPOP blocks the connection until an element is available, up to the timeout."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I implement a task queue with Redis?",
+      "a": "RPUSH tasks to enqueue, BLPOP tasks from the other side to dequeue. Workers block on BLPOP waiting for work."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Lists",
+      "url": "https://redis.io/docs/data-types/lists/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "job queues",
+      "social graphs"
+    ],
+    "examples": [
+      "Implementing a background job queue with RPUSH/BLPOP"
+    ]
+  }
+}

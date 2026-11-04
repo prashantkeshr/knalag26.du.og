@@ -1,0 +1,78 @@
+{
+  "id": "06-distributed-cache",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "caching",
+  "title": "Distributed Caching",
+  "subtitle": "Multi-instance Redis, consistent hashing, and Redis Cluster",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.eviction"
+  ],
+  "skillsTaught": [
+    "redis.distributed"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Scaling Redis"
+    },
+    {
+      "type": "paragraph",
+      "text": "A single Redis instance may not be enough. Use Redis Cluster or a client-side consistent hash to distribute keys across multiple instances."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "cluster.js",
+      "code": "import { createCluster } from \"redis\";\n\nconst cluster = createCluster({\n  rootNodes: [\n    { url: \"redis://localhost:7000\" },\n    { url: \"redis://localhost:7001\" },\n    { url: \"redis://localhost:7002\" }\n  ]\n});\nawait cluster.connect();"
+    },
+    {
+      "type": "tip",
+      "text": "Redis Cluster automatically shards data across up to 1000 nodes using 16384 hash slots."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "How many hash slots does Redis Cluster use?",
+          "type": "multiple-choice",
+          "options": [
+            "1024",
+            "8192",
+            "16384",
+            "65536"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Redis Cluster uses 16384 hash slots distributed across shards."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use pipelining with Redis Cluster?",
+      "a": "Yes, but all keys in a pipeline must map to the same hash slot. Use hash tags {user:1} to force co-location."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Redis Cluster",
+      "url": "https://redis.io/docs/manual/scaling/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "high-traffic caching",
+      "session clusters"
+    ],
+    "examples": [
+      "Distributing session storage across 3 Redis nodes"
+    ]
+  }
+}

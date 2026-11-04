@@ -1,0 +1,88 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-foundations",
+  "title": "Introduction to Machine Learning",
+  "subtitle": "Types of ML, the ML workflow, and when to use ML",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "ml.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is Machine Learning?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Machine Learning is the field of building systems that learn from data rather than being explicitly programmed. The model finds patterns; you supply the data."
+    },
+    {
+      "type": "definition",
+      "term": "Supervised Learning",
+      "definition": "Learning from labelled examples: input → known output. Used for classification and regression."
+    },
+    {
+      "type": "definition",
+      "term": "Unsupervised Learning",
+      "definition": "Learning from unlabelled data to find hidden structure, like clustering."
+    },
+    {
+      "type": "definition",
+      "term": "Reinforcement Learning",
+      "definition": "Learning by trial and error with rewards and penalties."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "ml_types.py",
+      "code": "# The ML workflow\n# 1. Collect & clean data\n# 2. Choose a model\n# 3. Train (fit) the model\n# 4. Evaluate on held-out data\n# 5. Tune hyperparameters\n# 6. Deploy\n\nfrom sklearn.linear_model import LinearRegression\nmodel = LinearRegression()\nmodel.fit(X_train, y_train)\nprint(model.score(X_test, y_test))"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is supervised learning?",
+          "type": "multiple-choice",
+          "options": [
+            "Learning from rewards",
+            "Learning from labelled input-output pairs",
+            "Learning by clustering",
+            "Learning without any data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Supervised learning uses labelled examples where both input and desired output are known."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Do I need a PhD to do ML?",
+      "a": "No. With Python, scikit-learn, and good data, you can build useful models. Deep learning at scale requires more specialised knowledge."
+    }
+  ],
+  "sources": [
+    {
+      "name": "scikit-learn intro",
+      "url": "https://scikit-learn.org/stable/getting_started.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "fraud detection",
+      "recommendation engines",
+      "image recognition"
+    ],
+    "examples": [
+      "Predicting house prices from size and location"
+    ]
+  }
+}

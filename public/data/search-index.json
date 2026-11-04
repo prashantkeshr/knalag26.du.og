@@ -5402,5 +5402,1151 @@
       "intermediate"
     ],
     "url": "/learn/websecurity"
+  },
+  {
+    "id": "mongodb/course",
+    "type": "course",
+    "tech": "mongodb",
+    "title": "MongoDB",
+    "subtitle": "Course overview",
+    "tags": [
+      "mongodb"
+    ],
+    "url": "/learn/mongodb"
+  },
+  {
+    "id": "mongodb/01-introduction",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Introduction to MongoDB",
+    "subtitle": "What MongoDB is, why NoSQL, and when to use it",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/01-introduction"
+  },
+  {
+    "id": "mongodb/02-installation",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Installing MongoDB",
+    "subtitle": "Setting up MongoDB locally and connecting with mongosh",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/02-installation"
+  },
+  {
+    "id": "mongodb/03-data-model",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "The MongoDB Data Model",
+    "subtitle": "BSON types, ObjectIds, and document structure",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/03-data-model"
+  },
+  {
+    "id": "mongodb/04-insert-find",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Inserting and Finding Documents",
+    "subtitle": "insertOne, insertMany, find, and projection",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/04-insert-find"
+  },
+  {
+    "id": "mongodb/05-update",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Updating Documents",
+    "subtitle": "updateOne, updateMany, upsert, and update operators",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/05-update"
+  },
+  {
+    "id": "mongodb/06-delete",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Deleting Documents",
+    "subtitle": "deleteOne, deleteMany, and safe deletion patterns",
+    "tags": [
+      "mongodb",
+      "beginner"
+    ],
+    "url": "/learn/mongodb/06-delete"
+  },
+  {
+    "id": "mongodb/07-schema-design",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Schema Design Patterns",
+    "subtitle": "Designing flexible yet efficient MongoDB schemas",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/07-schema-design"
+  },
+  {
+    "id": "mongodb/08-references-embedding",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "References and Embedding",
+    "subtitle": "DBRefs, $lookup, and population patterns",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/08-references-embedding"
+  },
+  {
+    "id": "mongodb/09-indexes",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Indexes in MongoDB",
+    "subtitle": "Single-field, compound, and special indexes",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/09-indexes"
+  },
+  {
+    "id": "mongodb/10-aggregation-pipeline",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Aggregation Pipeline",
+    "subtitle": "$match, $group, $project, $sort, and $limit",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/10-aggregation-pipeline"
+  },
+  {
+    "id": "mongodb/11-text-search",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Text Search",
+    "subtitle": "Full-text indexes, $text, and $search with Atlas",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/11-text-search"
+  },
+  {
+    "id": "mongodb/12-geospatial",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Geospatial Queries",
+    "subtitle": "2dsphere indexes and $near, $geoWithin",
+    "tags": [
+      "mongodb",
+      "intermediate"
+    ],
+    "url": "/learn/mongodb/12-geospatial"
+  },
+  {
+    "id": "mongodb/13-replication",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Replication",
+    "subtitle": "Replica sets, elections, and read preferences",
+    "tags": [
+      "mongodb",
+      "advanced"
+    ],
+    "url": "/learn/mongodb/13-replication"
+  },
+  {
+    "id": "mongodb/14-sharding",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "Sharding",
+    "subtitle": "Horizontal scaling with shard keys",
+    "tags": [
+      "mongodb",
+      "advanced"
+    ],
+    "url": "/learn/mongodb/14-sharding"
+  },
+  {
+    "id": "mongodb/15-security",
+    "type": "lesson",
+    "tech": "mongodb",
+    "title": "MongoDB Security",
+    "subtitle": "Authentication, authorization, encryption, and auditing",
+    "tags": [
+      "mongodb",
+      "advanced"
+    ],
+    "url": "/learn/mongodb/15-security"
+  },
+  {
+    "id": "redis/course",
+    "type": "course",
+    "tech": "redis",
+    "title": "Redis",
+    "subtitle": "Course overview",
+    "tags": [
+      "redis"
+    ],
+    "url": "/learn/redis"
+  },
+  {
+    "id": "redis/01-introduction",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Introduction to Redis",
+    "subtitle": "What Redis is, its use cases, and architecture",
+    "tags": [
+      "redis",
+      "beginner"
+    ],
+    "url": "/learn/redis/01-introduction"
+  },
+  {
+    "id": "redis/02-data-types",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Redis Data Types",
+    "subtitle": "Strings, lists, sets, sorted sets, hashes, and bitmaps",
+    "tags": [
+      "redis",
+      "beginner"
+    ],
+    "url": "/learn/redis/02-data-types"
+  },
+  {
+    "id": "redis/03-commands",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Essential Redis Commands",
+    "subtitle": "GET, SET, DEL, KEYS, SCAN, EXPIRE, and TTL",
+    "tags": [
+      "redis",
+      "beginner"
+    ],
+    "url": "/learn/redis/03-commands"
+  },
+  {
+    "id": "redis/04-caching-patterns",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Caching Patterns",
+    "subtitle": "Cache-aside, write-through, and read-through",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/04-caching-patterns"
+  },
+  {
+    "id": "redis/05-expiry-eviction",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Expiry and Eviction",
+    "subtitle": "TTL, EXPIRE, and eviction policies",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/05-expiry-eviction"
+  },
+  {
+    "id": "redis/06-distributed-cache",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Distributed Caching",
+    "subtitle": "Multi-instance Redis, consistent hashing, and Redis Cluster",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/06-distributed-cache"
+  },
+  {
+    "id": "redis/07-lists-sets",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Lists and Sets",
+    "subtitle": "LPUSH, RPOP, SADD, SINTER, and queue patterns",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/07-lists-sets"
+  },
+  {
+    "id": "redis/08-sorted-sets",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Sorted Sets",
+    "subtitle": "Leaderboards, rate limiting, and range queries",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/08-sorted-sets"
+  },
+  {
+    "id": "redis/09-hashes",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Hashes",
+    "subtitle": "HSET, HGET, HMGET, and efficient object storage",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/09-hashes"
+  },
+  {
+    "id": "redis/10-pub-sub",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Pub/Sub Messaging",
+    "subtitle": "PUBLISH, SUBSCRIBE, and channel patterns",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/10-pub-sub"
+  },
+  {
+    "id": "redis/11-streams",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Redis Streams",
+    "subtitle": "XADD, XREAD, consumer groups, and durable messaging",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/11-streams"
+  },
+  {
+    "id": "redis/12-lua-scripting",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Lua Scripting",
+    "subtitle": "EVAL, EVALSHA, and atomic multi-command operations",
+    "tags": [
+      "redis",
+      "intermediate"
+    ],
+    "url": "/learn/redis/12-lua-scripting"
+  },
+  {
+    "id": "redis/13-persistence",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Redis Persistence",
+    "subtitle": "RDB snapshots vs AOF and hybrid persistence",
+    "tags": [
+      "redis",
+      "advanced"
+    ],
+    "url": "/learn/redis/13-persistence"
+  },
+  {
+    "id": "redis/14-clustering",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Redis Cluster & Sentinel",
+    "subtitle": "High availability and horizontal scaling",
+    "tags": [
+      "redis",
+      "advanced"
+    ],
+    "url": "/learn/redis/14-clustering"
+  },
+  {
+    "id": "redis/15-redis-in-production",
+    "type": "lesson",
+    "tech": "redis",
+    "title": "Redis in Production",
+    "subtitle": "Monitoring, security, and operational best practices",
+    "tags": [
+      "redis",
+      "advanced"
+    ],
+    "url": "/learn/redis/15-redis-in-production"
+  },
+  {
+    "id": "ml/course",
+    "type": "course",
+    "tech": "ml",
+    "title": "Machine Learning",
+    "subtitle": "Course overview",
+    "tags": [
+      "ml"
+    ],
+    "url": "/learn/ml"
+  },
+  {
+    "id": "ml/01-introduction",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Introduction to Machine Learning",
+    "subtitle": "Types of ML, the ML workflow, and when to use ML",
+    "tags": [
+      "ml",
+      "beginner"
+    ],
+    "url": "/learn/ml/01-introduction"
+  },
+  {
+    "id": "ml/02-data-preparation",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Data Preparation",
+    "subtitle": "Cleaning, normalising, handling missing values and outliers",
+    "tags": [
+      "ml",
+      "beginner"
+    ],
+    "url": "/learn/ml/02-data-preparation"
+  },
+  {
+    "id": "ml/03-feature-engineering",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Feature Engineering",
+    "subtitle": "Creating and selecting features that improve model performance",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/03-feature-engineering"
+  },
+  {
+    "id": "ml/04-linear-regression",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Linear Regression",
+    "subtitle": "Fitting a line, coefficients, and predicting continuous values",
+    "tags": [
+      "ml",
+      "beginner"
+    ],
+    "url": "/learn/ml/04-linear-regression"
+  },
+  {
+    "id": "ml/05-classification",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Classification",
+    "subtitle": "Logistic regression, decision boundaries, and class probabilities",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/05-classification"
+  },
+  {
+    "id": "ml/06-decision-trees",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Decision Trees",
+    "subtitle": "Splits, depth, and tree-based models",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/06-decision-trees"
+  },
+  {
+    "id": "ml/07-metrics",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Evaluation Metrics",
+    "subtitle": "Accuracy, precision, recall, F1, AUC-ROC, and MSE",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/07-metrics"
+  },
+  {
+    "id": "ml/08-cross-validation",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Cross-Validation",
+    "subtitle": "K-fold, stratified folds, and avoiding data leakage",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/08-cross-validation"
+  },
+  {
+    "id": "ml/09-regularization",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Regularization",
+    "subtitle": "L1, L2, dropout, and preventing overfitting",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/09-regularization"
+  },
+  {
+    "id": "ml/10-ensemble-methods",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Ensemble Methods",
+    "subtitle": "Bagging, boosting, Random Forest, and XGBoost",
+    "tags": [
+      "ml",
+      "advanced"
+    ],
+    "url": "/learn/ml/10-ensemble-methods"
+  },
+  {
+    "id": "ml/11-neural-networks",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Neural Networks",
+    "subtitle": "Perceptrons, backpropagation, and deep learning with Keras",
+    "tags": [
+      "ml",
+      "advanced"
+    ],
+    "url": "/learn/ml/11-neural-networks"
+  },
+  {
+    "id": "ml/12-clustering",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Unsupervised Learning & Clustering",
+    "subtitle": "K-means, DBSCAN, PCA, and finding hidden structure",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/12-clustering"
+  },
+  {
+    "id": "ml/13-feature-selection",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Feature Selection",
+    "subtitle": "Removing irrelevant features to improve models",
+    "tags": [
+      "ml",
+      "intermediate"
+    ],
+    "url": "/learn/ml/13-feature-selection"
+  },
+  {
+    "id": "ml/14-model-deployment",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "Deploying ML Models",
+    "subtitle": "Saving models, building APIs, and serving predictions",
+    "tags": [
+      "ml",
+      "advanced"
+    ],
+    "url": "/learn/ml/14-model-deployment"
+  },
+  {
+    "id": "ml/15-mlops",
+    "type": "lesson",
+    "tech": "ml",
+    "title": "MLOps",
+    "subtitle": "Tracking experiments, CI/CD for ML, and monitoring",
+    "tags": [
+      "ml",
+      "advanced"
+    ],
+    "url": "/learn/ml/15-mlops"
+  },
+  {
+    "id": "llms/course",
+    "type": "course",
+    "tech": "llms",
+    "title": "LLMs & Prompt Eng.",
+    "subtitle": "Course overview",
+    "tags": [
+      "llms"
+    ],
+    "url": "/learn/llms"
+  },
+  {
+    "id": "llms/01-introduction",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Introduction to LLMs",
+    "subtitle": "What large language models are and what they can do",
+    "tags": [
+      "llms",
+      "beginner"
+    ],
+    "url": "/learn/llms/01-introduction"
+  },
+  {
+    "id": "llms/02-transformers",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "How Transformers Work",
+    "subtitle": "Attention, embeddings, and the transformer architecture",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/02-transformers"
+  },
+  {
+    "id": "llms/03-tokenization",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Tokenization",
+    "subtitle": "How text becomes tokens, BPE, and counting tokens",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/03-tokenization"
+  },
+  {
+    "id": "llms/04-prompt-basics",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Prompt Engineering Basics",
+    "subtitle": "System prompts, user messages, and clear instructions",
+    "tags": [
+      "llms",
+      "beginner"
+    ],
+    "url": "/learn/llms/04-prompt-basics"
+  },
+  {
+    "id": "llms/05-chain-of-thought",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Chain-of-Thought Prompting",
+    "subtitle": "Step-by-step reasoning and extended thinking",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/05-chain-of-thought"
+  },
+  {
+    "id": "llms/06-few-shot",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Few-Shot Prompting",
+    "subtitle": "Giving examples to steer output style and format",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/06-few-shot"
+  },
+  {
+    "id": "llms/07-api-integration",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Integrating LLM APIs",
+    "subtitle": "Authentication, rate limits, retries, and cost management",
+    "tags": [
+      "llms",
+      "beginner"
+    ],
+    "url": "/learn/llms/07-api-integration"
+  },
+  {
+    "id": "llms/08-streaming",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Streaming Responses",
+    "subtitle": "Server-sent events, real-time display, and latency",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/08-streaming"
+  },
+  {
+    "id": "llms/09-function-calling",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Tool Use & Function Calling",
+    "subtitle": "Defining tools and parsing structured outputs",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/09-function-calling"
+  },
+  {
+    "id": "llms/10-rag-basics",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "RAG: Retrieval-Augmented Generation",
+    "subtitle": "Combining LLMs with external knowledge",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/10-rag-basics"
+  },
+  {
+    "id": "llms/11-vector-databases",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Vector Databases",
+    "subtitle": "Embeddings, similarity search, and vector stores",
+    "tags": [
+      "llms",
+      "intermediate"
+    ],
+    "url": "/learn/llms/11-vector-databases"
+  },
+  {
+    "id": "llms/12-retrieval-strategies",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Advanced Retrieval Strategies",
+    "subtitle": "Reranking, hybrid search, and contextual retrieval",
+    "tags": [
+      "llms",
+      "advanced"
+    ],
+    "url": "/learn/llms/12-retrieval-strategies"
+  },
+  {
+    "id": "llms/13-agents",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "LLM Agents",
+    "subtitle": "Tool-using agents, planning, and multi-step reasoning",
+    "tags": [
+      "llms",
+      "advanced"
+    ],
+    "url": "/learn/llms/13-agents"
+  },
+  {
+    "id": "llms/14-fine-tuning",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "Fine-Tuning LLMs",
+    "subtitle": "When and how to fine-tune vs prompt engineer",
+    "tags": [
+      "llms",
+      "advanced"
+    ],
+    "url": "/learn/llms/14-fine-tuning"
+  },
+  {
+    "id": "llms/15-production-apps",
+    "type": "lesson",
+    "tech": "llms",
+    "title": "LLM Apps in Production",
+    "subtitle": "Observability, guardrails, latency, and cost optimisation",
+    "tags": [
+      "llms",
+      "advanced"
+    ],
+    "url": "/learn/llms/15-production-apps"
+  },
+  {
+    "id": "cryptography/course",
+    "type": "course",
+    "tech": "cryptography",
+    "title": "Cryptography",
+    "subtitle": "Course overview",
+    "tags": [
+      "cryptography"
+    ],
+    "url": "/learn/cryptography"
+  },
+  {
+    "id": "cryptography/01-introduction",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Introduction to Cryptography",
+    "subtitle": "Goals of cryptography: confidentiality, integrity, authenticity",
+    "tags": [
+      "cryptography",
+      "beginner"
+    ],
+    "url": "/learn/cryptography/01-introduction"
+  },
+  {
+    "id": "cryptography/02-entropy-randomness",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Entropy and Randomness",
+    "subtitle": "Why randomness matters and how to generate it securely",
+    "tags": [
+      "cryptography",
+      "beginner"
+    ],
+    "url": "/learn/cryptography/02-entropy-randomness"
+  },
+  {
+    "id": "cryptography/03-hashing",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Cryptographic Hash Functions",
+    "subtitle": "SHA-256, SHA-3, and hash properties",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/03-hashing"
+  },
+  {
+    "id": "cryptography/04-aes",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "AES Encryption",
+    "subtitle": "Advanced Encryption Standard: blocks, keys, and rounds",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/04-aes"
+  },
+  {
+    "id": "cryptography/05-block-modes",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Block Cipher Modes",
+    "subtitle": "ECB, CBC, CTR, and why mode choice matters",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/05-block-modes"
+  },
+  {
+    "id": "cryptography/06-authenticated-encryption",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Authenticated Encryption",
+    "subtitle": "AES-GCM, ChaCha20-Poly1305, and AEAD",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/06-authenticated-encryption"
+  },
+  {
+    "id": "cryptography/07-public-key",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Public-Key Cryptography",
+    "subtitle": "Key pairs, asymmetric encryption, and the key exchange problem",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/07-public-key"
+  },
+  {
+    "id": "cryptography/08-rsa",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "RSA Cryptography",
+    "subtitle": "How RSA works, key sizes, and secure usage",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/08-rsa"
+  },
+  {
+    "id": "cryptography/09-elliptic-curves",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Elliptic Curve Cryptography",
+    "subtitle": "ECDSA, ECDH, and why ECC beats RSA for size",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/09-elliptic-curves"
+  },
+  {
+    "id": "cryptography/10-tls",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "TLS/SSL",
+    "subtitle": "The TLS handshake, cipher suites, and HTTPS",
+    "tags": [
+      "cryptography",
+      "advanced"
+    ],
+    "url": "/learn/cryptography/10-tls"
+  },
+  {
+    "id": "cryptography/11-certificates",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Digital Certificates and PKI",
+    "subtitle": "X.509, certificate authorities, and trust chains",
+    "tags": [
+      "cryptography",
+      "advanced"
+    ],
+    "url": "/learn/cryptography/11-certificates"
+  },
+  {
+    "id": "cryptography/12-key-management",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Key Management",
+    "subtitle": "Generating, storing, rotating, and revoking keys",
+    "tags": [
+      "cryptography",
+      "advanced"
+    ],
+    "url": "/learn/cryptography/12-key-management"
+  },
+  {
+    "id": "cryptography/13-passwords-auth",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Password Storage and Authentication",
+    "subtitle": "bcrypt, Argon2, and secure credential handling",
+    "tags": [
+      "cryptography",
+      "intermediate"
+    ],
+    "url": "/learn/cryptography/13-passwords-auth"
+  },
+  {
+    "id": "cryptography/14-secure-protocols",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Secure Communication Protocols",
+    "subtitle": "SSH, JWT signing, and secure API authentication",
+    "tags": [
+      "cryptography",
+      "advanced"
+    ],
+    "url": "/learn/cryptography/14-secure-protocols"
+  },
+  {
+    "id": "cryptography/15-post-quantum",
+    "type": "lesson",
+    "tech": "cryptography",
+    "title": "Post-Quantum Cryptography",
+    "subtitle": "Why quantum computers threaten RSA/ECC and what comes next",
+    "tags": [
+      "cryptography",
+      "advanced"
+    ],
+    "url": "/learn/cryptography/15-post-quantum"
+  },
+  {
+    "id": "embedded/course",
+    "type": "course",
+    "tech": "embedded",
+    "title": "Embedded & IoT",
+    "subtitle": "Course overview",
+    "tags": [
+      "embedded"
+    ],
+    "url": "/learn/embedded"
+  },
+  {
+    "id": "embedded/01-introduction",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Introduction to Embedded Systems",
+    "subtitle": "What embedded systems are and how they differ from general-purpose computers",
+    "tags": [
+      "embedded",
+      "beginner"
+    ],
+    "url": "/learn/embedded/01-introduction"
+  },
+  {
+    "id": "embedded/02-microcontrollers",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Microcontroller Architecture",
+    "subtitle": "CPU, memory, registers, interrupts, and peripherals",
+    "tags": [
+      "embedded",
+      "beginner"
+    ],
+    "url": "/learn/embedded/02-microcontrollers"
+  },
+  {
+    "id": "embedded/03-gpio",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "GPIO: Digital and Analog I/O",
+    "subtitle": "Pins, voltage levels, pull-up resistors, and ADC",
+    "tags": [
+      "embedded",
+      "beginner"
+    ],
+    "url": "/learn/embedded/03-gpio"
+  },
+  {
+    "id": "embedded/04-arduino-setup",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Getting Started with Arduino",
+    "subtitle": "IDE, sketch structure, and uploading code",
+    "tags": [
+      "embedded",
+      "beginner"
+    ],
+    "url": "/learn/embedded/04-arduino-setup"
+  },
+  {
+    "id": "embedded/05-sensors-actuators",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Sensors and Actuators",
+    "subtitle": "Reading temperature, controlling motors, and PWM",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/05-sensors-actuators"
+  },
+  {
+    "id": "embedded/06-serial-communication",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Serial Communication",
+    "subtitle": "UART debugging, sending data to a computer, and parsing",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/06-serial-communication"
+  },
+  {
+    "id": "embedded/07-i2c-spi",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "I2C and SPI Protocols",
+    "subtitle": "Two-wire vs four-wire protocols for sensors and displays",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/07-i2c-spi"
+  },
+  {
+    "id": "embedded/08-uart",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "UART Deep Dive",
+    "subtitle": "Hardware and software serial, RS-232, and GPS modules",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/08-uart"
+  },
+  {
+    "id": "embedded/09-wireless",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Wireless Communication",
+    "subtitle": "WiFi (ESP32), Bluetooth, and LoRa for IoT",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/09-wireless"
+  },
+  {
+    "id": "embedded/10-rpi-setup",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Setting Up Raspberry Pi",
+    "subtitle": "OS installation, SSH, and initial configuration",
+    "tags": [
+      "embedded",
+      "beginner"
+    ],
+    "url": "/learn/embedded/10-rpi-setup"
+  },
+  {
+    "id": "embedded/11-python-gpio",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Python GPIO on Raspberry Pi",
+    "subtitle": "RPi.GPIO, gpiozero, and controlling hardware with Python",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/11-python-gpio"
+  },
+  {
+    "id": "embedded/12-linux-on-rpi",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Linux on Raspberry Pi",
+    "subtitle": "systemd services, cron, and running code at boot",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/12-linux-on-rpi"
+  },
+  {
+    "id": "embedded/13-mqtt",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "MQTT Protocol",
+    "subtitle": "Publish-subscribe messaging for IoT devices",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/13-mqtt"
+  },
+  {
+    "id": "embedded/14-edge-computing",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Edge Computing",
+    "subtitle": "Processing data on the device vs sending to the cloud",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/14-edge-computing"
+  },
+  {
+    "id": "embedded/15-raspberry-pi",
+    "type": "lesson",
+    "tech": "embedded",
+    "title": "Raspberry Pi IoT Project",
+    "subtitle": "Building an end-to-end sensor dashboard project",
+    "tags": [
+      "embedded",
+      "intermediate"
+    ],
+    "url": "/learn/embedded/15-raspberry-pi"
   }
 ]

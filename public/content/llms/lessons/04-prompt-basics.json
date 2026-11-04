@@ -1,0 +1,84 @@
+{
+  "id": "04-prompt-basics",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "prompt-engineering",
+  "title": "Prompt Engineering Basics",
+  "subtitle": "System prompts, user messages, and clear instructions",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.tokenization"
+  ],
+  "skillsTaught": [
+    "llms.prompting"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Writing Effective Prompts"
+    },
+    {
+      "type": "paragraph",
+      "text": "Prompt engineering is the practice of crafting inputs that reliably get the output you need. Clear, specific prompts outperform vague ones."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "prompt.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\nmessage = client.messages.create(\n    model=\"claude-opus-4-5\",\n    max_tokens=512,\n    system=\"You are a JSON-only API. Respond with valid JSON and nothing else.\",\n    messages=[{\n        \"role\": \"user\",\n        \"content\": \"Extract the name, email, and company from: John Smith, john@acme.com, Acme Corp\"\n    }]\n)\nprint(message.content[0].text)\n# {\"name\":\"John Smith\",\"email\":\"john@acme.com\",\"company\":\"Acme Corp\"}"
+    },
+    {
+      "type": "definition",
+      "term": "System Prompt",
+      "definition": "Instructions at the top of the conversation that set the model's persona and rules."
+    },
+    {
+      "type": "tip",
+      "text": "Provide output format examples in the prompt. Models imitate format much more reliably than following abstract format descriptions."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the system prompt used for?",
+          "type": "multiple-choice",
+          "options": [
+            "Setting the model temperature",
+            "Providing persistent instructions and persona to the model",
+            "Storing conversation history",
+            "Specifying the output token limit"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The system prompt sets the model's role, rules, and output format before the conversation begins."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I explain the reasoning behind my instructions?",
+      "a": "Yes. LLMs follow instructions better when they understand the goal. \"Reply in JSON for easy parsing\" is clearer than just \"Reply in JSON.\""
+    }
+  ],
+  "sources": [
+    {
+      "name": "Prompt Engineering Guide",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "chatbots",
+      "content moderation",
+      "data extraction"
+    ],
+    "examples": [
+      "Building a structured data extractor from unstructured text"
+    ]
+  }
+}

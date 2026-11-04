@@ -1,0 +1,78 @@
+{
+  "id": "13-agents",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-production",
+  "title": "LLM Agents",
+  "subtitle": "Tool-using agents, planning, and multi-step reasoning",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "llms.retrieval"
+  ],
+  "skillsTaught": [
+    "llms.agents"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is an AI Agent?"
+    },
+    {
+      "type": "paragraph",
+      "text": "An agent is an LLM that iteratively calls tools, reasons about the results, and decides what to do next until a goal is achieved."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "agent.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\ndef run_agent(goal: str):\n    messages = [{\"role\": \"user\", \"content\": goal}]\n    tools = [search_tool, calculator_tool, write_file_tool]\n\n    while True:\n        response = client.messages.create(\n            model=\"claude-opus-4-5\",\n            max_tokens=4096,\n            tools=tools,\n            messages=messages\n        )\n\n        if response.stop_reason == \"end_turn\":\n            return response.content[0].text\n\n        # Execute all requested tool calls\n        tool_results = []\n        for block in response.content:\n            if block.type == \"tool_use\":\n                result = execute_tool(block.name, block.input)\n                tool_results.append({\n                    \"type\": \"tool_result\",\n                    \"tool_use_id\": block.id,\n                    \"content\": str(result)\n                })\n\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\n        messages.append({\"role\": \"user\", \"content\": tool_results})"
+    },
+    {
+      "type": "tip",
+      "text": "Add a maximum iteration limit to agents to prevent infinite loops and runaway API costs."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What determines when an agent stops looping?",
+          "type": "multiple-choice",
+          "options": [
+            "A timer",
+            "The LLM returning stop_reason \"end_turn\" without a tool call",
+            "The user pressing Escape",
+            "A predefined number of steps"
+          ],
+          "correctAnswer": 1,
+          "explanation": "An agent loop continues until the LLM indicates it has finished (end_turn) rather than requesting another tool call."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What frameworks exist for building agents?",
+      "a": "LangChain, LlamaIndex, and Anthropic's own Claude agent SDK. For simple agents, a plain while loop is often clearer."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Tool Use Agents",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use/create-tools",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "autonomous research assistants",
+      "coding agents"
+    ],
+    "examples": [
+      "Research agent that searches the web and writes a summary report"
+    ]
+  }
+}

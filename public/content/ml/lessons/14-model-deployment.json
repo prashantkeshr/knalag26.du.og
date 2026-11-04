@@ -1,0 +1,78 @@
+{
+  "id": "14-model-deployment",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-production",
+  "title": "Deploying ML Models",
+  "subtitle": "Saving models, building APIs, and serving predictions",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.feature-selection"
+  ],
+  "skillsTaught": [
+    "ml.deployment"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Saving and Serving Models"
+    },
+    {
+      "type": "paragraph",
+      "text": "Persist a trained model with joblib or pickle and serve it via a REST API for real-time predictions."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "deploy.py",
+      "code": "import joblib\nfrom fastapi import FastAPI\nfrom pydantic import BaseModel\nimport numpy as np\n\n# Save model\njoblib.dump(model, \"model.joblib\")\njoblib.dump(scaler, \"scaler.joblib\")\n\n# Load and serve\nmodel = joblib.load(\"model.joblib\")\nscaler = joblib.load(\"scaler.joblib\")\n\napp = FastAPI()\n\nclass Features(BaseModel):\n    age: float\n    income: float\n\n@app.post(\"/predict\")\ndef predict(f: Features):\n    X = np.array([[f.age, f.income]])\n    X_scaled = scaler.transform(X)\n    pred = model.predict(X_scaled)[0]\n    prob = model.predict_proba(X_scaled)[0, 1]\n    return {\"prediction\": int(pred), \"probability\": float(prob)}"
+    },
+    {
+      "type": "tip",
+      "text": "Always save the scaler alongside the model — predictions on unscaled data will be wrong."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why must you save the scaler with the model?",
+          "type": "multiple-choice",
+          "options": [
+            "To reduce file size",
+            "Because predictions need the same transformation applied during training",
+            "Scalers contain the model weights",
+            "For logging purposes"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Predictions must pass through the same scaling used during training, or the inputs will be on a different scale."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is model drift?",
+      "a": "When model performance degrades over time because real-world data distributions change. Monitor predictions vs actual outcomes in production."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Model Persistence",
+      "url": "https://scikit-learn.org/stable/model_persistence.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "real-time scoring APIs",
+      "batch prediction jobs"
+    ],
+    "examples": [
+      "Credit scoring API returning probability of default"
+    ]
+  }
+}

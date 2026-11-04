@@ -1,0 +1,77 @@
+{
+  "id": "05-block-modes",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "symmetric-encryption",
+  "title": "Block Cipher Modes",
+  "subtitle": "ECB, CBC, CTR, and why mode choice matters",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.aes"
+  ],
+  "skillsTaught": [
+    "crypto.block-modes"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Block Cipher Modes of Operation"
+    },
+    {
+      "type": "paragraph",
+      "text": "The same block cipher (AES) can operate in different modes. The mode determines how blocks are chained and what security properties you get."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "modes.txt",
+      "code": "ECB (Electronic Codebook)\n  - Each block encrypted independently\n  - NEVER USE: identical plaintext blocks produce identical ciphertext blocks\n  - Leaks patterns (famous \"ECB penguin\" image)\n\nCBC (Cipher Block Chaining)\n  - Each block XORed with previous ciphertext before encryption\n  - Needs random IV; vulnerable to padding oracle if used with PKCS7\n\nCTR (Counter)\n  - Turns block cipher into stream cipher using a counter nonce\n  - Parallelisable; no padding needed\n\nGCM (Galois/Counter Mode)\n  - CTR + authentication tag\n  - RECOMMENDED for new applications"
+    },
+    {
+      "type": "tip",
+      "text": "Use AES-GCM for all new applications. It provides both confidentiality and integrity."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why should you never use ECB mode?",
+          "type": "multiple-choice",
+          "options": [
+            "It is too slow",
+            "Identical plaintext blocks produce identical ciphertext blocks, leaking patterns",
+            "It requires a 512-bit key",
+            "It does not support 128-bit blocks"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ECB mode encrypts each block independently, so identical plaintext blocks always produce identical ciphertext, revealing structure."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a padding oracle attack?",
+      "a": "An attack on AES-CBC where an attacker modifies ciphertext and observes whether the server returns a \"padding error\", allowing decryption of arbitrary ciphertext byte by byte."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Block cipher modes",
+      "url": "https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "choosing encryption parameters"
+    ],
+    "examples": [
+      "Migrating from AES-CBC to AES-GCM in a REST API"
+    ]
+  }
+}

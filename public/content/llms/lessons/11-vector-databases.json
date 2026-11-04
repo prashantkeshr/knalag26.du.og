@@ -1,0 +1,84 @@
+{
+  "id": "11-vector-databases",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "rag-systems",
+  "title": "Vector Databases",
+  "subtitle": "Embeddings, similarity search, and vector stores",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.rag"
+  ],
+  "skillsTaught": [
+    "llms.vector-db"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Vector Similarity Search"
+    },
+    {
+      "type": "paragraph",
+      "text": "Vector databases store embeddings and perform approximate nearest-neighbour search to find semantically similar content."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "vectordb.py",
+      "code": "from chromadb import Client\nimport chromadb\n\nclient = chromadb.Client()\ncollection = client.create_collection(\"docs\")\n\n# Add documents (ChromaDB embeds automatically)\ncollection.add(\n    documents=[\"Redis is an in-memory data store\", \"MongoDB is a document database\"],\n    ids=[\"doc1\", \"doc2\"]\n)\n\n# Query\nresults = collection.query(\n    query_texts=[\"What is Redis?\"],\n    n_results=1\n)\nprint(results[\"documents\"])"
+    },
+    {
+      "type": "definition",
+      "term": "Embedding",
+      "definition": "A vector (list of floats) representing the semantic meaning of text. Similar texts have similar vectors."
+    },
+    {
+      "type": "tip",
+      "text": "For production, use managed vector DBs like Pinecone, Weaviate, or pgvector (Postgres extension)."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does a vector database use to find similar documents?",
+          "type": "multiple-choice",
+          "options": [
+            "Exact keyword matching",
+            "Cosine similarity between embedding vectors",
+            "SQL LIKE queries",
+            "BM25 ranking"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Vector databases compute cosine similarity (or dot product) between query and document embeddings to find semantic matches."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What embedding model should I use?",
+      "a": "For English-only use cases, text-embedding-3-small (OpenAI) is fast and cheap. For multilingual, use multilingual-e5-large or Cohere embed v3."
+    }
+  ],
+  "sources": [
+    {
+      "name": "ChromaDB",
+      "url": "https://docs.trychroma.com/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "semantic search",
+      "RAG pipelines",
+      "duplicate detection"
+    ],
+    "examples": [
+      "Semantic search over 10,000 support articles"
+    ]
+  }
+}

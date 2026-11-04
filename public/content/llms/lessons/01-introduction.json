@@ -1,0 +1,87 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-fundamentals",
+  "title": "Introduction to LLMs",
+  "subtitle": "What large language models are and what they can do",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "llms.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is an LLM?"
+    },
+    {
+      "type": "paragraph",
+      "text": "A Large Language Model (LLM) is a neural network trained on vast text corpora to predict the next token. Through this training they develop impressive language and reasoning abilities."
+    },
+    {
+      "type": "definition",
+      "term": "Token",
+      "definition": "The basic unit an LLM processes. A token is roughly 4 characters or 0.75 words in English."
+    },
+    {
+      "type": "definition",
+      "term": "Context Window",
+      "definition": "The maximum number of tokens an LLM can process at once — including both the input and output."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "hello_llm.py",
+      "code": "import anthropic\n\nclient = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY env var\n\nmessage = client.messages.create(\n    model=\"claude-opus-4-5\",\n    max_tokens=1024,\n    messages=[{\"role\": \"user\", \"content\": \"Explain what an LLM is in one paragraph.\"}]\n)\n\nprint(message.content[0].text)"
+    },
+    {
+      "type": "tip",
+      "text": "LLMs are probabilistic. The same prompt can give different outputs. Control this with temperature (0 = deterministic)."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a token in the context of LLMs?",
+          "type": "multiple-choice",
+          "options": [
+            "A security credential",
+            "The basic unit of text processing (roughly 4 characters)",
+            "A type of model weight",
+            "A training label"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Tokens are the sub-word units LLMs process. English averages about 0.75 words per token."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can LLMs remember previous conversations?",
+      "a": "No intrinsic memory. You must include prior turns in the context window (messages array) to give the model conversation history."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Claude API Intro",
+      "url": "https://docs.anthropic.com/en/docs/intro-to-claude",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "chatbots",
+      "content generation",
+      "code assistants"
+    ],
+    "examples": [
+      "Building a customer support bot with an LLM API"
+    ]
+  }
+}

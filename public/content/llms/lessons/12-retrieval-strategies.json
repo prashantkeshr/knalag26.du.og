@@ -1,0 +1,78 @@
+{
+  "id": "12-retrieval-strategies",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "rag-systems",
+  "title": "Advanced Retrieval Strategies",
+  "subtitle": "Reranking, hybrid search, and contextual retrieval",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.vector-db"
+  ],
+  "skillsTaught": [
+    "llms.retrieval"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Improving Retrieval Quality"
+    },
+    {
+      "type": "paragraph",
+      "text": "Basic vector search misses exact keyword matches. Hybrid search combines dense (vector) and sparse (keyword) retrieval for better results."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rerank.py",
+      "code": "from anthropic import Anthropic\n\n# Step 1: Over-retrieve (top 20)\ncandidates = vector_store.search(query_embedding, top_k=20)\n\n# Step 2: Rerank with a cross-encoder or via LLM\n# Using Cohere rerank API as example\nimport cohere\nco = cohere.Client(\"YOUR_KEY\")\nreranked = co.rerank(\n    query=query,\n    documents=[c.text for c in candidates],\n    top_n=5\n)\n# Use only the top-5 reranked results in the prompt"
+    },
+    {
+      "type": "tip",
+      "text": "Always evaluate retrieval quality separately from generation quality. A bad retriever makes even the best LLM fail."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the purpose of reranking?",
+          "type": "multiple-choice",
+          "options": [
+            "To reduce embedding costs",
+            "To re-score retrieved documents using a more accurate model for better relevance ordering",
+            "To split documents into chunks",
+            "To generate a summary"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A reranker takes a large candidate set and re-scores them with a cross-encoder for more precise relevance ordering."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is contextual retrieval?",
+      "a": "Anthropic's technique of prepending a contextual description to each chunk before embedding, so the embedding captures both the chunk and its document-level context."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Contextual Retrieval",
+      "url": "https://www.anthropic.com/news/contextual-retrieval",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "enterprise search",
+      "multi-document Q&A"
+    ],
+    "examples": [
+      "Hybrid BM25 + vector search over a legal document corpus"
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "id": "12-key-management",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "tls-pki",
+  "title": "Key Management",
+  "subtitle": "Generating, storing, rotating, and revoking keys",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.certificates"
+  ],
+  "skillsTaught": [
+    "crypto.key-management"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Hardest Part of Cryptography"
+    },
+    {
+      "type": "paragraph",
+      "text": "Key management is usually the weakest link. Even perfect encryption is useless if the key is exposed."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "kms.py",
+      "code": "import boto3\n\n# AWS KMS: generate a data key\nkms = boto3.client(\"kms\", region_name=\"us-east-1\")\n\n# Generate a 256-bit data key\nresponse = kms.generate_data_key(\n    KeyId=\"arn:aws:kms:us-east-1:123456789:key/your-key-id\",\n    KeySpec=\"AES_256\"\n)\nplaintext_key = response[\"Plaintext\"]   # encrypt data with this\nencrypted_key = response[\"CiphertextBlob\"]  # store this, NOT the plaintext key\n\n# Later: decrypt the data key when you need to decrypt data\nresponse = kms.decrypt(CiphertextBlob=encrypted_key)\nrecovered_key = response[\"Plaintext\"]"
+    },
+    {
+      "type": "definition",
+      "term": "Key Rotation",
+      "definition": "Regularly generating new keys and re-encrypting data. Limits exposure if a key is compromised."
+    },
+    {
+      "type": "tip",
+      "text": "Never store encryption keys alongside encrypted data. Use a HSM or cloud KMS like AWS KMS or HashiCorp Vault."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Where should you store encryption keys in production?",
+          "type": "multiple-choice",
+          "options": [
+            "In the same database as the encrypted data",
+            "In a .env file",
+            "In a HSM or dedicated KMS like AWS KMS",
+            "Hardcoded in the application"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Keys should be stored in a Hardware Security Module (HSM) or dedicated Key Management Service, never alongside the data they protect."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is envelope encryption?",
+      "a": "Encrypting the data with a data key, then encrypting the data key with a master key (stored in KMS). The plaintext master key never leaves the KMS."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Key Management",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-57-part-1/rev-5/final",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "database field encryption",
+      "secrets management"
+    ],
+    "examples": [
+      "Storing database encryption keys in AWS KMS with automatic rotation"
+    ]
+  }
+}

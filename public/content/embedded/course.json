@@ -1,0 +1,33 @@
+{
+  "id": "embedded",
+  "version": "1.0.0",
+  "title": "Embedded & IoT",
+  "subtitle": "Microcontrollers, Arduino, Raspberry Pi, and IoT protocols",
+  "description": "Enter the world of embedded systems. Learn microcontrollers, GPIO, sensors, communication protocols (I2C, SPI, UART), Arduino programming, Raspberry Pi with Linux, MQTT messaging, and IoT project architecture.",
+  "icon": "cpu",
+  "color": "#64748b",
+  "stage": 16,
+  "order": 23,
+  "difficulty": "intermediate",
+  "estimatedHours": 25,
+  "prerequisites": [
+    "python",
+    "linux"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "embedded-basics",
+    "arduino",
+    "protocols",
+    "raspberry-pi",
+    "iot-projects"
+  ],
+  "tags": [
+    "embedded",
+    "arduino",
+    "raspberry-pi",
+    "iot",
+    "microcontrollers",
+    "gpio"
+  ]
+}

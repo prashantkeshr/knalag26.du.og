@@ -1,0 +1,78 @@
+{
+  "id": "09-indexes",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "data-modeling",
+  "title": "Indexes in MongoDB",
+  "subtitle": "Single-field, compound, and special indexes",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.relations"
+  ],
+  "skillsTaught": [
+    "mongodb.indexes"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Indexes Matter"
+    },
+    {
+      "type": "paragraph",
+      "text": "Without an index, MongoDB scans every document (COLLSCAN). An index lets MongoDB jump directly to matching documents (IXSCAN)."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "indexes.js",
+      "code": "// Create a single-field index\nawait products.createIndex({ name: 1 });\n\n// Compound index\nawait products.createIndex({ category: 1, price: -1 });\n\n// Unique index\nawait users.createIndex({ email: 1 }, { unique: true });\n\n// Explain a query\nconst plan = await products.find({ name: \"Laptop\" }).explain();\nconsole.log(plan.queryPlanner.winningPlan.stage);"
+    },
+    {
+      "type": "tip",
+      "text": "Create indexes for fields you filter, sort, or join on. Too many indexes slow writes."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a COLLSCAN?",
+          "type": "multiple-choice",
+          "options": [
+            "A collection scan — reads every document",
+            "A compressed scan",
+            "A cached scan",
+            "A covered scan"
+          ],
+          "correctAnswer": 0,
+          "explanation": "COLLSCAN means MongoDB scanned the whole collection because no suitable index existed."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How many indexes should a collection have?",
+      "a": "Create only the indexes your queries actually need. Each index costs write performance and storage. Use explain() to verify index usage."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Indexes",
+      "url": "https://www.mongodb.com/docs/manual/indexes/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "query optimization",
+      "unique constraints"
+    ],
+    "examples": [
+      "Adding a compound index for a filtered+sorted product listing"
+    ]
+  }
+}

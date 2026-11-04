@@ -1,0 +1,88 @@
+{
+  "id": "15-post-quantum",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "applied-cryptography",
+  "title": "Post-Quantum Cryptography",
+  "subtitle": "Why quantum computers threaten RSA/ECC and what comes next",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.protocols"
+  ],
+  "skillsTaught": [
+    "crypto.post-quantum"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Quantum Threat"
+    },
+    {
+      "type": "paragraph",
+      "text": "Shor's algorithm running on a large enough quantum computer can break RSA and ECC in polynomial time. NIST standardised new post-quantum algorithms in 2024."
+    },
+    {
+      "type": "definition",
+      "term": "CRYSTALS-Kyber (ML-KEM)",
+      "definition": "NIST-standardised key encapsulation mechanism resistant to quantum attacks."
+    },
+    {
+      "type": "definition",
+      "term": "CRYSTALS-Dilithium (ML-DSA)",
+      "definition": "NIST-standardised digital signature algorithm resistant to quantum attacks."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "migration.txt",
+      "code": "Current algorithms and status:\n  RSA-2048     — quantum-vulnerable (Shor's algorithm)\n  ECDSA P-256  — quantum-vulnerable (Shor's algorithm)\n  AES-256      — quantum-safe (Grover's halves effective key size; AES-256 still safe)\n  SHA-256      — quantum-safe (need SHA-384+ for long-term)\n\nNIST PQC Standards (2024):\n  ML-KEM  (CRYSTALS-Kyber)    — key encapsulation\n  ML-DSA  (CRYSTALS-Dilithium) — digital signatures\n  SLH-DSA (SPHINCS+)          — hash-based signatures"
+    },
+    {
+      "type": "tip",
+      "text": "Start planning a migration to post-quantum algorithms now. TLS 1.3 already supports hybrid ECDH+Kyber in Chrome and Cloudflare."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which of the following is NOT threatened by Shor's algorithm?",
+          "type": "multiple-choice",
+          "options": [
+            "RSA-2048",
+            "ECDSA P-256",
+            "AES-256",
+            "Diffie-Hellman"
+          ],
+          "correctAnswer": 2,
+          "explanation": "AES is a symmetric algorithm. Grover's algorithm halves its effective key size, but AES-256 retains ~128-bit quantum security — still safe."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I migrate to post-quantum cryptography today?",
+      "a": "Begin inventory and planning now. For most apps, there is no urgency today. Prioritise long-lived secrets (keys, certificates) that protect data you need to keep private for 10+ years."
+    }
+  ],
+  "sources": [
+    {
+      "name": "NIST PQC",
+      "url": "https://csrc.nist.gov/projects/post-quantum-cryptography",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "future-proof systems",
+      "government/defence"
+    ],
+    "examples": [
+      "Cloudflare deploying ECDH+Kyber hybrid key exchange in TLS 1.3"
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "id": "03-tokenization",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-fundamentals",
+  "title": "Tokenization",
+  "subtitle": "How text becomes tokens, BPE, and counting tokens",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "llms.architecture"
+  ],
+  "skillsTaught": [
+    "llms.tokenization"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Tokenizers"
+    },
+    {
+      "type": "paragraph",
+      "text": "LLMs do not operate on characters or words. They use subword tokenization (BPE or similar) which breaks text into variable-length chunks."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tokenize.py",
+      "code": "import tiktoken  # OpenAI tokenizer\n\nenc = tiktoken.encoding_for_model(\"gpt-4\")\ntokens = enc.encode(\"Hello, world!\")\nprint(tokens)      # [9906, 11, 1917, 0]\nprint(len(tokens)) # 4\n\n# Anthropic token count via API\nimport anthropic\nclient = anthropic.Anthropic()\ncount = client.messages.count_tokens(\n    model=\"claude-opus-4-5\",\n    messages=[{\"role\":\"user\",\"content\":\"Hello, world!\"}]\n)\nprint(count.input_tokens)"
+    },
+    {
+      "type": "tip",
+      "text": "Code uses more tokens per character than English. A Python function of 100 characters may use 50-80 tokens."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why does tokenization matter for LLM costs?",
+          "type": "multiple-choice",
+          "options": [
+            "LLMs charge per second of compute",
+            "API pricing is based on input and output token count",
+            "Tokens affect latency only",
+            "More tokens make models less accurate"
+          ],
+          "correctAnswer": 1,
+          "explanation": "LLM API pricing is based on tokens in and out. Understanding tokenization helps estimate and control costs."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does tokenization differ between models?",
+      "a": "Yes. Claude, GPT-4, and Llama use different tokenizers. Never assume token counts transfer between providers."
+    }
+  ],
+  "sources": [
+    {
+      "name": "tiktoken",
+      "url": "https://github.com/openai/tiktoken",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "cost estimation",
+      "context management"
+    ],
+    "examples": [
+      "Estimating cost of processing 1 million customer support messages"
+    ]
+  }
+}

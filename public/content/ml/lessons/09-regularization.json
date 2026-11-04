@@ -1,0 +1,84 @@
+{
+  "id": "09-regularization",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "model-evaluation",
+  "title": "Regularization",
+  "subtitle": "L1, L2, dropout, and preventing overfitting",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "ml.cross-validation"
+  ],
+  "skillsTaught": [
+    "ml.regularization"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Overfitting and Regularization"
+    },
+    {
+      "type": "paragraph",
+      "text": "Overfitting means the model memorises training data. Regularization adds a penalty on large coefficients to keep the model simple."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "regularize.py",
+      "code": "from sklearn.linear_model import Ridge, Lasso, ElasticNet\n\n# Ridge (L2): penalises sum of squared coefficients\nridge = Ridge(alpha=1.0)  # alpha controls penalty strength\nridge.fit(X_train, y_train)\n\n# Lasso (L1): drives some coefficients to exactly 0 (feature selection)\nlasso = Lasso(alpha=0.1)\nlasso.fit(X_train, y_train)\nprint(\"Non-zero features:\", sum(lasso.coef_ != 0))"
+    },
+    {
+      "type": "definition",
+      "term": "L2 Regularization",
+      "definition": "Penalises the sum of squared weights. Keeps all features but shrinks them."
+    },
+    {
+      "type": "definition",
+      "term": "L1 Regularization",
+      "definition": "Penalises the sum of absolute weights. Drives unimportant features to zero."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which regularization method performs feature selection?",
+          "type": "multiple-choice",
+          "options": [
+            "L2 (Ridge)",
+            "L1 (Lasso)",
+            "Dropout",
+            "Batch normalisation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "L1 (Lasso) regularization sets the coefficients of unimportant features to zero, effectively removing them."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I choose the regularization strength (alpha)?",
+      "a": "Use cross-validation and GridSearchCV to search over a range of alpha values and pick the one with best validation score."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Regularization",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html#ridge-regression",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "linear models",
+      "preventing overfitting"
+    ],
+    "examples": [
+      "Lasso regression for sparse feature selection on high-dimensional data"
+    ]
+  }
+}

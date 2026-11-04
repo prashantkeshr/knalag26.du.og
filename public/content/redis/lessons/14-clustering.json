@@ -1,0 +1,88 @@
+{
+  "id": "14-clustering",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-production",
+  "title": "Redis Cluster & Sentinel",
+  "subtitle": "High availability and horizontal scaling",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "redis.persistence"
+  ],
+  "skillsTaught": [
+    "redis.clustering"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Sentinel"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sentinel monitors a primary/replica setup and performs automatic failover when the primary fails. It is simpler than Cluster."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "sentinel.conf",
+      "code": "sentinel monitor mymaster 127.0.0.1 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 60000"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Cluster"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cluster provides both high availability and sharding across up to 1000 nodes using 16384 hash slots."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Check cluster health\nredis-cli cluster info\nredis-cli cluster nodes"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is Redis Sentinel used for?",
+          "type": "multiple-choice",
+          "options": [
+            "Horizontal sharding",
+            "Automatic failover for primary/replica setup",
+            "Data encryption",
+            "Schema validation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Sentinel monitors Redis instances and automatically promotes a replica if the primary fails."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I use Sentinel or Cluster?",
+      "a": "Use Sentinel for HA without sharding (simpler). Use Cluster when you need horizontal scale across many nodes."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Sentinel",
+      "url": "https://redis.io/docs/manual/sentinel/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "high-availability production systems"
+    ],
+    "examples": [
+      "3-node Sentinel setup on AWS ElastiCache"
+    ]
+  }
+}

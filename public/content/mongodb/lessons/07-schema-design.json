@@ -1,0 +1,88 @@
+{
+  "id": "07-schema-design",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "data-modeling",
+  "title": "Schema Design Patterns",
+  "subtitle": "Designing flexible yet efficient MongoDB schemas",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 15,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.crud-delete"
+  ],
+  "skillsTaught": [
+    "mongodb.schema"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Schema Design in MongoDB"
+    },
+    {
+      "type": "paragraph",
+      "text": "Even though MongoDB is schema-free, good schema design is critical for performance. The key question: embed or reference?"
+    },
+    {
+      "type": "definition",
+      "term": "Embedding",
+      "definition": "Storing related data inside the same document. Reduces joins but can bloat documents."
+    },
+    {
+      "type": "definition",
+      "term": "Referencing",
+      "definition": "Storing the _id of related documents and looking them up separately. Equivalent to SQL foreign keys."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "schema.js",
+      "code": "// Embedding (good for 1-to-few relationships)\n{\n  _id: ObjectId(),\n  title: \"MongoDB Basics\",\n  tags: [\"nosql\", \"database\"],  // embedded array\n  author: { name: \"Alice\", email: \"alice@ex.com\" }  // embedded doc\n}\n\n// Referencing (good for 1-to-many)\n{\n  _id: ObjectId(),\n  title: \"Blog Post\",\n  authorId: ObjectId(\"...\")  // reference to users collection\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Embed when data is queried together. Reference when data is updated independently or is very large."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "When should you embed a document instead of referencing?",
+          "type": "multiple-choice",
+          "options": [
+            "When the sub-document is shared across many documents",
+            "When data is always queried together and rarely changes independently",
+            "When the array can grow unboundedly",
+            "When you need strict consistency"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Embedding is best when the related data is always read together and belongs to one parent."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can a MongoDB document have size limits?",
+      "a": "Yes. A single document cannot exceed 16 MB. For large arrays that grow over time, referencing is safer."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Data Model Design",
+      "url": "https://www.mongodb.com/docs/manual/core/data-model-design/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "e-commerce",
+      "blogging platforms"
+    ],
+    "examples": [
+      "Embedding order items in an order document"
+    ]
+  }
+}

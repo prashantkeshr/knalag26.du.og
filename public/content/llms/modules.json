@@ -1,0 +1,57 @@
+[
+  {
+    "id": "llm-fundamentals",
+    "title": "LLM Fundamentals",
+    "description": "How LLMs work, transformers, and tokenisation",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-transformers",
+      "03-tokenization"
+    ]
+  },
+  {
+    "id": "prompt-engineering",
+    "title": "Prompt Engineering",
+    "description": "Basics, chain-of-thought, and few-shot prompting",
+    "order": 2,
+    "lessons": [
+      "04-prompt-basics",
+      "05-chain-of-thought",
+      "06-few-shot"
+    ]
+  },
+  {
+    "id": "llm-apis",
+    "title": "LLM APIs",
+    "description": "API integration, streaming, and function calling",
+    "order": 3,
+    "lessons": [
+      "07-api-integration",
+      "08-streaming",
+      "09-function-calling"
+    ]
+  },
+  {
+    "id": "rag-systems",
+    "title": "RAG Systems",
+    "description": "Retrieval-augmented generation and vector databases",
+    "order": 4,
+    "lessons": [
+      "10-rag-basics",
+      "11-vector-databases",
+      "12-retrieval-strategies"
+    ]
+  },
+  {
+    "id": "llm-production",
+    "title": "Production Apps",
+    "description": "Agents, fine-tuning, and production deployment",
+    "order": 5,
+    "lessons": [
+      "13-agents",
+      "14-fine-tuning",
+      "15-production-apps"
+    ]
+  }
+]

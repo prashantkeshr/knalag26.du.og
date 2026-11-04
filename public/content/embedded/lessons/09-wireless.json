@@ -1,0 +1,84 @@
+{
+  "id": "09-wireless",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "protocols",
+  "title": "Wireless Communication",
+  "subtitle": "WiFi (ESP32), Bluetooth, and LoRa for IoT",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.uart"
+  ],
+  "skillsTaught": [
+    "embedded.wireless"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ESP32 WiFi"
+    },
+    {
+      "type": "paragraph",
+      "text": "The ESP32 has built-in WiFi and Bluetooth. It is ideal for IoT projects that need internet connectivity."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "esp32_wifi.ino",
+      "code": "#include <WiFi.h>\n#include <HTTPClient.h>\n\nconst char* ssid = \"YourSSID\";\nconst char* pass = \"YourPassword\";\n\nvoid setup() {\n  WiFi.begin(ssid, pass);\n  while (WiFi.status() != WL_CONNECTED) delay(500);\n  Serial.println(\"Connected! IP: \" + WiFi.localIP().toString());\n\n  HTTPClient http;\n  http.begin(\"https://api.example.com/data\");\n  int code = http.GET();\n  if (code == 200) Serial.println(http.getString());\n  http.end();\n}"
+    },
+    {
+      "type": "definition",
+      "term": "LoRa",
+      "definition": "Long Range radio: low data rate but can reach kilometres without infrastructure. Used for rural sensor networks."
+    },
+    {
+      "type": "tip",
+      "text": "Store WiFi credentials in NVS (non-volatile storage) or as build flags, not hardcoded in source."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What microcontroller has built-in WiFi and is popular for IoT?",
+          "type": "multiple-choice",
+          "options": [
+            "ATmega328P",
+            "Arduino Uno",
+            "ESP32",
+            "STM32F103"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The ESP32 from Espressif has dual-core CPU, WiFi, Bluetooth, and runs at 240 MHz — ideal for IoT."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is the range of Bluetooth LE?",
+      "a": "Typically 10-100 metres depending on obstacles and antenna. Good for local device communication."
+    }
+  ],
+  "sources": [
+    {
+      "name": "ESP32 Arduino",
+      "url": "https://docs.espressif.com/projects/arduino-esp32/en/latest/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "smart home",
+      "remote sensors",
+      "wearables"
+    ],
+    "examples": [
+      "ESP32 temperature sensor posting data to a REST API every minute"
+    ]
+  }
+}

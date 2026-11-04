@@ -1,0 +1,78 @@
+{
+  "id": "07-api-integration",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-apis",
+  "title": "Integrating LLM APIs",
+  "subtitle": "Authentication, rate limits, retries, and cost management",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.few-shot"
+  ],
+  "skillsTaught": [
+    "llms.api"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Working with LLM APIs"
+    },
+    {
+      "type": "paragraph",
+      "text": "Most LLM providers expose a REST API. Use the official SDK, never raw HTTP, for automatic retries and error handling."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "api.py",
+      "code": "import anthropic\nimport os\n\nclient = anthropic.Anthropic(api_key=os.environ[\"ANTHROPIC_API_KEY\"])\n\ntry:\n    msg = client.messages.create(\n        model=\"claude-opus-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": \"Hello!\"}]\n    )\n    print(msg.content[0].text)\nexcept anthropic.RateLimitError:\n    print(\"Rate limit hit — back off and retry\")\nexcept anthropic.APIStatusError as e:\n    print(f\"API error {e.status_code}: {e.message}\")"
+    },
+    {
+      "type": "tip",
+      "text": "Never hardcode API keys. Load from environment variables or a secrets manager."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Where should you store your LLM API key?",
+          "type": "multiple-choice",
+          "options": [
+            "In the source code",
+            "In an environment variable or secrets manager",
+            "In a public README",
+            "In a JSON config file"
+          ],
+          "correctAnswer": 1,
+          "explanation": "API keys must never be in source code. Use environment variables or a secrets manager like AWS Secrets Manager."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I reduce API costs?",
+      "a": "Use caching for repeated prompts, choose smaller models for simpler tasks, reduce max_tokens, and implement prompt caching (prefix caching) where available."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Claude API Reference",
+      "url": "https://docs.anthropic.com/en/api/getting-started",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "web apps",
+      "backend services"
+    ],
+    "examples": [
+      "Wrapping the Anthropic API with retry logic and cost tracking"
+    ]
+  }
+}

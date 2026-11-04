@@ -1,0 +1,78 @@
+{
+  "id": "13-replication",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-production",
+  "title": "Replication",
+  "subtitle": "Replica sets, elections, and read preferences",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.geospatial"
+  ],
+  "skillsTaught": [
+    "mongodb.replication"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Replica Sets"
+    },
+    {
+      "type": "paragraph",
+      "text": "A replica set is a group of MongoDB servers that maintain the same data. One is the primary (accepts writes); the others are secondaries (replicate from primary)."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "",
+      "code": "Replica Set members:\n  Primary   ← receives all writes\n  Secondary ← replicates primary, can serve reads\n  Secondary ← replicates primary, can serve reads\n\nIf the primary fails, secondaries elect a new primary automatically."
+    },
+    {
+      "type": "tip",
+      "text": "Always deploy replica sets in production — they provide automatic failover and data redundancy."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What happens when the primary in a replica set goes down?",
+          "type": "multiple-choice",
+          "options": [
+            "All writes fail permanently",
+            "Secondaries elect a new primary",
+            "The replica set stops accepting reads",
+            "Data is lost"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MongoDB replica sets automatically elect a new primary when the current primary becomes unavailable."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How many members should a replica set have?",
+      "a": "Always use an odd number (3, 5, 7) to avoid split-brain during elections. Three members is the standard."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Replica Sets",
+      "url": "https://www.mongodb.com/docs/manual/replication/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "production databases",
+      "high-availability systems"
+    ],
+    "examples": [
+      "3-member replica set on Atlas"
+    ]
+  }
+}

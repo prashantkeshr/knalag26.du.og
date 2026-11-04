@@ -1,0 +1,74 @@
+{
+  "id": "12-geospatial",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "advanced-queries",
+  "title": "Geospatial Queries",
+  "subtitle": "2dsphere indexes and $near, $geoWithin",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.text-search"
+  ],
+  "skillsTaught": [
+    "mongodb.geospatial"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Geospatial Data"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB supports GeoJSON and legacy coordinate pairs for location queries. Use 2dsphere indexes for spherical geometry."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "geo.js",
+      "code": "// Store a location as GeoJSON\nawait places.insertOne({\n  name: \"Taj Mahal\",\n  location: { type: \"Point\", coordinates: [78.0421, 27.1751] }\n});\n\n// Create 2dsphere index\nawait places.createIndex({ location: \"2dsphere\" });\n\n// Find places within 5km\nconst nearby = await places.find({\n  location: {\n    $near: {\n      $geometry: { type: \"Point\", coordinates: [78.04, 27.17] },\n      $maxDistance: 5000 // metres\n    }\n  }\n}).toArray();"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What index type is required for $near queries?",
+          "type": "multiple-choice",
+          "options": [
+            "text",
+            "2d",
+            "2dsphere",
+            "hashed"
+          ],
+          "correctAnswer": 2,
+          "explanation": "$near requires a 2dsphere index for spherical (real-world) coordinates."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What coordinate order does GeoJSON use?",
+      "a": "GeoJSON uses [longitude, latitude] order — the opposite of what many people expect."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Geospatial Queries",
+      "url": "https://www.mongodb.com/docs/manual/geospatial-queries/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "location-based apps",
+      "store finders"
+    ],
+    "examples": [
+      "Finding nearby restaurants within 2 km"
+    ]
+  }
+}

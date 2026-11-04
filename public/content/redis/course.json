@@ -1,0 +1,32 @@
+{
+  "id": "redis",
+  "version": "1.0.0",
+  "title": "Redis",
+  "subtitle": "In-memory data structures, caching, and pub/sub messaging",
+  "description": "Master Redis from basics to production. Learn all built-in data structures, caching strategies, pub/sub messaging, Lua scripting, persistence options, and cluster deployment.",
+  "icon": "database",
+  "color": "#d82c20",
+  "stage": 11,
+  "order": 13,
+  "difficulty": "intermediate",
+  "estimatedHours": 10,
+  "prerequisites": [
+    "sql",
+    "nodejs"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "redis-basics",
+    "caching",
+    "advanced-structures",
+    "messaging",
+    "redis-production"
+  ],
+  "tags": [
+    "redis",
+    "cache",
+    "in-memory",
+    "pub-sub",
+    "data-structures"
+  ]
+}

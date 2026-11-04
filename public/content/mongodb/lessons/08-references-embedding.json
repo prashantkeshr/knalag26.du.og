@@ -1,0 +1,78 @@
+{
+  "id": "08-references-embedding",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "data-modeling",
+  "title": "References and Embedding",
+  "subtitle": "DBRefs, $lookup, and population patterns",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.schema"
+  ],
+  "skillsTaught": [
+    "mongodb.relations"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "$lookup for Joins"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB's $lookup aggregation stage performs a left outer join, similar to SQL JOIN."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "lookup.js",
+      "code": "// Join orders with users\ndb.orders.aggregate([\n  {\n    $lookup: {\n      from: \"users\",\n      localField: \"userId\",\n      foreignField: \"_id\",\n      as: \"user\"\n    }\n  },\n  { $unwind: \"$user\" }\n])"
+    },
+    {
+      "type": "tip",
+      "text": "$lookup works best when both collections fit in memory. For very large datasets, consider embedding."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does $lookup do?",
+          "type": "multiple-choice",
+          "options": [
+            "Creates an index",
+            "Joins two collections",
+            "Deletes duplicate documents",
+            "Encrypts a field"
+          ],
+          "correctAnswer": 1,
+          "explanation": "$lookup performs a join between two collections in an aggregation pipeline."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Does Mongoose support population?",
+      "a": "Yes. Mongoose's .populate() method follows DBRefs and fetches referenced documents automatically."
+    }
+  ],
+  "sources": [
+    {
+      "name": "$lookup",
+      "url": "https://www.mongodb.com/docs/manual/reference/operator/aggregation/lookup/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "order management",
+      "content platforms"
+    ],
+    "examples": [
+      "Populating author details in blog posts"
+    ]
+  }
+}

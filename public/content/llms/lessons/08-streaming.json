@@ -1,0 +1,80 @@
+{
+  "id": "08-streaming",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-apis",
+  "title": "Streaming Responses",
+  "subtitle": "Server-sent events, real-time display, and latency",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "llms.api"
+  ],
+  "skillsTaught": [
+    "llms.streaming"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Stream?"
+    },
+    {
+      "type": "paragraph",
+      "text": "By default, the API waits until the full response is generated before returning. Streaming sends tokens as they are generated, dramatically improving perceived latency."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "stream.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\nwith client.messages.stream(\n    model=\"claude-opus-4-5\",\n    max_tokens=1024,\n    messages=[{\"role\": \"user\", \"content\": \"Tell me a short story.\"}]\n) as stream:\n    for text in stream.text_stream:\n        print(text, end=\"\", flush=True)\n\nfinal = stream.get_final_message()\nprint(f\"\\n\\nTotal tokens: {final.usage.input_tokens + final.usage.output_tokens}\")"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "stream.js",
+      "code": "// Node.js streaming\nconst stream = client.messages.stream({\n  model: \"claude-opus-4-5\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Hello!\" }]\n});\nfor await (const event of stream) {\n  if (event.type === \"content_block_delta\")\n    process.stdout.write(event.delta.text);\n}"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the main benefit of streaming LLM responses?",
+          "type": "multiple-choice",
+          "options": [
+            "Lower cost",
+            "The user sees output immediately as tokens arrive",
+            "Higher accuracy",
+            "Smaller context window usage"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Streaming makes the app feel instant because the user reads output as it is generated rather than waiting for the full response."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I cancel a streaming request mid-way?",
+      "a": "Yes. Close the stream object (break out of the for loop, or call stream.close()) to cancel the request and stop further token generation."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Streaming",
+      "url": "https://docs.anthropic.com/en/api/messages-streaming",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "chat UIs",
+      "real-time summarisation"
+    ],
+    "examples": [
+      "Streaming a long document summary to a web UI"
+    ]
+  }
+}

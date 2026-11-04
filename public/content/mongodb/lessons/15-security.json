@@ -1,0 +1,84 @@
+{
+  "id": "15-security",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-production",
+  "title": "MongoDB Security",
+  "subtitle": "Authentication, authorization, encryption, and auditing",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.sharding"
+  ],
+  "skillsTaught": [
+    "mongodb.security"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Securing MongoDB"
+    },
+    {
+      "type": "paragraph",
+      "text": "Default MongoDB installations have no authentication. In production, always enable authentication, TLS, and restrict network access."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "security.js",
+      "code": "// Create an admin user\ndb.createUser({\n  user: \"admin\",\n  pwd: \"strongpassword\",\n  roles: [{ role: \"userAdminAnyDatabase\", db: \"admin\" }]\n});\n\n// Create an app user with least privilege\ndb.createUser({\n  user: \"appuser\",\n  pwd: \"apppass\",\n  roles: [{ role: \"readWrite\", db: \"myapp\" }]\n});"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "mongod.conf",
+      "code": "security:\n  authorization: enabled\nnet:\n  tls:\n    mode: requireTLS\n    certificateKeyFile: /etc/ssl/mongodb.pem"
+    },
+    {
+      "type": "tip",
+      "text": "Never expose MongoDB port 27017 directly to the internet. Use a firewall and VPN."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What MongoDB config option enables authentication?",
+          "type": "multiple-choice",
+          "options": [
+            "net.auth",
+            "security.authorization",
+            "auth.enable",
+            "require.auth"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Set security.authorization: enabled in mongod.conf to require authentication."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I encrypt data at rest?",
+      "a": "MongoDB Enterprise and Atlas provide Encrypted Storage Engine. For Community Edition, use Linux full-disk encryption (LUKS)."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Security Checklist",
+      "url": "https://www.mongodb.com/docs/manual/administration/security-checklist/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "production deployments",
+      "compliance requirements"
+    ],
+    "examples": [
+      "Role-based access control for multi-tenant SaaS"
+    ]
+  }
+}

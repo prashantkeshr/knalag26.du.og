@@ -1,0 +1,74 @@
+{
+  "id": "13-feature-selection",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-production",
+  "title": "Feature Selection",
+  "subtitle": "Removing irrelevant features to improve models",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "ml.clustering"
+  ],
+  "skillsTaught": [
+    "ml.feature-selection"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Select Features?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Fewer features reduce overfitting, speed up training, and make models more interpretable. Remove features that add noise."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "select.py",
+      "code": "from sklearn.feature_selection import SelectKBest, f_classif, RFE\nfrom sklearn.ensemble import RandomForestClassifier\n\n# Select top 10 features by ANOVA F-statistic\nselector = SelectKBest(score_func=f_classif, k=10)\nX_new = selector.fit_transform(X_train, y_train)\n\n# Recursive Feature Elimination\nrf = RandomForestClassifier(n_estimators=100)\nrfe = RFE(estimator=rf, n_features_to_select=10)\nrfe.fit(X_train, y_train)\nprint(\"Selected features:\", [features[i] for i in range(len(features)) if rfe.support_[i]])"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the purpose of RFE?",
+          "type": "multiple-choice",
+          "options": [
+            "To reduce model depth",
+            "To recursively remove the least important features",
+            "To split data into folds",
+            "To impute missing values"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RFE (Recursive Feature Elimination) iteratively trains the model and removes the least important feature until the desired number remains."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can feature importance from Random Forest be misleading?",
+      "a": "Yes. RF feature importance can favour high-cardinality features. Use permutation importance for a more reliable estimate."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Feature Selection",
+      "url": "https://scikit-learn.org/stable/modules/feature_selection.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "high-dimensional datasets",
+      "interpretable models"
+    ],
+    "examples": [
+      "Reducing 200 sensor readings to the 20 most informative"
+    ]
+  }
+}

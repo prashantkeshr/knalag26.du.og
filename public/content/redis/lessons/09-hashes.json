@@ -1,0 +1,79 @@
+{
+  "id": "09-hashes",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "advanced-structures",
+  "title": "Hashes",
+  "subtitle": "HSET, HGET, HMGET, and efficient object storage",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.sorted-sets"
+  ],
+  "skillsTaught": [
+    "redis.hashes"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Hashes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Hashes store field-value pairs under a single key. They are memory-efficient for storing objects with many fields."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Store user object\nHSET user:1 name \"Alice\" email \"alice@ex.com\" age 30\n\n# Get one field\nHGET user:1 name\n\n# Get multiple fields\nHMGET user:1 name email\n\n# Get all fields\nHGETALL user:1\n\n# Increment a numeric field\nHINCRBY user:1 loginCount 1\n\n# Delete a field\nHDEL user:1 age"
+    },
+    {
+      "type": "tip",
+      "text": "Use hashes instead of one string per field when an object has many attributes — it uses less memory."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What command retrieves all fields and values from a Redis hash?",
+          "type": "multiple-choice",
+          "options": [
+            "HGET",
+            "HMGET",
+            "HGETALL",
+            "HSCAN"
+          ],
+          "correctAnswer": 2,
+          "explanation": "HGETALL returns all field-value pairs in a hash."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How many fields can a Redis hash have?",
+      "a": "Up to 2^32-1 (over 4 billion) fields per hash."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Hashes",
+      "url": "https://redis.io/docs/data-types/hashes/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "user profiles",
+      "product data",
+      "session storage"
+    ],
+    "examples": [
+      "Storing user preferences as a hash instead of a JSON string"
+    ]
+  }
+}

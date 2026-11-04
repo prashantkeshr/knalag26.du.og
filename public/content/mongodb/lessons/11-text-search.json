@@ -1,0 +1,78 @@
+{
+  "id": "11-text-search",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "advanced-queries",
+  "title": "Text Search",
+  "subtitle": "Full-text indexes, $text, and $search with Atlas",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.aggregation"
+  ],
+  "skillsTaught": [
+    "mongodb.text-search"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Full-Text Search"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB text indexes let you search string fields for words or phrases using the $text operator."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "text.js",
+      "code": "// Create a text index\nawait articles.createIndex({ title: \"text\", body: \"text\" });\n\n// Search for documents containing \"mongodb\"\nconst results = await articles.find(\n  { $text: { $search: \"mongodb aggregation\" } },\n  { projection: { score: { $meta: \"textScore\" }, title: 1 } }\n).sort({ score: { $meta: \"textScore\" } }).toArray();"
+    },
+    {
+      "type": "tip",
+      "text": "For advanced search (fuzzy, autocomplete, filters), use MongoDB Atlas Search powered by Lucene."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What must you create before using $text queries?",
+          "type": "multiple-choice",
+          "options": [
+            "A compound index",
+            "A text index",
+            "A unique index",
+            "A TTL index"
+          ],
+          "correctAnswer": 1,
+          "explanation": "$text requires a text index on the fields you want to search."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I have multiple text indexes per collection?",
+      "a": "No. A collection can have only one text index, but it can cover multiple fields."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Text Indexes",
+      "url": "https://www.mongodb.com/docs/manual/core/index-text/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "site search",
+      "article search"
+    ],
+    "examples": [
+      "Building a documentation search with Atlas Search"
+    ]
+  }
+}

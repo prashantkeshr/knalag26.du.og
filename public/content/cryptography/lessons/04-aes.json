@@ -1,0 +1,79 @@
+{
+  "id": "04-aes",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "symmetric-encryption",
+  "title": "AES Encryption",
+  "subtitle": "Advanced Encryption Standard: blocks, keys, and rounds",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.hashing"
+  ],
+  "skillsTaught": [
+    "crypto.aes"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Advanced Encryption Standard"
+    },
+    {
+      "type": "paragraph",
+      "text": "AES is the standard symmetric block cipher, used everywhere from TLS to full-disk encryption. It operates on 128-bit blocks and supports 128, 192, or 256-bit keys."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "aes.py",
+      "code": "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\nfrom cryptography.hazmat.backends import default_backend\nimport os\n\nkey = os.urandom(32)   # AES-256 key\niv  = os.urandom(16)   # Initialisation vector\n\n# Encrypt\ncipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())\nenc = cipher.encryptor()\nciphertext = enc.update(b\"Hello, AES-CBC!  \") + enc.finalize()  # must be 16-byte aligned\n\n# Decrypt\ndec = cipher.decryptor()\nplaintext = dec.update(ciphertext) + dec.finalize()\nprint(plaintext)"
+    },
+    {
+      "type": "tip",
+      "text": "AES-CBC requires a unique random IV for every encryption. Never reuse an IV with the same key."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What block size does AES use?",
+          "type": "multiple-choice",
+          "options": [
+            "64 bits",
+            "128 bits",
+            "256 bits",
+            "512 bits"
+          ],
+          "correctAnswer": 1,
+          "explanation": "AES always operates on 128-bit (16-byte) blocks regardless of key length."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I use AES-CBC in new code?",
+      "a": "Prefer AES-GCM (authenticated encryption). AES-CBC does not authenticate the ciphertext, so an attacker can tamper with it undetected."
+    }
+  ],
+  "sources": [
+    {
+      "name": "AES",
+      "url": "https://en.wikipedia.org/wiki/Advanced_Encryption_Standard",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "file encryption",
+      "database field encryption",
+      "full-disk encryption"
+    ],
+    "examples": [
+      "Encrypting user PII before storing in a database"
+    ]
+  }
+}

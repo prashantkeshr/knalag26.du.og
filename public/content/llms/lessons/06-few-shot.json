@@ -1,0 +1,79 @@
+{
+  "id": "06-few-shot",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "prompt-engineering",
+  "title": "Few-Shot Prompting",
+  "subtitle": "Giving examples to steer output style and format",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "llms.cot"
+  ],
+  "skillsTaught": [
+    "llms.few-shot"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Few-Shot Learning"
+    },
+    {
+      "type": "paragraph",
+      "text": "Including a few input-output examples in the prompt teaches the model the exact format and style you want."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "fewshot.py",
+      "code": "system = \"\"\"Classify the sentiment of product reviews as POSITIVE, NEGATIVE, or NEUTRAL.\n\nExamples:\nReview: \"This laptop is incredible, best purchase I've made!\"\nSentiment: POSITIVE\n\nReview: \"Battery died after 2 months. Very disappointed.\"\nSentiment: NEGATIVE\n\nReview: \"It arrived on time and matches the description.\"\nSentiment: NEUTRAL\n\"\"\"\n\nuser = 'Review: \"The keyboard feels a bit mushy but I like the screen.\"'\n# Model: NEUTRAL (or NEGATIVE depending on weighting)"
+    },
+    {
+      "type": "tip",
+      "text": "Use 3–5 examples that cover edge cases. More is not always better — it uses up context."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is few-shot prompting?",
+          "type": "multiple-choice",
+          "options": [
+            "Training a small model",
+            "Providing input-output examples in the prompt",
+            "Reducing the token count",
+            "Lowering the temperature"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Few-shot prompting provides examples directly in the prompt to demonstrate the desired output format or style."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is zero-shot vs few-shot?",
+      "a": "Zero-shot has no examples — the model uses only instructions. Few-shot includes examples. Few-shot is more reliable for precise formats."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Few-Shot Prompting",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/use-examples",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "text classification",
+      "data labelling",
+      "format extraction"
+    ],
+    "examples": [
+      "Sentiment classifier with 5 labeled examples in the prompt"
+    ]
+  }
+}

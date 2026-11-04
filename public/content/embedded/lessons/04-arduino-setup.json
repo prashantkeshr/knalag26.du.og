@@ -1,0 +1,83 @@
+{
+  "id": "04-arduino-setup",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "arduino",
+  "title": "Getting Started with Arduino",
+  "subtitle": "IDE, sketch structure, and uploading code",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "embedded.gpio"
+  ],
+  "skillsTaught": [
+    "embedded.arduino-setup"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Arduino Sketch"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every Arduino program (sketch) has two functions: setup() runs once at start; loop() runs continuously."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "blink.ino",
+      "code": "// Classic Blink sketch\nconst int LED = 13;  // built-in LED\n\nvoid setup() {\n  pinMode(LED, OUTPUT);\n  Serial.begin(9600);  // open serial port for debug\n  Serial.println(\"Arduino ready!\");\n}\n\nvoid loop() {\n  digitalWrite(LED, HIGH);\n  Serial.println(\"LED on\");\n  delay(1000);\n\n  digitalWrite(LED, LOW);\n  Serial.println(\"LED off\");\n  delay(1000);\n}"
+    },
+    {
+      "type": "definition",
+      "term": "Sketch",
+      "definition": "An Arduino program. Equivalent to a C++ file with the .ino extension."
+    },
+    {
+      "type": "tip",
+      "text": "Avoid delay() in production sketches — it blocks everything. Use millis() for non-blocking timing instead."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "How many times does setup() run?",
+          "type": "multiple-choice",
+          "options": [
+            "Once per loop iteration",
+            "Once at startup",
+            "Continuously",
+            "Never"
+          ],
+          "correctAnswer": 1,
+          "explanation": "setup() runs exactly once when the Arduino powers on or resets."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I write Arduino code in C++?",
+      "a": "Yes. Arduino sketches are essentially C++ with a wrapper. You can use all C++ features and standard libraries."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Arduino Getting Started",
+      "url": "https://www.arduino.cc/en/Guide/HomePage",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "prototyping",
+      "learning embedded"
+    ],
+    "examples": [
+      "Uploading a Blink sketch as a first Arduino program"
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-basics",
+  "title": "Introduction to Redis",
+  "subtitle": "What Redis is, its use cases, and architecture",
+  "difficulty": "beginner",
+  "estimatedMinutes": 8,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "redis.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is Redis?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis (Remote Dictionary Server) is an in-memory key-value store. Because it stores data in RAM, it is extremely fast — capable of millions of operations per second."
+    },
+    {
+      "type": "definition",
+      "term": "In-memory",
+      "definition": "Data is stored in RAM rather than on disk, making access nanoseconds instead of milliseconds."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Install Redis (macOS)\nbrew install redis\nbrew services start redis\n\n# Connect\nredis-cli\n127.0.0.1:6379> PING\nPONG"
+    },
+    {
+      "type": "tip",
+      "text": "Redis is single-threaded for command execution, which eliminates race conditions without locks."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Where does Redis primarily store data?",
+          "type": "multiple-choice",
+          "options": [
+            "On disk (SSD)",
+            "In RAM",
+            "In a distributed file system",
+            "In SQLite"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis stores data in RAM for maximum speed."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can Redis persist data?",
+      "a": "Yes. Redis supports RDB snapshots and AOF (Append-Only File) persistence to survive restarts."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Redis Introduction",
+      "url": "https://redis.io/docs/about/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "session stores",
+      "rate limiting",
+      "leaderboards"
+    ],
+    "examples": [
+      "Caching API responses to reduce database load"
+    ]
+  }
+}

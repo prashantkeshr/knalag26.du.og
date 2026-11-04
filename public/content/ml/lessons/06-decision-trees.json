@@ -1,0 +1,78 @@
+{
+  "id": "06-decision-trees",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "supervised-learning",
+  "title": "Decision Trees",
+  "subtitle": "Splits, depth, and tree-based models",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "ml.classification"
+  ],
+  "skillsTaught": [
+    "ml.trees"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How Decision Trees Work"
+    },
+    {
+      "type": "paragraph",
+      "text": "A decision tree splits data at each node based on the feature that best separates classes. Leaves contain predictions."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tree.py",
+      "code": "from sklearn.tree import DecisionTreeClassifier, export_text\nfrom sklearn.model_selection import train_test_split\n\nmodel = DecisionTreeClassifier(max_depth=5, random_state=42)\nmodel.fit(X_train, y_train)\n\nprint(f\"Accuracy: {model.score(X_test, y_test):.2f}\")\nprint(export_text(model, feature_names=feature_names))"
+    },
+    {
+      "type": "tip",
+      "text": "Unconstrained trees overfit. Use max_depth, min_samples_leaf, or pruning to regularise."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is overfitting in a decision tree?",
+          "type": "multiple-choice",
+          "options": [
+            "The tree is too shallow",
+            "The tree memorises training data and fails on new data",
+            "The tree takes too long to train",
+            "The tree has too few nodes"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Overfitting means the model fits the training data too closely and does not generalise."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is the difference between a decision tree and a random forest?",
+      "a": "A random forest is an ensemble of many decision trees, each trained on a random subset of data and features. It is much more accurate and less prone to overfitting."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Decision Trees",
+      "url": "https://scikit-learn.org/stable/modules/tree.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "rule extraction",
+      "interpretable models"
+    ],
+    "examples": [
+      "Credit scoring with a shallow decision tree"
+    ]
+  }
+}

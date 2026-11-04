@@ -1,0 +1,79 @@
+{
+  "id": "10-rpi-setup",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "raspberry-pi",
+  "title": "Setting Up Raspberry Pi",
+  "subtitle": "OS installation, SSH, and initial configuration",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "embedded.wireless"
+  ],
+  "skillsTaught": [
+    "embedded.rpi-setup"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Raspberry Pi Setup"
+    },
+    {
+      "type": "paragraph",
+      "text": "Raspberry Pi runs a full Linux OS (Raspberry Pi OS). Flash the SD card with Raspberry Pi Imager, enable SSH, and connect headlessly."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Flash with Raspberry Pi Imager (GUI) or\n# via command line\nsudo dd if=raspios.img of=/dev/sdX bs=4M status=progress\n\n# Enable SSH before first boot\ntouch /boot/ssh\n\n# Set WiFi credentials\ncat > /boot/wpa_supplicant.conf << EOF\ncountry=IN\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\nnetwork={\n  ssid=\"YourNetwork\"\n  psk=\"YourPassword\"\n}\nEOF\n\n# Connect\nssh pi@raspberrypi.local"
+    },
+    {
+      "type": "tip",
+      "text": "Use Raspberry Pi Imager's advanced settings to preconfigure hostname, SSH, and WiFi — no manual file editing needed."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "How do you enable SSH headlessly on Raspberry Pi?",
+          "type": "multiple-choice",
+          "options": [
+            "Edit sshd_config",
+            "Place an empty file named \"ssh\" in the /boot partition",
+            "Install openssh-server",
+            "Run raspi-config"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Placing an empty file named \"ssh\" in the /boot partition tells the Pi to enable SSH on first boot."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What operating system does Raspberry Pi use?",
+      "a": "Raspberry Pi OS (formerly Raspbian), based on Debian Linux. You can also run Ubuntu, Arch, or other ARM-compatible Linux distributions."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Raspberry Pi Documentation",
+      "url": "https://www.raspberrypi.com/documentation/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "home servers",
+      "edge computing",
+      "robotics"
+    ],
+    "examples": [
+      "Setting up a Pi Zero W as a headless sensor hub"
+    ]
+  }
+}

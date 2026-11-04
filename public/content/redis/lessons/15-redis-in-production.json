@@ -1,0 +1,92 @@
+{
+  "id": "15-redis-in-production",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-production",
+  "title": "Redis in Production",
+  "subtitle": "Monitoring, security, and operational best practices",
+  "difficulty": "advanced",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.clustering"
+  ],
+  "skillsTaught": [
+    "redis.production"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Securing Redis"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis has no authentication by default. In production, enable requirepass, bind to localhost, and use TLS."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "redis.conf",
+      "code": "requirepass \"strongsecretpassword\"\nbind 127.0.0.1\ntls-port 6380\ntls-cert-file /path/to/redis.crt\ntls-key-file /path/to/redis.key"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Monitoring Redis"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use INFO ALL to see metrics and monitor slowlog for slow commands."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "redis-cli INFO memory\nredis-cli INFO stats\nredis-cli SLOWLOG GET 10\nredis-cli MONITOR   # real-time command log (dev only)"
+    },
+    {
+      "type": "tip",
+      "text": "Never run MONITOR in production — it logs every command and significantly impacts performance."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What command shows the slowest recent Redis commands?",
+          "type": "multiple-choice",
+          "options": [
+            "SLOWLOG GET",
+            "INFO slow",
+            "DEBUG SLEEP",
+            "LATENCY HISTORY"
+          ],
+          "correctAnswer": 0,
+          "explanation": "SLOWLOG GET returns the most recent commands that exceeded the slowlog threshold."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a good maxmemory setting?",
+      "a": "Set maxmemory to 70-80% of available RAM to leave headroom for fork() during RDB saves and OS buffers."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Production Checklist",
+      "url": "https://redis.io/docs/management/security/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "production Redis deployments"
+    ],
+    "examples": [
+      "Redis behind a TLS proxy on AWS"
+    ]
+  }
+}

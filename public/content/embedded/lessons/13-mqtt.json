@@ -1,0 +1,86 @@
+{
+  "id": "13-mqtt",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "iot-projects",
+  "title": "MQTT Protocol",
+  "subtitle": "Publish-subscribe messaging for IoT devices",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.rpi-linux"
+  ],
+  "skillsTaught": [
+    "embedded.mqtt"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why MQTT?"
+    },
+    {
+      "type": "paragraph",
+      "text": "MQTT is a lightweight publish-subscribe protocol designed for constrained IoT devices. Devices publish to topics; subscribers receive messages."
+    },
+    {
+      "type": "definition",
+      "term": "Broker",
+      "definition": "The MQTT server that receives all messages and routes them to subscribers. Popular: Mosquitto, EMQX, HiveMQ Cloud."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "mqtt_publisher.py",
+      "code": "import paho.mqtt.client as mqtt\nimport json, time, random\n\nclient = mqtt.Client(\"sensor-01\")\nclient.connect(\"mqtt.broker.host\", 1883)\n\nwhile True:\n    payload = json.dumps({\"temp\": round(random.uniform(20, 30), 1), \"humidity\": round(random.uniform(40, 70), 1)})\n    client.publish(\"home/living-room/sensor\", payload, qos=1)\n    print(f\"Published: {payload}\")\n    time.sleep(5)"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "mqtt_subscriber.py",
+      "code": "import paho.mqtt.client as mqtt\nimport json\n\ndef on_message(client, userdata, msg):\n    data = json.loads(msg.payload)\n    print(f\"{msg.topic}: {data}\")\n\nclient = mqtt.Client()\nclient.on_message = on_message\nclient.connect(\"mqtt.broker.host\", 1883)\nclient.subscribe(\"home/#\")  # wildcard\nclient.loop_forever()"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is an MQTT broker?",
+          "type": "multiple-choice",
+          "options": [
+            "A sensor device",
+            "The server that routes messages between publishers and subscribers",
+            "A protocol for I2C",
+            "A type of microcontroller"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The MQTT broker is the central server that receives messages from publishers and delivers them to all matching subscribers."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is QoS in MQTT?",
+      "a": "Quality of Service levels: QoS 0 = at most once (fire and forget), QoS 1 = at least once (may duplicate), QoS 2 = exactly once (slowest but guaranteed)."
+    }
+  ],
+  "sources": [
+    {
+      "name": "paho-mqtt",
+      "url": "https://www.eclipse.org/paho/index.php?page=clients/python/index.php",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "home automation",
+      "industrial telemetry",
+      "fleet management"
+    ],
+    "examples": [
+      "Pi sending temperature data to Home Assistant via MQTT"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "id": "10-pub-sub",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "messaging",
+  "title": "Pub/Sub Messaging",
+  "subtitle": "PUBLISH, SUBSCRIBE, and channel patterns",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.hashes"
+  ],
+  "skillsTaught": [
+    "redis.pub-sub"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Pub/Sub"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis Pub/Sub allows publishers to send messages to channels without knowing who (if anyone) is subscribed. Subscribers receive messages in real time."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Subscriber (blocks waiting for messages)\nSUBSCRIBE notifications\n\n# Publisher (in a different connection)\nPUBLISH notifications \"New order placed: #1234\"\n\n# Pattern subscribe\nPSUBSCRIBE orders.*"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "pubsub.js",
+      "code": "// Node.js with ioredis\nconst sub = new Redis();\nawait sub.subscribe(\"chat:room1\");\nsub.on(\"message\", (channel, message) => {\n  console.log(`${channel}: ${message}`);\n});\n\n// Publish from another connection\nconst pub = new Redis();\nawait pub.publish(\"chat:room1\", \"Hello!\");"
+    },
+    {
+      "type": "tip",
+      "text": "Pub/Sub messages are fire-and-forget — if no subscriber is connected, the message is lost. Use Streams for durability."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What happens to a Pub/Sub message if no subscriber is listening?",
+          "type": "multiple-choice",
+          "options": [
+            "It is queued",
+            "It is stored in a list",
+            "It is lost",
+            "It is re-sent every minute"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Redis Pub/Sub is fire-and-forget; messages not received by a subscriber at the moment of publish are lost."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use Pub/Sub for a chat app?",
+      "a": "Yes for simple cases. For message history or offline delivery, use Redis Streams instead, which persist messages."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Pub/Sub",
+      "url": "https://redis.io/docs/manual/pubsub/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "real-time notifications",
+      "chat",
+      "live updates"
+    ],
+    "examples": [
+      "Broadcasting score updates to all connected clients"
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "id": "14-fine-tuning",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-production",
+  "title": "Fine-Tuning LLMs",
+  "subtitle": "When and how to fine-tune vs prompt engineer",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "llms.agents"
+  ],
+  "skillsTaught": [
+    "llms.fine-tuning"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Fine-Tuning vs Prompting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Fine-tuning trains the model on your data to specialise its behaviour. It is expensive and usually unnecessary — good prompting covers 90% of use cases."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "finetune.py",
+      "code": "# Fine-tuning is typically done through provider APIs\n# Example: OpenAI fine-tuning workflow\nfrom openai import OpenAI\nclient = OpenAI()\n\n# 1. Upload training data (JSONL format)\nresponse = client.files.create(\n    file=open(\"training_data.jsonl\", \"rb\"),\n    purpose=\"fine-tune\"\n)\nfile_id = response.id\n\n# 2. Create a fine-tuning job\njob = client.fine_tuning.jobs.create(\n    training_file=file_id,\n    model=\"gpt-4o-mini\"\n)\n\n# 3. Wait and use the fine-tuned model\n# client.chat.completions.create(model=job.fine_tuned_model, ...)"
+    },
+    {
+      "type": "tip",
+      "text": "Always try prompt engineering + few-shot examples before fine-tuning. Fine-tuning costs money and time."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "When is fine-tuning most justified?",
+          "type": "multiple-choice",
+          "options": [
+            "When you want to chat with an LLM",
+            "When you need consistent output formatting at scale and prompting has reached its limits",
+            "When you want to give an LLM new knowledge",
+            "Whenever you have more than 100 examples"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Fine-tuning is best for ingraining a specific style or format when prompting is inconsistent at high volumes."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I fine-tune Claude?",
+      "a": "Anthropic offers fine-tuning for select enterprise customers. For most developers, prompt engineering with the base model is the recommended path."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Fine-Tuning Overview",
+      "url": "https://platform.openai.com/docs/guides/fine-tuning",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "domain-specific assistants",
+      "format enforcement at scale"
+    ],
+    "examples": [
+      "Fine-tuning a model on company tone-of-voice guidelines"
+    ]
+  }
+}

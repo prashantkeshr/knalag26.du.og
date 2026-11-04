@@ -1,0 +1,88 @@
+{
+  "id": "02-transformers",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-fundamentals",
+  "title": "How Transformers Work",
+  "subtitle": "Attention, embeddings, and the transformer architecture",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "llms.basics"
+  ],
+  "skillsTaught": [
+    "llms.architecture"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Transformer Architecture"
+    },
+    {
+      "type": "paragraph",
+      "text": "Transformers use self-attention to process all tokens in parallel and weigh their relevance to each other."
+    },
+    {
+      "type": "definition",
+      "term": "Attention",
+      "definition": "A mechanism that lets each token look at all other tokens and decide which are most relevant for predicting the next token."
+    },
+    {
+      "type": "definition",
+      "term": "Embedding",
+      "definition": "A dense vector representation of a token or text. Similar meanings have similar vectors."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "embed.py",
+      "code": "# Embeddings via API\nimport anthropic\nclient = anthropic.Anthropic()\n\n# Most providers offer an embeddings endpoint\n# for semantic similarity and vector search\nfrom openai import OpenAI\noai = OpenAI()\n\nresponse = oai.embeddings.create(\n    input=\"Machine learning is transforming industries\",\n    model=\"text-embedding-3-small\"\n)\nvector = response.data[0].embedding  # list of 1536 floats"
+    },
+    {
+      "type": "tip",
+      "text": "You do not need to understand transformer internals to build great LLM applications, but it helps to understand why models have context limits and why longer contexts cost more."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does self-attention allow a transformer to do?",
+          "type": "multiple-choice",
+          "options": [
+            "Process tokens one at a time",
+            "Weight every token against every other token in the sequence",
+            "Memorise training data",
+            "Run faster than recurrent networks"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Self-attention computes how relevant each token is to every other token in the input sequence."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is the difference between GPT and BERT?",
+      "a": "GPT is a decoder-only model (generates text left-to-right). BERT is encoder-only (understands full context). GPT-style models power most chat LLMs."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Attention Is All You Need",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "semantic search",
+      "text classification"
+    ],
+    "examples": [
+      "Using embeddings to find similar support tickets"
+    ]
+  }
+}

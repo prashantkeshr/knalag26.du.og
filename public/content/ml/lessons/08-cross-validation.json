@@ -1,0 +1,78 @@
+{
+  "id": "08-cross-validation",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "model-evaluation",
+  "title": "Cross-Validation",
+  "subtitle": "K-fold, stratified folds, and avoiding data leakage",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "ml.metrics"
+  ],
+  "skillsTaught": [
+    "ml.cross-validation"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Cross-Validate?"
+    },
+    {
+      "type": "paragraph",
+      "text": "A single train/test split can be lucky or unlucky. Cross-validation evaluates the model on multiple splits and averages the results."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cv.py",
+      "code": "from sklearn.model_selection import cross_val_score, StratifiedKFold\nfrom sklearn.ensemble import RandomForestClassifier\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\n\n# 5-fold stratified cross-validation\ncv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)\nscores = cross_val_score(model, X, y, cv=cv, scoring=\"f1\")\nprint(f\"F1: {scores.mean():.3f} ± {scores.std():.3f}\")"
+    },
+    {
+      "type": "tip",
+      "text": "Use StratifiedKFold for classification to preserve class proportions in each fold."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does 5-fold cross-validation do?",
+          "type": "multiple-choice",
+          "options": [
+            "Trains 5 separate models on all data",
+            "Splits data into 5 folds and trains/evaluates 5 times",
+            "Splits data 5 times randomly",
+            "Runs 5 epochs"
+          ],
+          "correctAnswer": 1,
+          "explanation": "5-fold CV splits data into 5 equal parts, using each fold once as the test set."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a pipeline in scikit-learn?",
+      "a": "A Pipeline chains preprocessing steps and the model so they are cross-validated together, preventing data leakage from the scaler."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Cross-validation",
+      "url": "https://scikit-learn.org/stable/modules/cross_validation.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "model selection",
+      "hyperparameter tuning"
+    ],
+    "examples": [
+      "Comparing SVM vs RandomForest with 10-fold CV"
+    ]
+  }
+}

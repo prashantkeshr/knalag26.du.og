@@ -1,0 +1,79 @@
+{
+  "id": "04-linear-regression",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "supervised-learning",
+  "title": "Linear Regression",
+  "subtitle": "Fitting a line, coefficients, and predicting continuous values",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "ml.features"
+  ],
+  "skillsTaught": [
+    "ml.regression"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Linear Regression"
+    },
+    {
+      "type": "paragraph",
+      "text": "Linear regression models the relationship between inputs and a continuous output as a straight line (or hyperplane)."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "linear.py",
+      "code": "from sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\nimport numpy as np\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = LinearRegression()\nmodel.fit(X_train, y_train)\n\npreds = model.predict(X_test)\nrmse = np.sqrt(mean_squared_error(y_test, preds))\nprint(f\"RMSE: {rmse:.2f}\")\nprint(f\"Coefficients: {model.coef_}\")"
+    },
+    {
+      "type": "definition",
+      "term": "RMSE",
+      "definition": "Root Mean Squared Error — the average prediction error in the same units as the target."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does a linear regression model output?",
+          "type": "multiple-choice",
+          "options": [
+            "A probability",
+            "A class label",
+            "A continuous numeric value",
+            "A cluster ID"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Linear regression predicts a continuous number, like price or temperature."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "When is linear regression not appropriate?",
+      "a": "When the relationship is non-linear, or the target is categorical. Use tree-based models or logistic regression instead."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Linear Regression",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "price prediction",
+      "demand forecasting"
+    ],
+    "examples": [
+      "Predicting apartment rent from size and location"
+    ]
+  }
+}

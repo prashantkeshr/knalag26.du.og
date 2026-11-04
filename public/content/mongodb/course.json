@@ -1,0 +1,32 @@
+{
+  "id": "mongodb",
+  "version": "1.0.0",
+  "title": "MongoDB",
+  "subtitle": "Document databases, aggregation pipelines, and schema design",
+  "description": "Learn MongoDB from first principles. Store flexible JSON-like documents, query with the MongoDB Query Language, build powerful aggregation pipelines, design schemas for real applications, and run MongoDB in production.",
+  "icon": "database",
+  "color": "#4db33d",
+  "stage": 11,
+  "order": 12,
+  "difficulty": "intermediate",
+  "estimatedHours": 15,
+  "prerequisites": [
+    "sql",
+    "nodejs"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "mongodb-basics",
+    "crud-operations",
+    "data-modeling",
+    "advanced-queries",
+    "mongodb-production"
+  ],
+  "tags": [
+    "mongodb",
+    "nosql",
+    "database",
+    "document-db",
+    "aggregation"
+  ]
+}

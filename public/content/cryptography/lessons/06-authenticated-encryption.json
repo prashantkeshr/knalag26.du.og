@@ -1,0 +1,79 @@
+{
+  "id": "06-authenticated-encryption",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "symmetric-encryption",
+  "title": "Authenticated Encryption",
+  "subtitle": "AES-GCM, ChaCha20-Poly1305, and AEAD",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.block-modes"
+  ],
+  "skillsTaught": [
+    "crypto.aead"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AEAD: Authenticated Encryption with Associated Data"
+    },
+    {
+      "type": "paragraph",
+      "text": "AEAD schemes provide both confidentiality and integrity in one operation. If the ciphertext is tampered with, decryption fails."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "gcm.py",
+      "code": "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\nkey = AESGCM.generate_key(bit_length=256)\naesgcm = AESGCM(key)\n\nnonce = os.urandom(12)  # 96-bit nonce for GCM\naad = b\"user-id:1234\"   # associated data (not encrypted, but authenticated)\n\n# Encrypt\nciphertext = aesgcm.encrypt(nonce, b\"Secret message\", aad)\n\n# Decrypt (raises InvalidTag if tampered)\ntry:\n    plaintext = aesgcm.decrypt(nonce, ciphertext, aad)\n    print(plaintext)\nexcept Exception:\n    print(\"Authentication failed — data was tampered!\")"
+    },
+    {
+      "type": "tip",
+      "text": "The nonce must be unique for every encryption. For AES-GCM, nonce reuse with the same key is catastrophic."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does AEAD guarantee beyond confidentiality?",
+          "type": "multiple-choice",
+          "options": [
+            "Compression",
+            "Integrity — the receiver can detect tampering",
+            "Faster encryption",
+            "Post-quantum security"
+          ],
+          "correctAnswer": 1,
+          "explanation": "AEAD schemes produce an authentication tag so any ciphertext modification is detected on decryption."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is the associated data (AAD) used for?",
+      "a": "AAD is authenticated but not encrypted — useful for headers or metadata you need to verify (like a user ID or version number) without encrypting them."
+    }
+  ],
+  "sources": [
+    {
+      "name": "AESGCM",
+      "url": "https://cryptography.io/en/latest/hazmat/primitives/aead/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "API payload encryption",
+      "file encryption",
+      "secure messaging"
+    ],
+    "examples": [
+      "Encrypting JWTs with AES-GCM instead of HMAC signing"
+    ]
+  }
+}

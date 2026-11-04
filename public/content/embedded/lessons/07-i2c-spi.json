@@ -1,0 +1,90 @@
+{
+  "id": "07-i2c-spi",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "protocols",
+  "title": "I2C and SPI Protocols",
+  "subtitle": "Two-wire vs four-wire protocols for sensors and displays",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "embedded.serial"
+  ],
+  "skillsTaught": [
+    "embedded.i2c-spi"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "I2C: Two-Wire Interface"
+    },
+    {
+      "type": "paragraph",
+      "text": "I2C uses just two wires (SDA data, SCL clock) and supports multiple devices via 7-bit addresses."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "i2c.ino",
+      "code": "#include <Wire.h>\n\nvoid setup() {\n  Wire.begin();\n  Serial.begin(9600);\n}\n\n// Scan for I2C devices\nvoid loop() {\n  for (byte addr = 1; addr < 127; addr++) {\n    Wire.beginTransmission(addr);\n    if (Wire.endTransmission() == 0) {\n      Serial.print(\"Found device at 0x\");\n      Serial.println(addr, HEX);\n    }\n  }\n  delay(5000);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SPI: Four-Wire Interface"
+    },
+    {
+      "type": "paragraph",
+      "text": "SPI is faster than I2C. It uses four wires: MOSI, MISO, SCK, and SS (chip select). Used for displays and SD cards."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "spi.ino",
+      "code": "#include <SPI.h>\n\nvoid setup() {\n  SPI.begin();\n  pinMode(SS, OUTPUT);\n}\n\nvoid sendByte(byte data) {\n  digitalWrite(SS, LOW);\n  SPI.transfer(data);\n  digitalWrite(SS, HIGH);\n}"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "How many wires does I2C use?",
+          "type": "multiple-choice",
+          "options": [
+            "1",
+            "2",
+            "4",
+            "8"
+          ],
+          "correctAnswer": 1,
+          "explanation": "I2C uses two wires: SDA (data) and SCL (clock). Both are shared among all devices on the bus."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "When should I choose SPI over I2C?",
+      "a": "Use SPI when you need high speed (SD cards, displays). Use I2C when you need fewer wires and many devices. I2C is simpler to wire but slower."
+    }
+  ],
+  "sources": [
+    {
+      "name": "I2C on Arduino",
+      "url": "https://www.arduino.cc/reference/en/language/functions/communication/wire/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "sensors",
+      "displays",
+      "storage"
+    ],
+    "examples": [
+      "Connecting an OLED display via I2C to show sensor readings"
+    ]
+  }
+}

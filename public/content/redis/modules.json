@@ -1,0 +1,57 @@
+[
+  {
+    "id": "redis-basics",
+    "title": "Redis Basics",
+    "description": "What Redis is and its core data types",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-data-types",
+      "03-commands"
+    ]
+  },
+  {
+    "id": "caching",
+    "title": "Caching with Redis",
+    "description": "TTL, eviction, and distributed caching patterns",
+    "order": 2,
+    "lessons": [
+      "04-caching-patterns",
+      "05-expiry-eviction",
+      "06-distributed-cache"
+    ]
+  },
+  {
+    "id": "advanced-structures",
+    "title": "Advanced Data Structures",
+    "description": "Lists, sets, sorted sets, and hashes",
+    "order": 3,
+    "lessons": [
+      "07-lists-sets",
+      "08-sorted-sets",
+      "09-hashes"
+    ]
+  },
+  {
+    "id": "messaging",
+    "title": "Messaging & Scripting",
+    "description": "Pub/Sub, Streams, and Lua scripting",
+    "order": 4,
+    "lessons": [
+      "10-pub-sub",
+      "11-streams",
+      "12-lua-scripting"
+    ]
+  },
+  {
+    "id": "redis-production",
+    "title": "Redis in Production",
+    "description": "Persistence, clustering, and monitoring",
+    "order": 5,
+    "lessons": [
+      "13-persistence",
+      "14-clustering",
+      "15-redis-in-production"
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "id": "llms",
+  "version": "1.0.0",
+  "title": "LLMs & Prompt Engineering",
+  "subtitle": "Working with language models, APIs, RAG, and prompt design",
+  "description": "Learn to build applications powered by large language models. Understand how LLMs work, master prompt engineering, integrate APIs, build RAG systems with vector databases, create agents, and deploy LLM-powered apps to production.",
+  "icon": "brain",
+  "color": "#10a37f",
+  "stage": 14,
+  "order": 20,
+  "difficulty": "intermediate",
+  "estimatedHours": 15,
+  "prerequisites": [
+    "python",
+    "apis"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "llm-fundamentals",
+    "prompt-engineering",
+    "llm-apis",
+    "rag-systems",
+    "llm-production"
+  ],
+  "tags": [
+    "llms",
+    "prompt-engineering",
+    "rag",
+    "ai",
+    "openai",
+    "anthropic"
+  ]
+}

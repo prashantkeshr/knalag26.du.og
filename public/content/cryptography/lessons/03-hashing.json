@@ -1,0 +1,84 @@
+{
+  "id": "03-hashing",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "crypto-fundamentals",
+  "title": "Cryptographic Hash Functions",
+  "subtitle": "SHA-256, SHA-3, and hash properties",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.randomness"
+  ],
+  "skillsTaught": [
+    "crypto.hashing"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hash Function Properties"
+    },
+    {
+      "type": "paragraph",
+      "text": "A cryptographic hash function takes any input and produces a fixed-size output. It must be: deterministic, one-way (preimage resistant), and collision resistant."
+    },
+    {
+      "type": "definition",
+      "term": "Collision Resistance",
+      "definition": "It should be computationally infeasible to find two different inputs that produce the same hash."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "hashing.py",
+      "code": "import hashlib\n\n# SHA-256\nhash1 = hashlib.sha256(b\"hello\").hexdigest()\nprint(hash1)  # 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\n\n# SHA-3 (more modern)\nhash2 = hashlib.sha3_256(b\"hello\").hexdigest()\n\n# NEVER use MD5 or SHA-1 for security\n# hashlib.md5(b\"hello\")  # broken, do not use for security\n\n# HMAC for keyed hashing (message authentication)\nimport hmac\nmac = hmac.new(key=b\"secret\", msg=b\"message\", digestmod=\"sha256\")\nprint(mac.hexdigest())"
+    },
+    {
+      "type": "tip",
+      "text": "MD5 and SHA-1 are broken for security purposes. Use SHA-256 or SHA-3-256 at minimum."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a preimage attack?",
+          "type": "multiple-choice",
+          "options": [
+            "Finding two inputs with the same hash",
+            "Finding the input from a known hash",
+            "Breaking the encryption key",
+            "Brute-forcing the salt"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A preimage attack tries to find an input M such that hash(M) equals a known hash value."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use SHA-256 to store passwords?",
+      "a": "No. SHA-256 is too fast — an attacker can try billions of guesses per second. Use bcrypt, Argon2, or scrypt, which are intentionally slow."
+    }
+  ],
+  "sources": [
+    {
+      "name": "hashlib",
+      "url": "https://docs.python.org/3/library/hashlib.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "data integrity checks",
+      "digital signatures",
+      "content addressing"
+    ],
+    "examples": [
+      "Verifying a downloaded file has not been tampered with using SHA-256"
+    ]
+  }
+}

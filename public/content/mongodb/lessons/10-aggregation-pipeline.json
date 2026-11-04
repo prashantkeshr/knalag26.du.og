@@ -1,0 +1,83 @@
+{
+  "id": "10-aggregation-pipeline",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "advanced-queries",
+  "title": "Aggregation Pipeline",
+  "subtitle": "$match, $group, $project, $sort, and $limit",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 18,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.indexes"
+  ],
+  "skillsTaught": [
+    "mongodb.aggregation"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Aggregation Pipeline"
+    },
+    {
+      "type": "paragraph",
+      "text": "The aggregation pipeline processes documents through a series of stages. Each stage transforms the documents."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "agg.js",
+      "code": "// Sales by category\ndb.orders.aggregate([\n  { $match: { status: \"completed\" } },\n  { $group: {\n      _id: \"$category\",\n      total: { $sum: \"$amount\" },\n      count: { $count: {} }\n    }\n  },\n  { $sort: { total: -1 } },\n  { $limit: 10 }\n])"
+    },
+    {
+      "type": "definition",
+      "term": "Stage",
+      "definition": "A single transformation in an aggregation pipeline, like $match (filter) or $group (aggregate)."
+    },
+    {
+      "type": "tip",
+      "text": "Put $match and $sort early in the pipeline so MongoDB can use indexes."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which stage filters documents in an aggregation pipeline?",
+          "type": "multiple-choice",
+          "options": [
+            "$project",
+            "$group",
+            "$match",
+            "$unwind"
+          ],
+          "correctAnswer": 2,
+          "explanation": "$match filters documents, equivalent to a WHERE clause in SQL."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can aggregation replace find()?",
+      "a": "Yes. db.collection.aggregate([{ $match: query }]) is equivalent to find(query), but aggregation is more powerful for transformations."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Aggregation Pipeline",
+      "url": "https://www.mongodb.com/docs/manual/core/aggregation-pipeline/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "analytics dashboards",
+      "reporting"
+    ],
+    "examples": [
+      "Building a sales leaderboard with $group and $sort"
+    ]
+  }
+}

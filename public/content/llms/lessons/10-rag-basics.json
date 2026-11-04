@@ -1,0 +1,80 @@
+{
+  "id": "10-rag-basics",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "rag-systems",
+  "title": "RAG: Retrieval-Augmented Generation",
+  "subtitle": "Combining LLMs with external knowledge",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "llms.tools"
+  ],
+  "skillsTaught": [
+    "llms.rag"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is RAG?"
+    },
+    {
+      "type": "paragraph",
+      "text": "RAG grounds LLM responses in real, up-to-date documents. Instead of relying on training data, the model retrieves relevant chunks and answers from them."
+    },
+    {
+      "type": "definition",
+      "term": "RAG Pipeline",
+      "definition": "Retrieve relevant document chunks → inject them into the prompt → ask the LLM to answer using only the provided context."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rag.py",
+      "code": "# Simplified RAG pipeline\nquery = \"What is our refund policy?\"\n\n# 1. Embed the query\nquery_embedding = embed(query)\n\n# 2. Find similar chunks in vector store\nchunks = vector_store.search(query_embedding, top_k=5)\n\n# 3. Build context-augmented prompt\ncontext = \"\\n\\n\".join(c.text for c in chunks)\n\nprompt = f\"\"\"Answer the question using only the context below.\n\nContext:\n{context}\n\nQuestion: {query}\nAnswer:\"\"\"\n\n# 4. Generate\nresponse = client.messages.create(model=\"claude-opus-4-5\", ...)\nprint(response.content[0].text)"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What problem does RAG solve?",
+          "type": "multiple-choice",
+          "options": [
+            "Reducing API latency",
+            "Grounding LLM answers in specific documents instead of relying on training knowledge",
+            "Reducing token usage",
+            "Improving model temperature"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RAG provides relevant document context to the LLM so answers are grounded in your data, not just training knowledge."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a chunk?",
+      "a": "A chunk is a fixed-size piece of a document (e.g., 500 tokens). Documents are split into chunks before embedding so retrieval returns focused snippets."
+    }
+  ],
+  "sources": [
+    {
+      "name": "RAG Overview",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/contextual-retrieval",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "document Q&A",
+      "customer support bots",
+      "internal knowledge bases"
+    ],
+    "examples": [
+      "Building a Q&A bot over company policy documents"
+    ]
+  }
+}

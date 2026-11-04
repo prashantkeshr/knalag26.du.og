@@ -1,0 +1,89 @@
+{
+  "id": "04-insert-find",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "crud-operations",
+  "title": "Inserting and Finding Documents",
+  "subtitle": "insertOne, insertMany, find, and projection",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.data-model"
+  ],
+  "skillsTaught": [
+    "mongodb.crud-read"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Inserting Documents"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use insertOne() to add one document and insertMany() to add multiple documents at once."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "insert.js",
+      "code": "const db = client.db(\"shop\");\nconst products = db.collection(\"products\");\n\n// Insert one\nawait products.insertOne({ name: \"Laptop\", price: 999, inStock: true });\n\n// Insert many\nawait products.insertMany([\n  { name: \"Mouse\", price: 25 },\n  { name: \"Keyboard\", price: 75 }\n]);"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Finding Documents"
+    },
+    {
+      "type": "paragraph",
+      "text": "find() returns a cursor. Use findOne() to get the first match."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "find.js",
+      "code": "// Find all in-stock products\nconst cursor = products.find({ inStock: true });\nconst items = await cursor.toArray();\n\n// Projection: only return name and price\nconst names = await products.find({}, { projection: { name: 1, price: 1, _id: 0 } }).toArray();"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does a projection do in MongoDB?",
+          "type": "multiple-choice",
+          "options": [
+            "Filters which documents to return",
+            "Selects which fields to include or exclude",
+            "Sorts the results",
+            "Limits the query"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Projections control which fields appear in the query result."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I find documents by _id?",
+      "a": "Use findOne({ _id: new ObjectId(\"507f1f77bcf86cd799439011\") }) — you must wrap the string in ObjectId()."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Query Documents",
+      "url": "https://www.mongodb.com/docs/manual/tutorial/query-documents/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "product listings",
+      "user lookups"
+    ],
+    "examples": [
+      "Building a search API with MongoDB find and projection"
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "id": "06-delete",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "crud-operations",
+  "title": "Deleting Documents",
+  "subtitle": "deleteOne, deleteMany, and safe deletion patterns",
+  "difficulty": "beginner",
+  "estimatedMinutes": 8,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.crud-update"
+  ],
+  "skillsTaught": [
+    "mongodb.crud-delete"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Deleting Documents"
+    },
+    {
+      "type": "paragraph",
+      "text": "deleteOne() removes the first matching document. deleteMany() removes all matches. Both return a result with deletedCount."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "delete.js",
+      "code": "// Delete one\nconst result = await products.deleteOne({ name: \"Widget\" });\nconsole.log(result.deletedCount); // 1\n\n// Delete all out-of-stock items\nawait products.deleteMany({ inStock: false });\n\n// Soft delete pattern (preferred in production)\nawait products.updateOne(\n  { _id: id },\n  { $set: { deletedAt: new Date() } }\n);"
+    },
+    {
+      "type": "tip",
+      "text": "Prefer soft deletes in production — set a deletedAt timestamp instead of removing the document."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does deleteMany({}) do?",
+          "type": "multiple-choice",
+          "options": [
+            "Deletes the collection",
+            "Deletes all documents in the collection",
+            "Throws an error",
+            "Deletes the database"
+          ],
+          "correctAnswer": 1,
+          "explanation": "An empty filter {} matches every document, so deleteMany({}) removes them all."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I drop an entire collection?",
+      "a": "Use collection.drop(). This removes all documents and indexes. This is irreversible."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Delete Documents",
+      "url": "https://www.mongodb.com/docs/manual/tutorial/remove-documents/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "data cleanup",
+      "TTL expiry"
+    ],
+    "examples": [
+      "Purging expired sessions",
+      "Soft-deleting user accounts"
+    ]
+  }
+}

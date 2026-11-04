@@ -1,0 +1,83 @@
+{
+  "id": "14-sharding",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-production",
+  "title": "Sharding",
+  "subtitle": "Horizontal scaling with shard keys",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.replication"
+  ],
+  "skillsTaught": [
+    "mongodb.sharding"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sharding for Scale"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sharding distributes data across multiple machines (shards). MongoDB routes queries to the correct shard using a shard key."
+    },
+    {
+      "type": "definition",
+      "term": "Shard Key",
+      "definition": "The field (or fields) MongoDB uses to distribute documents across shards. Choose it carefully — it cannot be changed."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "shard.js",
+      "code": "// Enable sharding on a database\nsh.enableSharding(\"mydb\");\n\n// Shard a collection by userId\nsh.shardCollection(\"mydb.events\", { userId: \"hashed\" });"
+    },
+    {
+      "type": "tip",
+      "text": "Hashed shard keys give even distribution. Range shard keys allow efficient range queries but risk hotspots."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a hotspot in a sharded cluster?",
+          "type": "multiple-choice",
+          "options": [
+            "A popular document",
+            "A shard receiving disproportionately more writes than others",
+            "A failed shard",
+            "A slow query"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A hotspot occurs when one shard receives most of the traffic, defeating the purpose of sharding."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "When should I shard?",
+      "a": "Only shard when a single replica set can no longer handle your data volume or write throughput. Sharding adds operational complexity."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Sharding",
+      "url": "https://www.mongodb.com/docs/manual/sharding/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "large-scale applications",
+      "IoT data ingestion"
+    ],
+    "examples": [
+      "Sharding user events by hashed userId"
+    ]
+  }
+}

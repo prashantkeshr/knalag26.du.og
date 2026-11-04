@@ -1,0 +1,80 @@
+{
+  "id": "11-streams",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "messaging",
+  "title": "Redis Streams",
+  "subtitle": "XADD, XREAD, consumer groups, and durable messaging",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "redis.pub-sub"
+  ],
+  "skillsTaught": [
+    "redis.streams"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Streams"
+    },
+    {
+      "type": "paragraph",
+      "text": "Streams are an append-only log of messages. Unlike Pub/Sub, messages are persisted and consumers can replay them."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Append an event\nXADD events * action \"click\" button \"submit\"\n\n# Read new messages (blocking)\nXREAD COUNT 10 BLOCK 5000 STREAMS events $\n\n# Consumer group (for competing consumers)\nXGROUP CREATE events workers $ MKSTREAM\nXREADGROUP GROUP workers consumer1 COUNT 5 STREAMS events >\n\n# Acknowledge processed message\nXACK events workers 1699100000000-0"
+    },
+    {
+      "type": "definition",
+      "term": "Consumer Group",
+      "definition": "A named group of consumers sharing work from a stream. Each message is delivered to only one consumer in the group."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the difference between Redis Streams and Pub/Sub?",
+          "type": "multiple-choice",
+          "options": [
+            "Streams are faster",
+            "Streams persist messages; Pub/Sub does not",
+            "Pub/Sub supports consumer groups",
+            "There is no difference"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Streams persist messages to an append-only log; Pub/Sub messages vanish if no subscriber is connected."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I process failed messages (pending)?",
+      "a": "Use XPENDING to find unacknowledged messages and XCLAIM to reassign them to another consumer for reprocessing."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Streams",
+      "url": "https://redis.io/docs/data-types/streams/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "event sourcing",
+      "message queues",
+      "activity feeds"
+    ],
+    "examples": [
+      "Building a durable event log with XADD and consumer groups"
+    ]
+  }
+}

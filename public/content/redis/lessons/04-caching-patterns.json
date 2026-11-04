@@ -1,0 +1,83 @@
+{
+  "id": "04-caching-patterns",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "caching",
+  "title": "Caching Patterns",
+  "subtitle": "Cache-aside, write-through, and read-through",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "redis.commands"
+  ],
+  "skillsTaught": [
+    "redis.caching"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cache-Aside (Lazy Loading)"
+    },
+    {
+      "type": "paragraph",
+      "text": "The most common caching pattern. The application checks Redis first; on a miss it loads from the database and writes to Redis."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "cache-aside.js",
+      "code": "async function getUser(id) {\n  const cached = await redis.get(`user:${id}`);\n  if (cached) return JSON.parse(cached);\n\n  const user = await db.users.findById(id);\n  await redis.set(`user:${id}`, JSON.stringify(user), \"EX\", 300);\n  return user;\n}"
+    },
+    {
+      "type": "definition",
+      "term": "Cache Miss",
+      "definition": "When the requested data is not in the cache and must be fetched from the source."
+    },
+    {
+      "type": "tip",
+      "text": "Always set a TTL on cached values to prevent stale data."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "In cache-aside, who is responsible for populating the cache?",
+          "type": "multiple-choice",
+          "options": [
+            "The database",
+            "The cache itself",
+            "The application",
+            "A background job"
+          ],
+          "correctAnswer": 2,
+          "explanation": "In cache-aside, the application populates the cache on a cache miss."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is cache stampede?",
+      "a": "When many requests all miss the cache simultaneously and all hit the database at once. Use a mutex or probabilistic early expiry to prevent it."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Caching Patterns",
+      "url": "https://redis.io/docs/manual/patterns/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "API caching",
+      "database query caching"
+    ],
+    "examples": [
+      "Caching product details for 5 minutes"
+    ]
+  }
+}

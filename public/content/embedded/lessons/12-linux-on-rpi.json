@@ -1,0 +1,84 @@
+{
+  "id": "12-linux-on-rpi",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "raspberry-pi",
+  "title": "Linux on Raspberry Pi",
+  "subtitle": "systemd services, cron, and running code at boot",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.rpi-gpio"
+  ],
+  "skillsTaught": [
+    "embedded.rpi-linux"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Running Scripts at Boot"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use systemd to run your Python script as a service, with automatic restart on failure."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "sensor.service",
+      "code": "[Unit]\nDescription=Sensor Data Logger\nAfter=network.target\n\n[Service]\nExecStart=/usr/bin/python3 /home/pi/sensor_logger.py\nWorkingDirectory=/home/pi\nUser=pi\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Install and enable the service\nsudo cp sensor.service /etc/systemd/system/\nsudo systemctl daemon-reload\nsudo systemctl enable sensor.service\nsudo systemctl start sensor.service\n\n# Check status\nsudo systemctl status sensor.service\njournalctl -u sensor.service -f   # live logs"
+    },
+    {
+      "type": "tip",
+      "text": "Use journalctl -u yourservice to view logs. This is essential for debugging headless Pi applications."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What systemd command enables a service to start at boot?",
+          "type": "multiple-choice",
+          "options": [
+            "systemctl start",
+            "systemctl enable",
+            "systemctl restart",
+            "systemctl install"
+          ],
+          "correctAnswer": 1,
+          "explanation": "systemctl enable creates the symlink that causes the service to start automatically at boot."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I schedule a script to run every 5 minutes?",
+      "a": "Add to crontab with crontab -e: */5 * * * * /usr/bin/python3 /home/pi/script.py >> /home/pi/log.txt 2>&1"
+    }
+  ],
+  "sources": [
+    {
+      "name": "systemd",
+      "url": "https://www.freedesktop.org/software/systemd/man/systemd.service.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "always-on Pi projects",
+      "sensor logging daemons"
+    ],
+    "examples": [
+      "Running a Pi camera capture service on boot with systemd"
+    ]
+  }
+}

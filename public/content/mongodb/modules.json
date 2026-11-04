@@ -1,0 +1,57 @@
+[
+  {
+    "id": "mongodb-basics",
+    "title": "MongoDB Basics",
+    "description": "Documents, collections, and the MongoDB data model",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-installation",
+      "03-data-model"
+    ]
+  },
+  {
+    "id": "crud-operations",
+    "title": "CRUD Operations",
+    "description": "Insert, find, update, and delete documents",
+    "order": 2,
+    "lessons": [
+      "04-insert-find",
+      "05-update",
+      "06-delete"
+    ]
+  },
+  {
+    "id": "data-modeling",
+    "title": "Data Modeling",
+    "description": "Schema design patterns, embedding vs referencing",
+    "order": 3,
+    "lessons": [
+      "07-schema-design",
+      "08-references-embedding",
+      "09-indexes"
+    ]
+  },
+  {
+    "id": "advanced-queries",
+    "title": "Advanced Queries",
+    "description": "Aggregation pipelines, text search, and geospatial",
+    "order": 4,
+    "lessons": [
+      "10-aggregation-pipeline",
+      "11-text-search",
+      "12-geospatial"
+    ]
+  },
+  {
+    "id": "mongodb-production",
+    "title": "MongoDB in Production",
+    "description": "Replication, sharding, security, and monitoring",
+    "order": 5,
+    "lessons": [
+      "13-replication",
+      "14-sharding",
+      "15-security"
+    ]
+  }
+]

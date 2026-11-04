@@ -1,0 +1,57 @@
+[
+  {
+    "id": "ml-foundations",
+    "title": "ML Foundations",
+    "description": "What ML is, data prep, and feature engineering",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-data-preparation",
+      "03-feature-engineering"
+    ]
+  },
+  {
+    "id": "supervised-learning",
+    "title": "Supervised Learning",
+    "description": "Regression, classification, and decision trees",
+    "order": 2,
+    "lessons": [
+      "04-linear-regression",
+      "05-classification",
+      "06-decision-trees"
+    ]
+  },
+  {
+    "id": "model-evaluation",
+    "title": "Model Evaluation",
+    "description": "Metrics, cross-validation, and regularization",
+    "order": 3,
+    "lessons": [
+      "07-metrics",
+      "08-cross-validation",
+      "09-regularization"
+    ]
+  },
+  {
+    "id": "advanced-algorithms",
+    "title": "Advanced Algorithms",
+    "description": "Ensembles, neural networks, and clustering",
+    "order": 4,
+    "lessons": [
+      "10-ensemble-methods",
+      "11-neural-networks",
+      "12-clustering"
+    ]
+  },
+  {
+    "id": "ml-production",
+    "title": "ML in Production",
+    "description": "Feature selection, deployment, and MLOps",
+    "order": 5,
+    "lessons": [
+      "13-feature-selection",
+      "14-model-deployment",
+      "15-mlops"
+    ]
+  }
+]

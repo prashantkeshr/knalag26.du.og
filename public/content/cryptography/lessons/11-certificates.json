@@ -1,0 +1,84 @@
+{
+  "id": "11-certificates",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "tls-pki",
+  "title": "Digital Certificates and PKI",
+  "subtitle": "X.509, certificate authorities, and trust chains",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.tls"
+  ],
+  "skillsTaught": [
+    "crypto.certificates"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "X.509 Certificates"
+    },
+    {
+      "type": "paragraph",
+      "text": "A digital certificate binds a public key to an identity, signed by a trusted Certificate Authority (CA). Your browser trusts hundreds of root CAs."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# View a certificate\nopenssl x509 -in cert.pem -text -noout\n\n# Generate a self-signed certificate (for development)\nopenssl req -x509 -newkey rsa:4096 \\\n  -keyout key.pem -out cert.pem \\\n  -days 365 -nodes \\\n  -subj \"/CN=localhost\"\n\n# Get a free Let's Encrypt certificate\ncertbot --nginx -d example.com"
+    },
+    {
+      "type": "definition",
+      "term": "Certificate Chain",
+      "definition": "Root CA signs Intermediate CA signs your certificate. Browsers verify by walking up to a trusted root."
+    },
+    {
+      "type": "tip",
+      "text": "Use Let's Encrypt for free, automatically renewed certificates. Never pay for DV (domain validation) certificates."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does a Certificate Authority do?",
+          "type": "multiple-choice",
+          "options": [
+            "Encrypts your data",
+            "Signs certificates to attest a public key belongs to a domain",
+            "Manages DNS records",
+            "Provides a VPN service"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A CA verifies ownership of a domain and signs a certificate to establish trust."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is certificate pinning?",
+      "a": "Hardcoding the expected certificate or public key in your app so it only trusts that specific cert, not any cert issued by any CA. Used in mobile apps to prevent MitM with rogue CA certs."
+    }
+  ],
+  "sources": [
+    {
+      "name": "X.509",
+      "url": "https://en.wikipedia.org/wiki/X.509",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "HTTPS",
+      "client authentication",
+      "code signing"
+    ],
+    "examples": [
+      "Configuring Let's Encrypt auto-renewal with Certbot"
+    ]
+  }
+}

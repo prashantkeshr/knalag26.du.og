@@ -1,0 +1,84 @@
+{
+  "id": "15-raspberry-pi",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "iot-projects",
+  "title": "Raspberry Pi IoT Project",
+  "subtitle": "Building an end-to-end sensor dashboard project",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 18,
+  "status": "published",
+  "prerequisites": [
+    "embedded.edge"
+  ],
+  "skillsTaught": [
+    "embedded.iot-project"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "End-to-End IoT Project"
+    },
+    {
+      "type": "paragraph",
+      "text": "This lesson ties everything together: a Raspberry Pi reads sensors, publishes via MQTT, and a simple web dashboard shows live data."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "full_project.py",
+      "code": "# Full stack: sensor → MQTT → InfluxDB → Grafana\n# 1. Read sensors (DHT22 for temp/humidity)\nfrom gpiozero import PWMLED\nfrom adafruit_dht import DHT22\nimport board, paho.mqtt.client as mqtt, json, time\n\nsensor = DHT22(board.D4)\nclient = mqtt.Client()\nclient.connect(\"localhost\", 1883)\n\nwhile True:\n    try:\n        temp = sensor.temperature\n        hum  = sensor.humidity\n        payload = json.dumps({\"temp\": temp, \"humidity\": hum, \"timestamp\": time.time()})\n        client.publish(\"home/sensors/dht22\", payload, qos=1)\n    except RuntimeError:\n        pass  # DHT occasionally misreads\n    time.sleep(10)"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Install stack\nsudo apt install mosquitto mosquitto-clients influxdb grafana\nsudo systemctl enable --now mosquitto influxdb grafana-server\n\n# Telegraf reads MQTT and writes to InfluxDB\n# Grafana dashboard reads from InfluxDB"
+    },
+    {
+      "type": "tip",
+      "text": "Use Docker Compose to run the full stack (Mosquitto, Telegraf, InfluxDB, Grafana) on a Pi 4 for a clean IoT platform."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What role does Grafana play in this IoT stack?",
+          "type": "multiple-choice",
+          "options": [
+            "Publishing sensor data",
+            "Storing time-series data",
+            "Visualising metrics in dashboards",
+            "Routing MQTT messages"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Grafana queries InfluxDB and renders live charts and dashboards for the sensor data."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can a Raspberry Pi Zero W run this stack?",
+      "a": "The Zero W (1 core, 512 MB RAM) can handle the Python sensor publisher and Mosquitto broker. InfluxDB + Grafana need a Pi 3 or 4."
+    }
+  ],
+  "sources": [
+    {
+      "name": "InfluxDB + Grafana on Pi",
+      "url": "https://grafana.com/docs/grafana/latest/setup-grafana/installation/raspberry-pi/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "home sensor dashboards",
+      "factory floor monitoring"
+    ],
+    "examples": [
+      "Live temperature and humidity dashboard on a Pi 4 with Grafana"
+    ]
+  }
+}

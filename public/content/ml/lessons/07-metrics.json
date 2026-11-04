@@ -1,0 +1,84 @@
+{
+  "id": "07-metrics",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "model-evaluation",
+  "title": "Evaluation Metrics",
+  "subtitle": "Accuracy, precision, recall, F1, AUC-ROC, and MSE",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.trees"
+  ],
+  "skillsTaught": [
+    "ml.metrics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Choosing the Right Metric"
+    },
+    {
+      "type": "paragraph",
+      "text": "Accuracy alone is misleading on imbalanced datasets. Use precision, recall, and F1 for classification; RMSE or MAE for regression."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "metrics.py",
+      "code": "from sklearn.metrics import (\n    accuracy_score, precision_score, recall_score,\n    f1_score, roc_auc_score, confusion_matrix\n)\n\nacc = accuracy_score(y_test, preds)\nprec = precision_score(y_test, preds)\nrec = recall_score(y_test, preds)\nf1 = f1_score(y_test, preds)\nauc = roc_auc_score(y_test, probs)\n\nprint(f\"Accuracy: {acc:.3f}  Precision: {prec:.3f}\")\nprint(f\"Recall:   {rec:.3f}  F1: {f1:.3f}  AUC: {auc:.3f}\")\nprint(confusion_matrix(y_test, preds))"
+    },
+    {
+      "type": "definition",
+      "term": "Precision",
+      "definition": "Of all predicted positives, how many were actually positive."
+    },
+    {
+      "type": "definition",
+      "term": "Recall",
+      "definition": "Of all actual positives, how many did the model find."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "In a cancer screening model, which is more important?",
+          "type": "multiple-choice",
+          "options": [
+            "High precision",
+            "High recall",
+            "High accuracy",
+            "Low F1"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Missing a cancer case (false negative) is more dangerous than a false alarm, so recall matters more."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is AUC-ROC?",
+      "a": "The Area Under the ROC Curve measures discrimination ability across all thresholds. 1.0 is perfect; 0.5 is random."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Metrics",
+      "url": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "model comparison",
+      "business reporting"
+    ],
+    "examples": [
+      "Comparing two fraud models using AUC-ROC"
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "id": "10-tls",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "tls-pki",
+  "title": "TLS/SSL",
+  "subtitle": "The TLS handshake, cipher suites, and HTTPS",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "crypto.ecc"
+  ],
+  "skillsTaught": [
+    "crypto.tls"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "How TLS Works"
+    },
+    {
+      "type": "paragraph",
+      "text": "TLS (Transport Layer Security) encrypts data in transit between client and server. TLS 1.3 is the current version; TLS 1.0/1.1 are deprecated."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "tls_handshake.txt",
+      "code": "TLS 1.3 Handshake (simplified):\n1. Client Hello  — supported cipher suites, random nonce\n2. Server Hello  — chosen cipher, certificate, key share (ECDH)\n3. Client        — verifies certificate, sends key share\n4. Both sides    — derive symmetric session keys from ECDH shared secret\n5. All data      — encrypted with AES-GCM or ChaCha20-Poly1305"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tls_server.py",
+      "code": "import ssl, socket\n\ncontext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\ncontext.minimum_version = ssl.TLSVersion.TLSv1_2\ncontext.load_cert_chain(\"cert.pem\", \"key.pem\")\n\nwith socket.socket() as sock:\n    sock.bind((\"localhost\", 4443))\n    sock.listen(1)\n    with context.wrap_socket(sock, server_side=True) as ssock:\n        conn, addr = ssock.accept()\n        data = conn.recv(1024)\n        conn.send(b\"Hello over TLS!\")"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does TLS protect against?",
+          "type": "multiple-choice",
+          "options": [
+            "SQL injection",
+            "Eavesdropping and tampering of data in transit",
+            "XSS attacks",
+            "Weak passwords"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TLS encrypts and authenticates data in transit between client and server, preventing eavesdropping and man-in-the-middle attacks."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is HSTS?",
+      "a": "HTTP Strict Transport Security — a header that tells browsers to only connect via HTTPS for a specified duration, preventing protocol downgrade attacks."
+    }
+  ],
+  "sources": [
+    {
+      "name": "TLS",
+      "url": "https://www.cloudflare.com/learning/ssl/what-is-ssl/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "HTTPS",
+      "email encryption",
+      "VPNs"
+    ],
+    "examples": [
+      "Configuring TLS 1.3 and HSTS on an Nginx server"
+    ]
+  }
+}

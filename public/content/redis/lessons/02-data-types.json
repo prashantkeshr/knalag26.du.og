@@ -1,0 +1,75 @@
+{
+  "id": "02-data-types",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-basics",
+  "title": "Redis Data Types",
+  "subtitle": "Strings, lists, sets, sorted sets, hashes, and bitmaps",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.basics"
+  ],
+  "skillsTaught": [
+    "redis.data-types"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Core Data Types"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis is not just a string cache. It supports rich data structures that map to common programming patterns."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# String\nSET user:1:name \"Alice\"\nGET user:1:name\n\n# Hash (like a mini-document)\nHSET user:1 name \"Alice\" age 30\nHGETALL user:1\n\n# List\nRPUSH queue task1 task2 task3\nLPOP queue\n\n# Set\nSADD tags \"redis\" \"cache\"\nSMEMBERS tags\n\n# Sorted Set\nZADD leaderboard 100 \"alice\" 200 \"bob\"\nZRANGE leaderboard 0 -1 WITHSCORES"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which Redis type maintains elements in order by score?",
+          "type": "multiple-choice",
+          "options": [
+            "Set",
+            "List",
+            "Hash",
+            "Sorted Set"
+          ],
+          "correctAnswer": 3,
+          "explanation": "Sorted Sets store members with a floating-point score and keep them ordered."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is the maximum size of a Redis string?",
+      "a": "512 MB per string value."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Data Types",
+      "url": "https://redis.io/docs/data-types/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "queues",
+      "leaderboards",
+      "tags"
+    ],
+    "examples": [
+      "Building a job queue with Redis Lists"
+    ]
+  }
+}

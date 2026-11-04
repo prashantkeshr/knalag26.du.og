@@ -1,0 +1,79 @@
+{
+  "id": "08-uart",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "protocols",
+  "title": "UART Deep Dive",
+  "subtitle": "Hardware and software serial, RS-232, and GPS modules",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "embedded.i2c-spi"
+  ],
+  "skillsTaught": [
+    "embedded.uart"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "UART: Universal Asynchronous Receiver-Transmitter"
+    },
+    {
+      "type": "paragraph",
+      "text": "UART is the foundation of serial communication. It uses two wires: TX (transmit) and RX (receive). Devices communicate asynchronously at a matching baud rate."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "gps.ino",
+      "code": "#include <SoftwareSerial.h>\n#include <TinyGPS++.h>\n\nSoftwareSerial gpsSerial(4, 3);  // RX, TX\nTinyGPSPlus gps;\n\nvoid setup() {\n  Serial.begin(9600);\n  gpsSerial.begin(9600);\n}\n\nvoid loop() {\n  while (gpsSerial.available())\n    gps.encode(gpsSerial.read());\n\n  if (gps.location.isUpdated()) {\n    Serial.print(\"Lat: \"); Serial.print(gps.location.lat(), 6);\n    Serial.print(\" Lng: \"); Serial.println(gps.location.lng(), 6);\n  }\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Arduino Uno has one hardware UART (pins 0/1, shared with USB). Use SoftwareSerial for additional devices."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is the purpose of RX and TX pins in UART?",
+          "type": "multiple-choice",
+          "options": [
+            "Power supply",
+            "Data receive and data transmit",
+            "Clock and data",
+            "I2C address lines"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TX is the transmit pin (output) and RX is the receive pin (input). Connect TX of one device to RX of the other."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is RS-232?",
+      "a": "RS-232 is an older serial standard using ±12V logic levels (vs 0/3.3V or 0/5V for modern TTL UART). A MAX232 chip converts between them."
+    }
+  ],
+  "sources": [
+    {
+      "name": "TinyGPS++",
+      "url": "https://github.com/mikalhart/TinyGPSPlus",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "GPS tracking",
+      "cellular modems",
+      "Bluetooth modules"
+    ],
+    "examples": [
+      "Reading GPS coordinates from a Neo-6M module on Arduino"
+    ]
+  }
+}

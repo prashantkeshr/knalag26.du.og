@@ -1,0 +1,78 @@
+{
+  "id": "09-function-calling",
+  "version": "1.0.0",
+  "technology": "llms",
+  "module": "llm-apis",
+  "title": "Tool Use & Function Calling",
+  "subtitle": "Defining tools and parsing structured outputs",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "llms.streaming"
+  ],
+  "skillsTaught": [
+    "llms.tools"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Tool Use"
+    },
+    {
+      "type": "paragraph",
+      "text": "Tools (function calling) let the LLM request data or actions from your code. The model returns a structured tool call; you execute it and return the result."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tools.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\ntools = [{\n    \"name\": \"get_weather\",\n    \"description\": \"Get current weather for a city\",\n    \"input_schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n            \"city\": {\"type\": \"string\", \"description\": \"City name\"},\n            \"units\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}\n        },\n        \"required\": [\"city\"]\n    }\n}]\n\nresponse = client.messages.create(\n    model=\"claude-opus-4-5\",\n    max_tokens=512,\n    tools=tools,\n    messages=[{\"role\": \"user\", \"content\": \"What is the weather in Paris?\"}]\n)\n\n# Check if model wants to call a tool\nif response.stop_reason == \"tool_use\":\n    tool_call = next(b for b in response.content if b.type == \"tool_use\")\n    print(f\"Tool: {tool_call.name}, Input: {tool_call.input}\")"
+    },
+    {
+      "type": "tip",
+      "text": "Define clear, specific tool descriptions. The model decides whether and when to call tools based on them."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Who executes the tool when an LLM requests a function call?",
+          "type": "multiple-choice",
+          "options": [
+            "The LLM itself",
+            "Your application code",
+            "The API server",
+            "A sandboxed subprocess"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The LLM returns a structured tool call request. Your code runs the actual function and returns the result."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I give a model multiple tools?",
+      "a": "Yes. Pass an array of tool definitions. The model will choose the most appropriate one, or none if it can answer without a tool."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Tool Use",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "AI assistants",
+      "data retrieval agents"
+    ],
+    "examples": [
+      "LLM assistant that searches a product database via tool calls"
+    ]
+  }
+}

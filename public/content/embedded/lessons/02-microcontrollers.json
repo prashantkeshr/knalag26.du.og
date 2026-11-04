@@ -1,0 +1,88 @@
+{
+  "id": "02-microcontrollers",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "embedded-basics",
+  "title": "Microcontroller Architecture",
+  "subtitle": "CPU, memory, registers, interrupts, and peripherals",
+  "difficulty": "beginner",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.basics"
+  ],
+  "skillsTaught": [
+    "embedded.mcu-arch"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Inside a Microcontroller"
+    },
+    {
+      "type": "paragraph",
+      "text": "A microcontroller contains a CPU, program flash (non-volatile), data SRAM (volatile), timers, ADC, and digital I/O all on one chip."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "arch.txt",
+      "code": "ATmega328P (Arduino Uno) architecture:\n  CPU:    8-bit AVR @ 16 MHz\n  Flash:  32 KB (stores your program)\n  SRAM:   2 KB  (runtime data — use carefully!)\n  EEPROM: 1 KB  (persistent small data)\n  Timers: 3 (Timer0/1/2)\n  ADC:    10-bit, 6 channels\n  UART, SPI, I2C built in"
+    },
+    {
+      "type": "definition",
+      "term": "ADC",
+      "definition": "Analog-to-Digital Converter: reads an analog voltage (0-5V) and converts it to a digital number (0-1023 for 10-bit)."
+    },
+    {
+      "type": "definition",
+      "term": "Interrupt",
+      "definition": "A signal that pauses the main program to handle an urgent event (button press, timer tick, data received)."
+    },
+    {
+      "type": "tip",
+      "text": "SRAM is precious on Arduino. Store large constant data in flash with PROGMEM; prefer local variables over global."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Where is a running Arduino program stored?",
+          "type": "multiple-choice",
+          "options": [
+            "SRAM",
+            "EEPROM",
+            "Flash",
+            "SD card"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Program code is stored in flash (non-volatile). SRAM holds runtime variables and disappears when power is lost."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What happens when SRAM runs out?",
+      "a": "Stack and heap collide, causing random crashes or data corruption. This is a common Arduino bug. Monitor free SRAM with freeMemory()."
+    }
+  ],
+  "sources": [
+    {
+      "name": "AVR Architecture",
+      "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "microcontroller selection",
+      "debugging"
+    ],
+    "examples": [
+      "Profiling SRAM usage on a data-logging Arduino sketch"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "id": "07-public-key",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "asymmetric-crypto",
+  "title": "Public-Key Cryptography",
+  "subtitle": "Key pairs, asymmetric encryption, and the key exchange problem",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.aead"
+  ],
+  "skillsTaught": [
+    "crypto.public-key"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Key Exchange Problem"
+    },
+    {
+      "type": "paragraph",
+      "text": "Symmetric encryption requires both parties to share a secret key. How do you establish a shared secret over an insecure channel? Public-key cryptography solves this."
+    },
+    {
+      "type": "definition",
+      "term": "Public Key",
+      "definition": "Can be freely distributed. Used to encrypt data or verify a signature."
+    },
+    {
+      "type": "definition",
+      "term": "Private Key",
+      "definition": "Must be kept secret. Used to decrypt data or create a signature."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "keygen.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes\n\n# Generate an RSA key pair\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npublic_key = private_key.public_key()\n\n# Encrypt with public key\nciphertext = public_key.encrypt(\n    b\"Secret message\",\n    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)\n)\n\n# Decrypt with private key\nplaintext = private_key.decrypt(\n    ciphertext,\n    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)\n)"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "In asymmetric encryption, which key encrypts data?",
+          "type": "multiple-choice",
+          "options": [
+            "Private key",
+            "Public key",
+            "Shared key",
+            "Session key"
+          ],
+          "correctAnswer": 1,
+          "explanation": "In asymmetric encryption, the sender uses the recipient's public key to encrypt. Only the recipient's private key can decrypt."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can asymmetric encryption be used to encrypt large files?",
+      "a": "No, it is too slow. In practice, asymmetric encryption is used to exchange a symmetric key (like in TLS), then the symmetric key encrypts the actual data."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Public Key Cryptography",
+      "url": "https://en.wikipedia.org/wiki/Public-key_cryptography",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "TLS",
+      "email encryption",
+      "key exchange"
+    ],
+    "examples": [
+      "TLS uses RSA or ECDH to establish a shared symmetric key"
+    ]
+  }
+}

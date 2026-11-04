@@ -1,0 +1,90 @@
+{
+  "id": "14-secure-protocols",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "applied-cryptography",
+  "title": "Secure Communication Protocols",
+  "subtitle": "SSH, JWT signing, and secure API authentication",
+  "difficulty": "advanced",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "crypto.passwords"
+  ],
+  "skillsTaught": [
+    "crypto.protocols"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SSH"
+    },
+    {
+      "type": "paragraph",
+      "text": "SSH uses public-key cryptography for authentication and symmetric encryption for the session. Use Ed25519 keys instead of RSA for new setups."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Generate Ed25519 SSH key\nssh-keygen -t ed25519 -C \"your@email.com\"\n\n# View public key to copy to server\ncat ~/.ssh/id_ed25519.pub\n\n# Secure SSH config\n# /etc/ssh/sshd_config\nPasswordAuthentication no\nPermitRootLogin no\nAllowUsers youruser"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "JWT Signing"
+    },
+    {
+      "type": "paragraph",
+      "text": "JSON Web Tokens should be signed with RS256 (asymmetric) or HS256 (symmetric HMAC). Asymmetric signing lets any service verify tokens without the secret."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "jwt_sign.py",
+      "code": "import jwt  # pip install pyjwt\nimport datetime\n\n# HS256 (symmetric)\npayload = {\"sub\": \"user123\", \"exp\": datetime.datetime.utcnow() + datetime.timedelta(hours=1)}\ntoken = jwt.encode(payload, \"secret_key\", algorithm=\"HS256\")\ndecoded = jwt.decode(token, \"secret_key\", algorithms=[\"HS256\"])"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why should you disable PasswordAuthentication in SSH?",
+          "type": "multiple-choice",
+          "options": [
+            "It is slower",
+            "Passwords are vulnerable to brute force; key-based auth uses unforgeable cryptographic proofs",
+            "Password auth requires root access",
+            "Key auth is free but password auth costs money"
+          ],
+          "correctAnswer": 1,
+          "explanation": "SSH keys cannot be brute-forced (the private key never crosses the network). Disabling password auth eliminates that attack surface."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What algorithm should I use to sign JWTs in production?",
+      "a": "RS256 (RSA) or ES256 (ECDSA) for services where multiple parties verify tokens. HS256 for a single service that both signs and verifies."
+    }
+  ],
+  "sources": [
+    {
+      "name": "JWT Best Practices",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "API authentication",
+      "microservice trust",
+      "server access"
+    ],
+    "examples": [
+      "Issuing RS256-signed JWTs in an OAuth 2.0 authorization server"
+    ]
+  }
+}

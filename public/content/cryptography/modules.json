@@ -1,0 +1,57 @@
+[
+  {
+    "id": "crypto-fundamentals",
+    "title": "Crypto Fundamentals",
+    "description": "Entropy, hashing, and cryptographic properties",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-entropy-randomness",
+      "03-hashing"
+    ]
+  },
+  {
+    "id": "symmetric-encryption",
+    "title": "Symmetric Encryption",
+    "description": "AES, block modes, and authenticated encryption",
+    "order": 2,
+    "lessons": [
+      "04-aes",
+      "05-block-modes",
+      "06-authenticated-encryption"
+    ]
+  },
+  {
+    "id": "asymmetric-crypto",
+    "title": "Asymmetric Cryptography",
+    "description": "Public-key cryptography, RSA, and elliptic curves",
+    "order": 3,
+    "lessons": [
+      "07-public-key",
+      "08-rsa",
+      "09-elliptic-curves"
+    ]
+  },
+  {
+    "id": "tls-pki",
+    "title": "TLS & PKI",
+    "description": "TLS handshake, certificates, and key management",
+    "order": 4,
+    "lessons": [
+      "10-tls",
+      "11-certificates",
+      "12-key-management"
+    ]
+  },
+  {
+    "id": "applied-cryptography",
+    "title": "Applied Cryptography",
+    "description": "Passwords, secure protocols, and post-quantum",
+    "order": 5,
+    "lessons": [
+      "13-passwords-auth",
+      "14-secure-protocols",
+      "15-post-quantum"
+    ]
+  }
+]

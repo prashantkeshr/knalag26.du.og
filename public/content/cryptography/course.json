@@ -1,0 +1,32 @@
+{
+  "id": "cryptography",
+  "version": "1.0.0",
+  "title": "Cryptography",
+  "subtitle": "Hashing, encryption, TLS/SSL, and secure key management",
+  "description": "Build a solid understanding of modern cryptography. Learn hashing, symmetric encryption, public-key cryptography, TLS, digital signatures, password storage, and post-quantum algorithms.",
+  "icon": "key",
+  "color": "#8b5cf6",
+  "stage": 15,
+  "order": 22,
+  "difficulty": "advanced",
+  "estimatedHours": 15,
+  "prerequisites": [
+    "websecurity",
+    "python"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "crypto-fundamentals",
+    "symmetric-encryption",
+    "asymmetric-crypto",
+    "tls-pki",
+    "applied-cryptography"
+  ],
+  "tags": [
+    "cryptography",
+    "security",
+    "encryption",
+    "tls",
+    "hashing"
+  ]
+}

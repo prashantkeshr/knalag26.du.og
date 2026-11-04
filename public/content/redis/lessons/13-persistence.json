@@ -1,0 +1,84 @@
+{
+  "id": "13-persistence",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "redis-production",
+  "title": "Redis Persistence",
+  "subtitle": "RDB snapshots vs AOF and hybrid persistence",
+  "difficulty": "advanced",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.lua"
+  ],
+  "skillsTaught": [
+    "redis.persistence"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Persistence Options"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis offers two persistence mechanisms: RDB (periodic snapshots) and AOF (append-only file of every write command)."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "redis.conf",
+      "code": "# RDB snapshot every 60 seconds if at least 1 key changed\nsave 60 1\ndbfilename dump.rdb\n\n# AOF\nappendonly yes\nappendfsync everysec\n\n# Hybrid (recommended)\naof-use-rdb-preamble yes"
+    },
+    {
+      "type": "definition",
+      "term": "RDB",
+      "definition": "A point-in-time snapshot of the dataset. Fast to load on restart but may lose the last few minutes of writes."
+    },
+    {
+      "type": "definition",
+      "term": "AOF",
+      "definition": "Logs every write command. Minimal data loss but larger files and slower startup."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which persistence mode has the least data loss?",
+          "type": "multiple-choice",
+          "options": [
+            "RDB with 60s interval",
+            "AOF with everysec fsync",
+            "AOF with always fsync",
+            "No persistence"
+          ],
+          "correctAnswer": 2,
+          "explanation": "AOF with always fsync writes to disk on every command — zero data loss but slowest."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use both RDB and AOF?",
+      "a": "Yes. The recommended setup is hybrid persistence: AOF with an RDB preamble. Use aof-use-rdb-preamble yes."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Persistence",
+      "url": "https://redis.io/docs/manual/persistence/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "production deployments",
+      "crash recovery"
+    ],
+    "examples": [
+      "AOF with everysec for a session store"
+    ]
+  }
+}

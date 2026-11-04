@@ -1,0 +1,92 @@
+{
+  "id": "01-introduction",
+  "version": "1.0.0",
+  "technology": "cryptography",
+  "module": "crypto-fundamentals",
+  "title": "Introduction to Cryptography",
+  "subtitle": "Goals of cryptography: confidentiality, integrity, authenticity",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [],
+  "skillsTaught": [
+    "crypto.basics"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Goals of Cryptography"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cryptography provides four security properties: confidentiality (data is secret), integrity (data is not modified), authentication (identity is verified), and non-repudiation (actions cannot be denied)."
+    },
+    {
+      "type": "definition",
+      "term": "Plaintext",
+      "definition": "The original, readable data before encryption."
+    },
+    {
+      "type": "definition",
+      "term": "Ciphertext",
+      "definition": "The encrypted, unreadable version of data produced by an encryption algorithm."
+    },
+    {
+      "type": "definition",
+      "term": "Key",
+      "definition": "A secret value used by a cryptographic algorithm. The security of the system depends on the key, not the algorithm."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "crypto_intro.py",
+      "code": "from cryptography.hazmat.primitives import hashes\nfrom cryptography.hazmat.backends import default_backend\nimport os\n\n# Hash a message\ndigest = hashes.Hash(hashes.SHA256(), backend=default_backend())\ndigest.update(b\"Hello, cryptography!\")\nhash_value = digest.finalize()\nprint(hash_value.hex())"
+    },
+    {
+      "type": "tip",
+      "text": "Kerckhoff's principle: a system should be secure even if everything about it except the key is public knowledge."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does confidentiality mean in cryptography?",
+          "type": "multiple-choice",
+          "options": [
+            "Data cannot be modified",
+            "Only authorised parties can read the data",
+            "Identities can be verified",
+            "Actions cannot be denied"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Confidentiality ensures that data is accessible only to those authorised to read it."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Is secrecy of the algorithm important?",
+      "a": "No. Per Kerckhoff's principle, security must rely on the key, not on keeping the algorithm secret. Open algorithms are stronger because they are peer-reviewed."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Cryptography Introduction",
+      "url": "https://cryptography.io/en/latest/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "secure communications",
+      "data protection",
+      "digital signatures"
+    ],
+    "examples": [
+      "Encrypting sensitive user data before storing in a database"
+    ]
+  }
+}

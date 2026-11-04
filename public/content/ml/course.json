@@ -1,0 +1,32 @@
+{
+  "id": "ml",
+  "version": "1.0.0",
+  "title": "Machine Learning",
+  "subtitle": "ML fundamentals, scikit-learn, model training, and evaluation",
+  "description": "Learn machine learning from first principles using Python and scikit-learn. Cover supervised and unsupervised learning, feature engineering, model evaluation, ensemble methods, neural networks, and deploying models to production.",
+  "icon": "brain",
+  "color": "#ff6b35",
+  "stage": 14,
+  "order": 19,
+  "difficulty": "advanced",
+  "estimatedHours": 40,
+  "prerequisites": [
+    "python",
+    "sql"
+  ],
+  "certificationAvailable": true,
+  "modules": [
+    "ml-foundations",
+    "supervised-learning",
+    "model-evaluation",
+    "advanced-algorithms",
+    "ml-production"
+  ],
+  "tags": [
+    "machine-learning",
+    "python",
+    "scikit-learn",
+    "data-science",
+    "ai"
+  ]
+}

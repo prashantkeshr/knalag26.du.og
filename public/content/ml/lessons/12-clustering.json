@@ -1,0 +1,78 @@
+{
+  "id": "12-clustering",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "advanced-algorithms",
+  "title": "Unsupervised Learning & Clustering",
+  "subtitle": "K-means, DBSCAN, PCA, and finding hidden structure",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.neural-networks"
+  ],
+  "skillsTaught": [
+    "ml.clustering"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Clustering"
+    },
+    {
+      "type": "paragraph",
+      "text": "Clustering groups similar data points without labels. K-means partitions data into K clusters by minimising within-cluster variance."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cluster.py",
+      "code": "from sklearn.cluster import KMeans, DBSCAN\nfrom sklearn.decomposition import PCA\nimport matplotlib.pyplot as plt\n\n# K-means\nkmeans = KMeans(n_clusters=4, random_state=42)\nlabels = kmeans.fit_predict(X)\n\n# DBSCAN (density-based, handles arbitrary shapes)\ndb = DBSCAN(eps=0.5, min_samples=10)\ndb_labels = db.fit_predict(X)\n\n# PCA for visualisation\npca = PCA(n_components=2)\nX_2d = pca.fit_transform(X)\nplt.scatter(X_2d[:,0], X_2d[:,1], c=labels)\nplt.show()"
+    },
+    {
+      "type": "tip",
+      "text": "Use the elbow method (inertia vs K) to choose K for K-means."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is a key advantage of DBSCAN over K-means?",
+          "type": "multiple-choice",
+          "options": [
+            "DBSCAN is always faster",
+            "DBSCAN finds clusters of arbitrary shape and identifies outliers",
+            "DBSCAN requires fewer hyperparameters",
+            "DBSCAN works better on high-dimensional data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "DBSCAN can find clusters of any shape and labels outliers as noise, unlike K-means which assumes spherical clusters."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I evaluate clustering quality without labels?",
+      "a": "Use the Silhouette score (how similar a point is to its cluster vs other clusters). Values near 1 are good."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Clustering",
+      "url": "https://scikit-learn.org/stable/modules/clustering.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "customer segmentation",
+      "anomaly detection"
+    ],
+    "examples": [
+      "Segmenting customers by purchase behaviour"
+    ]
+  }
+}

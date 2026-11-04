@@ -1,0 +1,83 @@
+{
+  "id": "15-mlops",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-production",
+  "title": "MLOps",
+  "subtitle": "Tracking experiments, CI/CD for ML, and monitoring",
+  "difficulty": "advanced",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.deployment"
+  ],
+  "skillsTaught": [
+    "ml.mlops"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What is MLOps?"
+    },
+    {
+      "type": "paragraph",
+      "text": "MLOps applies DevOps principles to ML: version experiments, automate retraining, and monitor models in production."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "mlops.py",
+      "code": "import mlflow\n\nwith mlflow.start_run():\n    model = RandomForestClassifier(n_estimators=100, max_depth=10)\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n\n    # Log parameters and metrics\n    mlflow.log_param(\"n_estimators\", 100)\n    mlflow.log_param(\"max_depth\", 10)\n    mlflow.log_metric(\"accuracy\", acc)\n\n    # Log the model\n    mlflow.sklearn.log_model(model, \"model\")\n\n# Compare runs in the MLflow UI\n# mlflow ui"
+    },
+    {
+      "type": "definition",
+      "term": "MLflow",
+      "definition": "Open-source platform for tracking experiments, packaging code, and deploying models."
+    },
+    {
+      "type": "tip",
+      "text": "Version your training data as well as your code. A model is only reproducible if you can recreate the exact dataset."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does MLflow track?",
+          "type": "multiple-choice",
+          "options": [
+            "Only model weights",
+            "Parameters, metrics, and artifacts across experiment runs",
+            "Database schemas",
+            "User sessions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MLflow tracks parameters, metrics, and artifacts (models, plots) for each experiment run, enabling comparison."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What is a feature store?",
+      "a": "A centralised repository for computed features, ensuring consistency between training and serving. Tools include Feast and Hopsworks."
+    }
+  ],
+  "sources": [
+    {
+      "name": "MLflow",
+      "url": "https://mlflow.org/docs/latest/index.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "ML platform teams",
+      "automated retraining pipelines"
+    ],
+    "examples": [
+      "Tracking model accuracy over weekly retraining runs with MLflow"
+    ]
+  }
+}

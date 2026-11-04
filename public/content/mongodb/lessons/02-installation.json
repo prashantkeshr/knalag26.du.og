@@ -1,0 +1,84 @@
+{
+  "id": "02-installation",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-basics",
+  "title": "Installing MongoDB",
+  "subtitle": "Setting up MongoDB locally and connecting with mongosh",
+  "difficulty": "beginner",
+  "estimatedMinutes": 8,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.basics"
+  ],
+  "skillsTaught": [
+    "mongodb.setup"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Install MongoDB Community Edition"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB Community Edition is free and runs on Windows, macOS, and Linux. For development, MongoDB Atlas offers a free cloud cluster."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# macOS (Homebrew)\nbrew tap mongodb/brew\nbrew install mongodb-community\nbrew services start mongodb-community\n\n# Windows: download installer from mongodb.com/try/download"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "# Connect with mongosh\nmongosh\n# or connect to a URI\nmongosh \"mongodb://localhost:27017\""
+    },
+    {
+      "type": "tip",
+      "text": "Use MongoDB Atlas Free Tier for zero-install cloud development."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is mongosh?",
+          "type": "multiple-choice",
+          "options": [
+            "A MongoDB GUI",
+            "The MongoDB shell for running commands",
+            "A backup tool",
+            "A schema validator"
+          ],
+          "correctAnswer": 1,
+          "explanation": "mongosh is the MongoDB Shell — an interactive JavaScript environment for MongoDB."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I connect to Atlas from mongosh?",
+      "a": "Use mongosh with the connection string from the Atlas Connect dialog, e.g. mongosh \"mongodb+srv://user:pass@cluster.mongodb.net/mydb\""
+    }
+  ],
+  "sources": [
+    {
+      "name": "Install MongoDB",
+      "url": "https://www.mongodb.com/docs/manual/installation/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "local development",
+      "CI pipelines"
+    ],
+    "examples": [
+      "Running MongoDB in Docker for integration tests"
+    ]
+  }
+}

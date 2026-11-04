@@ -1,0 +1,85 @@
+{
+  "id": "11-python-gpio",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "raspberry-pi",
+  "title": "Python GPIO on Raspberry Pi",
+  "subtitle": "RPi.GPIO, gpiozero, and controlling hardware with Python",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 12,
+  "status": "published",
+  "prerequisites": [
+    "embedded.rpi-setup"
+  ],
+  "skillsTaught": [
+    "embedded.rpi-gpio"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "GPIO with Python"
+    },
+    {
+      "type": "paragraph",
+      "text": "Raspberry Pi GPIO uses 3.3V logic. Python's gpiozero library provides a high-level interface for buttons, LEDs, motors, and sensors."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "gpio_led.py",
+      "code": "from gpiozero import LED, Button\nfrom signal import pause\n\nled = LED(17)      # GPIO17 = pin 11\nbtn = Button(27)   # GPIO27 = pin 13\n\nbtn.when_pressed  = led.on\nbtn.when_released = led.off\n\npause()  # wait forever for events"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "gpio_pwm.py",
+      "code": "from gpiozero import PWMLED\nfrom time import sleep\n\nled = PWMLED(17)\n\n# Fade in and out\nwhile True:\n    for brightness in range(0, 100, 5):\n        led.value = brightness / 100\n        sleep(0.05)\n    for brightness in range(100, 0, -5):\n        led.value = brightness / 100\n        sleep(0.05)"
+    },
+    {
+      "type": "tip",
+      "text": "Always use GPIO.cleanup() (or let gpiozero do it automatically) when your script exits, to reset pin states."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What voltage level do Raspberry Pi GPIO pins use?",
+          "type": "multiple-choice",
+          "options": [
+            "5V",
+            "3.3V",
+            "1.8V",
+            "12V"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Raspberry Pi GPIO pins are 3.3V. Never connect 5V signals directly — it will damage the Pi."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use an Arduino sensor library on Raspberry Pi?",
+      "a": "No. Arduino libraries use AVR C++. For Pi, use Python libraries from PyPI (e.g., adafruit-circuitpython) which provide similar sensor drivers."
+    }
+  ],
+  "sources": [
+    {
+      "name": "gpiozero",
+      "url": "https://gpiozero.readthedocs.io/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "home automation",
+      "robotics",
+      "sensor data collection"
+    ],
+    "examples": [
+      "Reading a PIR motion sensor with gpiozero on a Pi"
+    ]
+  }
+}

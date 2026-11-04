@@ -1,0 +1,78 @@
+{
+  "id": "02-data-preparation",
+  "version": "1.0.0",
+  "technology": "ml",
+  "module": "ml-foundations",
+  "title": "Data Preparation",
+  "subtitle": "Cleaning, normalising, handling missing values and outliers",
+  "difficulty": "beginner",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "ml.basics"
+  ],
+  "skillsTaught": [
+    "ml.data-prep"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Data is Everything"
+    },
+    {
+      "type": "paragraph",
+      "text": "Garbage in, garbage out. Most ML time is spent cleaning and transforming data, not training models."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "prep.py",
+      "code": "import pandas as pd\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.impute import SimpleImputer\n\ndf = pd.read_csv(\"data.csv\")\n\n# Drop duplicates\ndf = df.drop_duplicates()\n\n# Fill missing values with column median\nimp = SimpleImputer(strategy=\"median\")\ndf[[\"age\",\"income\"]] = imp.fit_transform(df[[\"age\",\"income\"]])\n\n# Standardise features (mean=0, std=1)\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform(df[[\"age\",\"income\"]])"
+    },
+    {
+      "type": "tip",
+      "text": "Always fit the scaler on training data only, then transform both train and test sets."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Why should you fit a scaler on training data only?",
+          "type": "multiple-choice",
+          "options": [
+            "To save time",
+            "To prevent data leakage from the test set into training",
+            "Scalers only work on small datasets",
+            "Test data should not be scaled"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Fitting on the whole dataset leaks test-set statistics into training, giving overly optimistic results."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Should I remove all rows with missing values?",
+      "a": "Only if the fraction is small. Otherwise impute (fill in) missing values using the median, mean, or a model."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Data Preprocessing",
+      "url": "https://scikit-learn.org/stable/modules/preprocessing.html",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "data pipelines",
+      "feature stores"
+    ],
+    "examples": [
+      "Cleaning a customer churn dataset before modelling"
+    ]
+  }
+}

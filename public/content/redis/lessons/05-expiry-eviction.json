@@ -1,0 +1,89 @@
+{
+  "id": "05-expiry-eviction",
+  "version": "1.0.0",
+  "technology": "redis",
+  "module": "caching",
+  "title": "Expiry and Eviction",
+  "subtitle": "TTL, EXPIRE, and eviction policies",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "redis.caching"
+  ],
+  "skillsTaught": [
+    "redis.eviction"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Key Expiry"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis automatically deletes expired keys. Set expiry at write time with EX or EXPIRE."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "",
+      "code": "SET token:abc \"xyz\" EX 900     # 15 minutes\nEXPIRE session:1 1800          # 30 minutes\nPERSIST session:1              # remove expiry\nPTTL token:abc                 # milliseconds remaining"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Eviction Policies"
+    },
+    {
+      "type": "paragraph",
+      "text": "When Redis runs out of memory, the eviction policy decides what to remove. Set maxmemory-policy in redis.conf."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "redis.conf",
+      "code": "maxmemory 256mb\nmaxmemory-policy allkeys-lru   # LRU eviction on all keys"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does allkeys-lru eviction do?",
+          "type": "multiple-choice",
+          "options": [
+            "Removes the most recently used keys",
+            "Removes the least recently used keys",
+            "Removes expired keys first",
+            "Removes keys with the shortest TTL"
+          ],
+          "correctAnswer": 1,
+          "explanation": "LRU (Least Recently Used) eviction removes keys that have not been accessed recently."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "What eviction policy should I use for a pure cache?",
+      "a": "allkeys-lru is the most common choice — it evicts the least recently used keys across all keys."
+    }
+  ],
+  "sources": [
+    {
+      "name": "Key Expiry",
+      "url": "https://redis.io/docs/manual/keyspace-notifications/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "session management",
+      "rate limit counters"
+    ],
+    "examples": [
+      "Setting maxmemory for a Redis cache instance"
+    ]
+  }
+}

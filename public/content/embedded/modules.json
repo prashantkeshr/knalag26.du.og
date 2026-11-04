@@ -1,0 +1,57 @@
+[
+  {
+    "id": "embedded-basics",
+    "title": "Embedded Basics",
+    "description": "Microcontrollers, GPIO, and digital/analog signals",
+    "order": 1,
+    "lessons": [
+      "01-introduction",
+      "02-microcontrollers",
+      "03-gpio"
+    ]
+  },
+  {
+    "id": "arduino",
+    "title": "Arduino Programming",
+    "description": "Setup, sensors, actuators, and serial communication",
+    "order": 2,
+    "lessons": [
+      "04-arduino-setup",
+      "05-sensors-actuators",
+      "06-serial-communication"
+    ]
+  },
+  {
+    "id": "protocols",
+    "title": "Communication Protocols",
+    "description": "I2C, SPI, UART, and wireless protocols",
+    "order": 3,
+    "lessons": [
+      "07-i2c-spi",
+      "08-uart",
+      "09-wireless"
+    ]
+  },
+  {
+    "id": "raspberry-pi",
+    "title": "Raspberry Pi",
+    "description": "Setup, Python GPIO, and Linux on the Pi",
+    "order": 4,
+    "lessons": [
+      "10-rpi-setup",
+      "11-python-gpio",
+      "12-linux-on-rpi"
+    ]
+  },
+  {
+    "id": "iot-projects",
+    "title": "IoT Projects",
+    "description": "MQTT, edge computing, and project architecture",
+    "order": 5,
+    "lessons": [
+      "13-mqtt",
+      "14-edge-computing",
+      "15-raspberry-pi"
+    ]
+  }
+]

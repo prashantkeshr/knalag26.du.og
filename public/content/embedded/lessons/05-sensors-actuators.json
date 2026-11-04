@@ -1,0 +1,90 @@
+{
+  "id": "05-sensors-actuators",
+  "version": "1.0.0",
+  "technology": "embedded",
+  "module": "arduino",
+  "title": "Sensors and Actuators",
+  "subtitle": "Reading temperature, controlling motors, and PWM",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 14,
+  "status": "published",
+  "prerequisites": [
+    "embedded.arduino-setup"
+  ],
+  "skillsTaught": [
+    "embedded.sensors"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Reading Sensors"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sensors convert physical quantities to electrical signals. The DHT22 gives temperature and humidity; HC-SR04 measures distance with ultrasound."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "dht.ino",
+      "code": "#include <DHT.h>\n#define DHT_PIN 4\n#define DHT_TYPE DHT22\nDHT dht(DHT_PIN, DHT_TYPE);\n\nvoid setup() {\n  Serial.begin(9600);\n  dht.begin();\n}\n\nvoid loop() {\n  float humidity = dht.readHumidity();\n  float temp = dht.readTemperature();\n  Serial.print(\"Temp: \"); Serial.print(temp); Serial.print(\"C  \");\n  Serial.print(\"Humidity: \"); Serial.print(humidity); Serial.println(\"%\");\n  delay(2000);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "PWM for Actuators"
+    },
+    {
+      "type": "paragraph",
+      "text": "PWM (Pulse Width Modulation) simulates analog output by rapidly switching a digital pin on and off."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "pwm.ino",
+      "code": "// Control LED brightness with PWM (pins 3,5,6,9,10,11 on Uno)\nanalogWrite(9, 128);  // 50% duty cycle = half brightness\n\n// Servo motor\n#include <Servo.h>\nServo myServo;\nmyServo.attach(9);\nmyServo.write(90);  // 90 degrees"
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What is PWM used for?",
+          "type": "multiple-choice",
+          "options": [
+            "Reading digital signals",
+            "Simulating analog output by varying pulse duty cycle",
+            "Measuring temperature",
+            "Serial communication"
+          ],
+          "correctAnswer": 1,
+          "explanation": "PWM rapidly switches a pin on and off to simulate an analog voltage, controlling LED brightness, motor speed, and servo position."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "How do I debounce a button?",
+      "a": "Add a small delay (5-20 ms) after detecting a state change, or use the Bounce2 library to handle mechanical switch bouncing reliably."
+    }
+  ],
+  "sources": [
+    {
+      "name": "DHT Library",
+      "url": "https://github.com/adafruit/DHT-sensor-library",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "weather stations",
+      "robotics",
+      "home automation"
+    ],
+    "examples": [
+      "Building a temperature logger with DHT22 and an SD card"
+    ]
+  }
+}

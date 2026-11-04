@@ -1,0 +1,83 @@
+{
+  "id": "03-data-model",
+  "version": "1.0.0",
+  "technology": "mongodb",
+  "module": "mongodb-basics",
+  "title": "The MongoDB Data Model",
+  "subtitle": "BSON types, ObjectIds, and document structure",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "status": "published",
+  "prerequisites": [
+    "mongodb.setup"
+  ],
+  "skillsTaught": [
+    "mongodb.data-model"
+  ],
+  "content": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "BSON: Binary JSON"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB stores documents as BSON, an extension of JSON that adds types like Date, ObjectId, and binary data."
+    },
+    {
+      "type": "definition",
+      "term": "ObjectId",
+      "definition": "A 12-byte unique identifier automatically generated for the _id field of each document."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "types.js",
+      "code": "// BSON types in a document\n{\n  _id: ObjectId(),        // auto-generated\n  createdAt: new Date(), // Date\n  score: 95.5,           // Double\n  active: true,          // Boolean\n  tags: [\"js\",\"node\"],   // Array\n  address: {             // Embedded document\n    city: \"Delhi\",\n    zip: \"110001\"\n  }\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Always let MongoDB generate _id unless you have a natural unique key."
+    },
+    {
+      "type": "quiz",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What BSON type is used for the _id field by default?",
+          "type": "multiple-choice",
+          "options": [
+            "UUID",
+            "Integer",
+            "ObjectId",
+            "String"
+          ],
+          "correctAnswer": 2,
+          "explanation": "MongoDB uses ObjectId as the default _id type."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Can I use a custom _id?",
+      "a": "Yes. Set _id to any unique value you want, like a user email or slug. Just ensure uniqueness across the collection."
+    }
+  ],
+  "sources": [
+    {
+      "name": "BSON Types",
+      "url": "https://www.mongodb.com/docs/manual/reference/bson-types/",
+      "verified": "2026-11-04"
+    }
+  ],
+  "realWorld": {
+    "usedIn": [
+      "document identification",
+      "audit trails"
+    ],
+    "examples": [
+      "Using email as _id for user collections"
+    ]
+  }
+}
