@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Circle, ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, Clock, ExternalLink } from 'lucide-react';
 import { loadLesson, loadCourse, loadModules } from '@/lib/content-engine';
@@ -64,6 +64,39 @@ export default function LearnPage() {
   // FAQ section
   const faq = lesson?.faq ?? [];
 
+  // Memoize JSON-LD so the useSeo effect only re-runs when data actually changes
+  const jsonLd = useMemo(() => {
+    if (!lesson || !tech) return undefined;
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'LearningResource',
+          name: lesson.title,
+          description: lesson.subtitle,
+          url: `https://kernal.dhurta.org/learn/${tech}/${lessonId}`,
+          educationalLevel: lesson.difficulty === 'beginner' ? 'Beginner'
+            : lesson.difficulty === 'intermediate' ? 'Intermediate' : 'Advanced',
+          learningResourceType: 'Lesson',
+          isAccessibleForFree: true,
+          inLanguage: 'en',
+          timeRequired: `PT${lesson.estimatedMinutes}M`,
+          provider: { '@type': 'Organization', name: 'KERNAL by Dhurta.Org', url: 'https://kernal.dhurta.org' },
+          isPartOf: course ? { '@type': 'Course', name: course.name, url: `https://kernal.dhurta.org/learn/${tech}` } : undefined,
+          teaches: lesson.skillsTaught,
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home',        item: 'https://kernal.dhurta.org/' },
+            { '@type': 'ListItem', position: 2, name: course?.name ?? tech, item: `https://kernal.dhurta.org/learn/${tech}` },
+            { '@type': 'ListItem', position: 3, name: lesson.title,  item: `https://kernal.dhurta.org/learn/${tech}/${lessonId}` },
+          ],
+        },
+      ],
+    };
+  }, [lesson, course, tech, lessonId]);
+
   // Per-lesson SEO: title, description, canonical, structured data
   useSeo({
     title: lesson ? lesson.title : (course?.name ?? tech ?? 'Learn'),
@@ -73,30 +106,7 @@ export default function LearnPage() {
     path: lesson && tech && lessonId
       ? `/learn/${tech}/${lessonId}`
       : `/learn/${tech ?? ''}`,
-    jsonLd: lesson && tech ? {
-      '@context': 'https://schema.org',
-      '@type': 'LearningResource',
-      name: lesson.title,
-      description: lesson.subtitle,
-      url: `https://kernal.dhurta.org/learn/${tech}/${lessonId}`,
-      educationalLevel: lesson.difficulty === 'beginner' ? 'Beginner'
-        : lesson.difficulty === 'intermediate' ? 'Intermediate' : 'Advanced',
-      learningResourceType: 'Lesson',
-      isAccessibleForFree: true,
-      inLanguage: 'en',
-      timeRequired: `PT${lesson.estimatedMinutes}M`,
-      provider: {
-        '@type': 'Organization',
-        name: 'KERNAL by Dhurta.Org',
-        url: 'https://kernal.dhurta.org',
-      },
-      isPartOf: course ? {
-        '@type': 'Course',
-        name: course.name,
-        url: `https://kernal.dhurta.org/learn/${tech}`,
-      } : undefined,
-      teaches: lesson.skillsTaught,
-    } : undefined,
+    jsonLd,
   });
 
   if (error) {
