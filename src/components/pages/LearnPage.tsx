@@ -88,7 +88,7 @@ export default function LearnPage() {
       if (!lessonId && mods[0]?.lessons[0]) {
         navigate(`/learn/${tech}/${mods[0].lessons[0].id}`, { replace: true });
       }
-    }).catch(() => setError(`Could not load course for "${tech}".`));
+    }).catch(() => { setError(`Could not load course for "${tech}".`); setLoading(false); });
   }, [tech, navigate, lessonId]);
 
   useEffect(() => {

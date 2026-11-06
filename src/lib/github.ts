@@ -36,7 +36,7 @@ export async function searchRepos(
   language?: string,
   perPage = 6,
 ): Promise<{ repos: GHRepo[]; total: number; apiUrl: string }> {
-  const q = [query, language ? `language:${language}` : ''].filter(Boolean).join('+');
+  const q = [query, language ? `language:${language}` : ''].filter(Boolean).join(' ');
   const apiUrl = `${BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=${perPage}`;
   const data = await ghFetch<SearchResult>(apiUrl);
   return { repos: data.items, total: data.total_count, apiUrl };
@@ -47,7 +47,7 @@ export async function trendingRepos(
   perPage = 9,
 ): Promise<{ repos: GHRepo[]; apiUrl: string }> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const q = [`created:>${since}`, language ? `language:${language}` : ''].filter(Boolean).join('+');
+  const q = [`created:>${since}`, language ? `language:${language}` : ''].filter(Boolean).join(' ');
   const apiUrl = `${BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=${perPage}`;
   const data = await ghFetch<SearchResult>(apiUrl);
   return { repos: data.items, apiUrl };

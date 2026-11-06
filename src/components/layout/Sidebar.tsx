@@ -42,6 +42,10 @@ export default function Sidebar() {
     { to: '/settings',      icon: Settings,  label: 'Settings' },
   ];
 
+  const closeMobile = () => {
+    if (window.innerWidth < 1024) useStore.getState().setSidebarOpen(false);
+  };
+
   return (
     <nav className="flex flex-col h-full py-4" aria-label="Site navigation">
       {/* Nav links */}
@@ -52,6 +56,7 @@ export default function Sidebar() {
             <Link
               key={to}
               to={to}
+              onClick={closeMobile}
               className={clsx(
                 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-kernal mb-0.5',
                 isActive
@@ -142,6 +147,7 @@ export default function Sidebar() {
                                 <Link
                                   key={lesson.id}
                                   to={`/learn/${tech.id}/${lesson.id}`}
+                                  onClick={closeMobile}
                                   className={clsx(
                                     'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-kernal',
                                     isActive
