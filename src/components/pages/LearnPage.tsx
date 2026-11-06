@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   CheckCircle2, Circle, ChevronLeft, ChevronRight,
   Bookmark, BookmarkCheck, Clock, ExternalLink,
@@ -11,6 +11,7 @@ import { useStore } from '@/store';
 import type { Lesson, Course, Module } from '@/types/content';
 import ContentRenderer from '@/components/content/ContentRenderer';
 import GitHubRefs from '@/components/content/GitHubRefs';
+import CourseOverview from '@/components/pages/CourseOverview';
 import clsx from 'clsx';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -26,8 +27,6 @@ export default function LearnPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
   const { progress, bookmarks, markComplete, markIncomplete, toggleBookmark } = useStore();
   const isComplete  = lessonId ? !!progress[lessonId] : false;
   const isBookmarked = lessonId ? bookmarks.includes(lessonId) : false;
@@ -84,12 +83,11 @@ export default function LearnPage() {
     ]).then(([c, mods]) => {
       setCourse(c);
       setModules(mods);
-      // Auto-redirect to first lesson if no lessonId
-      if (!lessonId && mods[0]?.lessons[0]) {
-        navigate(`/learn/${tech}/${mods[0].lessons[0].id}`, { replace: true });
-      }
+      // No lessonId → show course overview (no redirect)
+      if (!lessonId) setLoading(false);
     }).catch(() => { setError(`Could not load course for "${tech}".`); setLoading(false); });
-  }, [tech, navigate, lessonId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tech]);
 
   useEffect(() => {
     if (!tech || !lessonId) return;
@@ -177,6 +175,11 @@ export default function LearnPage() {
     jsonLd,
     keywords,
   });
+
+  // Course overview (no lessonId selected)
+  if (!lessonId && !loading && !error && course && modules.length > 0 && tech) {
+    return <CourseOverview tech={tech} course={course} modules={modules} />;
+  }
 
   if (error) {
     return (
