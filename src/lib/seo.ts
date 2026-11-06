@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 const BASE_URL = 'https://kernal.dhurta.org';
 const DEFAULT_TITLE = 'KERNAL — The core of every coder';
 const DEFAULT_DESC = 'A free, offline-first developer learning platform. Learn HTML, CSS, JavaScript, Python, SQL, Git and more — entirely in your browser. No account required.';
+const DEFAULT_KEYWORDS = 'learn coding, web development, HTML tutorial, CSS tutorial, JavaScript tutorial, Python tutorial, SQL, Git, TypeScript, React, Node.js, developer learning, programming courses, offline learning, free coding courses, KERNAL, Dhurta';
 
 function setMeta(name: string, content: string, attr: 'name' | 'property' = 'name') {
   let el = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null;
@@ -20,9 +21,10 @@ export interface SeoProps {
   path: string;
   jsonLd?: object;
   ogType?: 'article' | 'website';
+  keywords?: string;
 }
 
-export function useSeo({ title, description, path, jsonLd, ogType = 'article' }: SeoProps) {
+export function useSeo({ title, description, path, jsonLd, ogType = 'article', keywords }: SeoProps) {
   useEffect(() => {
     const fullUrl = `${BASE_URL}${path}`;
     const fullTitle = `${title} | KERNAL`;
@@ -31,6 +33,7 @@ export function useSeo({ title, description, path, jsonLd, ogType = 'article' }:
     setMeta('title', fullTitle);
 
     setMeta('description', description);
+    if (keywords) setMeta('keywords', keywords);
 
     setMeta('og:title', fullTitle, 'property');
     setMeta('og:description', description, 'property');
@@ -64,6 +67,7 @@ export function useSeo({ title, description, path, jsonLd, ogType = 'article' }:
       document.title = DEFAULT_TITLE;
       setMeta('title', DEFAULT_TITLE);
       setMeta('description', DEFAULT_DESC);
+      setMeta('keywords', DEFAULT_KEYWORDS);
       setMeta('og:title', DEFAULT_TITLE, 'property');
       setMeta('og:description', DEFAULT_DESC, 'property');
       setMeta('og:url', BASE_URL + '/', 'property');
@@ -74,5 +78,5 @@ export function useSeo({ title, description, path, jsonLd, ogType = 'article' }:
       const canon = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
       if (canon) canon.href = BASE_URL + '/';
     };
-  }, [title, description, path, jsonLd, ogType]);
+  }, [title, description, path, jsonLd, ogType, keywords]);
 }

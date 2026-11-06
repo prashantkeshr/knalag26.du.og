@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useStore } from '@/store';
 import TopNav from './TopNav';
@@ -6,6 +7,10 @@ import CommandPalette from '@/components/ui/CommandPalette';
 
 export default function Layout() {
   const sidebarOpen = useStore(s => s.sidebarOpen);
+
+  useEffect(() => {
+    useStore.getState().setSidebarOpen(window.innerWidth >= 1024);
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-k-bg">

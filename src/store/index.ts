@@ -45,7 +45,7 @@ interface KernalState {
 export const useStore = create<KernalState>((set, get) => ({
   theme: 'dark',
   mode: 'learn',
-  sidebarOpen: true,
+  sidebarOpen: false,
   commandPaletteOpen: false,
   progress: {},
   quizScores: {},

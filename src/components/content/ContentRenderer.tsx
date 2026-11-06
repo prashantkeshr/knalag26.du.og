@@ -266,7 +266,7 @@ export default function ContentRenderer({ blocks, lessonId, whyItExists, explain
             return (
               <div key={i} className="border-l-2 border-k-accent pl-4 my-4">
                 <dt className="font-semibold text-k-accent text-sm">{block.term}</dt>
-                <dd className="text-k-muted text-sm mt-1 leading-relaxed">{block.meaning}</dd>
+                <dd className="text-k-muted text-sm mt-1 leading-relaxed">{block.meaning ?? block.definition}</dd>
               </div>
             );
 

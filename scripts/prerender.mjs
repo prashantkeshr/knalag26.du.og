@@ -116,8 +116,8 @@ function escAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
-function replaceMetas(html, title, description, url) {
-  return html
+function replaceMetas(html, title, description, url, keywords) {
+  let out = html
     .replace(/(<title>)[^<]*(<\/title>)/, `$1${esc(title)}$2`)
     .replace(/(<meta\s+name="description"\s+content=")[^"]*"/, `$1${escAttr(description)}"`)
     .replace(/(<meta\s+property="og:title"\s+content=")[^"]*"/, `$1${escAttr(title)}"`)
@@ -128,31 +128,50 @@ function replaceMetas(html, title, description, url) {
     .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*"/, `$1${escAttr(description)}"`)
     .replace(/(<meta\s+name="twitter:url"\s+content=")[^"]*"/, `$1${escAttr(url)}"`)
     .replace(/(<link\s+rel="canonical"\s+href=")[^"]*"/, `$1${escAttr(url)}"`);
+  if (keywords) {
+    out = out.replace(/(<meta\s+name="keywords"\s+content=")[^"]*"/, `$1${escAttr(keywords)}"`);
+  }
+  return out;
 }
 
 function renderBlocks(blocks) {
   let out = '';
   for (const b of (blocks ?? [])) {
+    const safeText = s => String(s ?? '').replace(/<script/gi, '&lt;script');
     switch (b.type) {
       case 'heading':
         out += `<h${b.level ?? 2}>${esc(b.text)}</h${b.level ?? 2}>\n`;
         break;
       case 'paragraph':
-        // Keep inline markup but neutralise any script tags
-        out += `<p>${String(b.text ?? '').replace(/<script/gi, '&lt;script')}</p>\n`;
+        out += `<p>${safeText(b.text)}</p>\n`;
         break;
       case 'code':
         out += `<pre><code>${esc(b.code)}</code></pre>\n`;
         break;
       case 'list':
-        out += `<ul>${(b.items ?? []).map(i => `<li>${esc(i)}</li>`).join('')}</ul>\n`;
+        out += b.ordered
+          ? `<ol>${(b.items ?? []).map(i => `<li>${safeText(i)}</li>`).join('')}</ol>\n`
+          : `<ul>${(b.items ?? []).map(i => `<li>${safeText(i)}</li>`).join('')}</ul>\n`;
         break;
       case 'tip':
+        out += `<p><strong>Tip:</strong> ${safeText(b.text)}</p>\n`;
+        break;
       case 'warning':
-        out += `<p>${String(b.text ?? '').replace(/<script/gi, '&lt;script')}</p>\n`;
+        out += `<p><strong>Warning:</strong> ${safeText(b.text)}</p>\n`;
+        break;
+      case 'info':
+        out += `<p>${safeText(b.text)}</p>\n`;
         break;
       case 'definition':
-        out += `<dl><dt>${esc(b.term)}</dt><dd>${esc(b.definition)}</dd></dl>\n`;
+        out += `<dl><dt>${esc(b.term)}</dt><dd>${esc(b.definition ?? b.meaning)}</dd></dl>\n`;
+        break;
+      case 'misconception':
+        out += `<p><strong>Common misconception:</strong> ${esc(b.claim)} — <strong>Reality:</strong> ${esc(b.reality)}</p>\n`;
+        break;
+      case 'comparison':
+        out += `<h4>${esc(b.title)}</h4>\n`;
+        out += `<ul><li><strong>${esc(b.a.name)}</strong>: ${esc(b.a.description)}</li>`;
+        out += `<li><strong>${esc(b.b.name)}</strong>: ${esc(b.b.description)}</li></ul>\n`;
         break;
     }
   }
@@ -160,7 +179,20 @@ function renderBlocks(blocks) {
 }
 
 function buildLessonPage(indexHtml, lesson, fullTitle, canonicalUrl, tech) {
-  let html = replaceMetas(indexHtml, fullTitle, lesson.subtitle, canonicalUrl);
+  const keywords = [
+    tech,
+    `learn ${tech}`,
+    `${tech} tutorial`,
+    `${tech} course`,
+    lesson.title.toLowerCase(),
+    ...(lesson.skillsTaught ?? []),
+    'coding tutorial',
+    'programming',
+    'KERNAL',
+    'free coding',
+  ].join(', ');
+
+  let html = replaceMetas(indexHtml, fullTitle, lesson.subtitle, canonicalUrl, keywords);
 
   // Lesson + BreadcrumbList JSON-LD
   const jsonLd = {
@@ -191,15 +223,39 @@ function buildLessonPage(indexHtml, lesson, fullTitle, canonicalUrl, tech) {
     ],
   };
 
+  let extraJsonLd = '';
+  if ((lesson.faq ?? []).length > 0) {
+    const faqSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: lesson.faq.map(f => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    };
+    extraJsonLd = `\n  <script type="application/ld+json">${JSON.stringify(faqSchema)}</script>`;
+  }
+
   html = html.replace(
     '</head>',
-    `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`
+    `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>${extraJsonLd}\n</head>`
   );
 
   // Static content in <noscript> — indexed by Wave-1 Googlebot (no-JS pass)
-  const faqHtml = (lesson.faq ?? [])
-    .map(f => `<h3>${esc(f.q)}</h3><p>${esc(f.a)}</p>`)
-    .join('\n');
+  const faqHtml = (lesson.faq ?? []).length > 0
+    ? `<section itemscope itemtype="https://schema.org/FAQPage">\n<h2>Frequently Asked Questions</h2>\n` +
+      lesson.faq.map(f =>
+        `<div itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">` +
+        `<h3 itemprop="name">${esc(f.q)}</h3>` +
+        `<div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">` +
+        `<p itemprop="text">${esc(f.a)}</p></div></div>`
+      ).join('\n') + '\n</section>'
+    : '';
+
+  const skillsHtml = (lesson.skillsTaught ?? []).length > 0
+    ? `<p><strong>Skills taught:</strong> ${lesson.skillsTaught.map(s => esc(s)).join(', ')}</p>`
+    : '';
 
   const noscript = `<noscript>
 <article itemscope itemtype="https://schema.org/LearningResource">
@@ -212,6 +268,7 @@ function buildLessonPage(indexHtml, lesson, fullTitle, canonicalUrl, tech) {
   </nav>
   <h1 itemprop="name">${esc(lesson.title)}</h1>
   <p itemprop="description">${esc(lesson.subtitle)}</p>
+  ${skillsHtml}
   ${renderBlocks(lesson.content)}
   ${faqHtml}
 </article>

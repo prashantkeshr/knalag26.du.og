@@ -67,7 +67,8 @@ export interface InfoBlock    { type: 'info';    text: string }
 export interface DefinitionBlock {
   type: 'definition';
   term: string;
-  meaning: string;
+  meaning?: string;
+  definition?: string;
 }
 
 export interface VideoBlock {

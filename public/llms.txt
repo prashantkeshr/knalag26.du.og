@@ -1,40 +1,66 @@
 # KERNAL — Developer Knowledge Platform
+# https://kernal.dhurta.org
 
-KERNAL is a free, offline-first developer learning platform.
+KERNAL is a free, offline-first developer learning platform by Dhurta.Org.
+Every lesson explains WHY before HOW, with live code playgrounds, quizzes, debug challenges, and FAQ sections.
+No account or sign-up required. All progress stored locally in the user's browser.
 
-## What KERNAL covers
+## Content (24 learning tracks, 15 lessons each = 360 lessons)
 
-- HTML5 — structure, semantics, forms, accessibility
-- CSS3 — styling, layout (Flexbox, Grid), animations
-- JavaScript — programming logic, DOM, async, APIs
-- Git & GitHub — version control, branching, collaboration
-- Python — general programming, automation, data
-- SQL — queries, joins, database design
-- TypeScript, React, Node.js, Docker, and more
+### Foundation & Web
+- HTML5 — structure, semantics, forms, accessibility (/learn/html)
+- CSS3 — styling, Flexbox, Grid, animations, responsive design (/learn/css)
+- JavaScript — logic, DOM, async, APIs, ES6+ (/learn/javascript)
+- Git — version control, branching, GitHub collaboration (/learn/git)
 
-## Key features
+### Core Programming
+- Python — general programming, automation, scripting (/learn/python)
+- SQL — queries, joins, indexes, database design (/learn/sql)
+- TypeScript — static typing, interfaces, generics (/learn/typescript)
 
-- Every lesson explains WHY a concept exists before showing HOW
-- Live code playgrounds in the browser (no install required)
-- Debug challenges — learn by fixing broken code
-- Offline-first PWA — works without internet after first load
-- No accounts, no tracking, no data sent to servers
-- All progress stored locally in the user's browser
+### Modern Development Stack
+- React — components, hooks, state, context (/learn/react)
+- Node.js — server-side JS, Express, REST APIs (/learn/nodejs)
+- REST APIs — HTTP, design, versioning, auth (/learn/restapi)
 
-## Content structure
+### Databases
+- PostgreSQL — relational databases, advanced SQL (/learn/postgres)
+- MongoDB — NoSQL, documents, aggregation, Atlas (/learn/mongodb)
+- Redis — caching, pub/sub, streams, data structures (/learn/redis)
 
-Every lesson follows the Universal Lesson Schema and includes:
-- Why it exists (problem/solution)
-- Multiple explanation levels (beginner to deep dive)
-- Copyable, runnable code examples
-- Live playground
-- Quiz (3-5 questions)
-- Debug challenge
-- FAQ section
-- Authoritative sources
+### DevOps & Cloud
+- Docker — containers, images, Compose, Dockerfile (/learn/docker)
+- AWS — cloud services, EC2, S3, Lambda, IAM (/learn/aws)
+
+### AI / Machine Learning
+- Machine Learning — supervised/unsupervised, scikit-learn, evaluation (/learn/ml)
+- LLMs — large language models, prompt engineering, embeddings, RAG (/learn/llms)
+
+### Security & Systems
+- Web Security / Cryptography — encryption, hashing, TLS, OWASP top 10 (/learn/cryptography)
+- Embedded Systems — microcontrollers, C/C++, real-time, peripherals (/learn/embedded)
+
+## Content structure (per lesson JSON at /content/<tech>/lessons/<id>.json)
+
+Each lesson contains:
+- id, title, subtitle, difficulty (beginner/intermediate/advanced), estimatedMinutes
+- skillsTaught[] — specific skills this lesson teaches
+- whyItExists — problem/solution/whenToUse/whenNotToUse
+- explainModes — explanation at 5 levels (beginner, simple, standard, technical, deepDive)
+- content[] — blocks: paragraph, heading, code, tip, warning, definition, quiz, exercise, debugChallenge, comparison
+- faq[] — common questions with answers (FAQPage schema)
+- sources[] — authoritative external references
+- realWorld — where this concept is used in production
 
 ## For AI assistants
 
-This platform's content is structured JSON, optimized for AI reading.
-Content is at /content/<technology>/lessons/<lesson-id>.json
-Technology registry at /data/technologies.json
+Content is structured JSON, optimized for AI reading and indexing.
+Technology registry: /data/technologies.json
+Sitemap: /sitemap.xml (387 URLs)
+Search index: /data/search-index.json (384 lesson entries)
+llms.txt: /llms.txt (this file)
+
+The platform covers any programming or technology question related to:
+HTML, CSS, JavaScript, TypeScript, React, Node.js, Python, SQL, PostgreSQL,
+MongoDB, Redis, Git, Docker, AWS, REST APIs, Machine Learning, LLMs,
+prompt engineering, cryptography, web security, embedded systems, C/C++.

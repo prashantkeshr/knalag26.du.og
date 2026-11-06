@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flame, Trophy, BookOpen, Zap, Lock } from 'lucide-react';
 import { loadTechnologies } from '@/lib/content-engine';
+import { useSeo } from '@/lib/seo';
 import { useStore } from '@/store';
 import type { Technology } from '@/types/content';
 
@@ -26,6 +27,14 @@ const STAGE_LABELS: Record<number, string> = {
 };
 
 export default function HomePage() {
+  useSeo({
+    title: 'Free Developer Learning Platform',
+    description: 'A free, offline-first developer learning platform. Learn HTML, CSS, JavaScript, Python, SQL, Git, React, Node.js and more — entirely in your browser. No account required.',
+    path: '/',
+    ogType: 'website',
+    keywords: 'learn coding, free coding courses, web development, HTML, CSS, JavaScript, Python, SQL, Git, TypeScript, React, Node.js, programming tutorial, developer learning, KERNAL, Dhurta',
+  });
+
   const [technologies, setTechnologies] = useState<Technology[]>([]);
   const { streak, badges, progress } = useStore();
   const completedCount = Object.values(progress).filter(Boolean).length;
@@ -43,8 +52,12 @@ export default function HomePage() {
 
   const stages = Object.keys(byStage).map(Number).sort((a, b) => a - b);
 
-  // Find last visited topic
-  const lastTopic = localStorage.getItem('kernal_lastTopic');
+  let lastTopicTitle: string | null = null;
+  let lastTopicUrl: string | null = null;
+  try {
+    lastTopicTitle = localStorage.getItem('kernal_lastTopicTitle');
+    lastTopicUrl = localStorage.getItem('kernal_lastTopicUrl');
+  } catch { /* private browsing */ }
 
   return (
     <div className="animate-fade-in">
@@ -93,17 +106,17 @@ export default function HomePage() {
       )}
 
       {/* Continue learning */}
-      {lastTopic && completedCount > 0 && (
+      {lastTopicUrl && lastTopicTitle && (
         <section className="mb-10 p-4 bg-k-surface border border-k-accent/30 rounded-kernal flex items-center gap-4">
           <div className="p-2 rounded-lg bg-k-accent/15">
             <Zap size={20} className="text-k-accent" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs text-k-muted mb-0.5">Continue where you left off</div>
-            <div className="text-sm font-medium text-k-text truncate">{lastTopic}</div>
+            <div className="text-sm font-medium text-k-text truncate">{lastTopicTitle}</div>
           </div>
           <Link
-            to={`/learn/html`}
+            to={lastTopicUrl}
             className="shrink-0 px-3 py-1.5 rounded-lg bg-k-accent/15 text-k-accent text-xs font-semibold hover:bg-k-accent/25 transition-kernal"
           >
             Resume →

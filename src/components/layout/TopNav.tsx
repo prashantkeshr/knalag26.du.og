@@ -33,10 +33,10 @@ export default function TopNav() {
       className="fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-k-border bg-k-surface/95 backdrop-blur-sm"
       style={{ height: 'var(--nav-h)' }}
     >
-      {/* Hamburger */}
+      {/* Hamburger — hidden on desktop where sidebar is always visible */}
       <button
         onClick={toggleSidebar}
-        className="p-2 rounded-lg text-k-muted hover:text-k-text hover:bg-k-surface-2 transition-kernal"
+        className="p-2 rounded-lg text-k-muted hover:text-k-text hover:bg-k-surface-2 transition-kernal lg:hidden"
         aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
       >
         <Menu size={20} />

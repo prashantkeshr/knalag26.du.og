@@ -51,7 +51,14 @@ export default function LearnPage() {
     setError(null);
 
     loadLesson(tech, lessonId)
-      .then(l => { setLesson(l); setLoading(false); })
+      .then(l => {
+        setLesson(l);
+        setLoading(false);
+        try {
+          localStorage.setItem('kernal_lastTopicTitle', l.title);
+          localStorage.setItem('kernal_lastTopicUrl', `/learn/${tech}/${lessonId}`);
+        } catch { /* private browsing */ }
+      })
       .catch(() => { setError(`Lesson "${lessonId}" not found.`); setLoading(false); });
   }, [tech, lessonId]);
 
@@ -97,6 +104,21 @@ export default function LearnPage() {
     };
   }, [lesson, course, tech, lessonId]);
 
+  const keywords = lesson && tech
+    ? [
+        tech,
+        `learn ${tech}`,
+        `${tech} tutorial`,
+        `${tech} course`,
+        lesson.title.toLowerCase(),
+        ...(lesson.skillsTaught ?? []),
+        'coding tutorial',
+        'programming',
+        'KERNAL',
+        'free coding',
+      ].join(', ')
+    : undefined;
+
   // Per-lesson SEO: title, description, canonical, structured data
   useSeo({
     title: lesson ? lesson.title : (course?.name ?? tech ?? 'Learn'),
@@ -107,6 +129,7 @@ export default function LearnPage() {
       ? `/learn/${tech}/${lessonId}`
       : `/learn/${tech ?? ''}`,
     jsonLd,
+    keywords,
   });
 
   if (error) {
