@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
-import { ChevronRight, ChevronDown, CheckCircle2, Circle, BookOpen, Map, BarChart2, Settings } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle2, Circle, BookOpen, Map, BarChart2, Settings, Zap } from 'lucide-react';
 import { useStore } from '@/store';
 import { loadTechnologies, loadModules } from '@/lib/content-engine';
 import type { Technology, Module } from '@/types/content';
@@ -35,10 +35,11 @@ export default function Sidebar() {
   }, [activeTech, activeLesson]);
 
   const navItems = [
-    { to: '/',         icon: BookOpen, label: 'Home' },
-    { to: '/roadmap',  icon: Map,      label: 'Roadmap' },
-    { to: '/progress', icon: BarChart2, label: 'Progress' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
+    { to: '/',              icon: BookOpen,  label: 'Home' },
+    { to: '/roadmap',       icon: Map,       label: 'Roadmap' },
+    { to: '/progress',      icon: BarChart2, label: 'Progress' },
+    { to: '/api-explorer',  icon: Zap,       label: 'API Explorer' },
+    { to: '/settings',      icon: Settings,  label: 'Settings' },
   ];
 
   return (

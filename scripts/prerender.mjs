@@ -97,7 +97,7 @@ for (const tech of technologies) {
 }
 
 // ── Static SPA route pages (avoid 404-redirect round-trip) ───────────────────
-for (const route of ['roadmap', 'progress', 'settings']) {
+for (const route of ['roadmap', 'progress', 'settings', 'api-explorer']) {
   const outDir = path.join(DIST, route);
   fs.mkdirSync(outDir, { recursive: true });
   fs.copyFileSync(path.join(DIST, 'index.html'), path.join(outDir, 'index.html'));

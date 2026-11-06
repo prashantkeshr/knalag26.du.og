@@ -1,16 +1,37 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, Search, Sun, Moon, BookOpen, Code2, Keyboard } from 'lucide-react';
+import { Menu, Search, Sun, Moon, BookOpen, Code2, Keyboard, Download } from 'lucide-react';
 import { useStore } from '@/store';
 import { search as searchFn } from '@/lib/search';
 import type { SearchEntry } from '@/lib/content-engine';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 export default function TopNav() {
   const { theme, mode, sidebarOpen, setTheme, setMode, toggleSidebar, setCommandPaletteOpen } = useStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchEntry[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then(() => setInstallPrompt(null));
+  };
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
@@ -121,6 +142,17 @@ export default function TopNav() {
       >
         <Keyboard size={18} />
       </button>
+
+      {/* PWA install */}
+      {installPrompt && (
+        <button
+          onClick={installApp}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-k-accent/15 text-k-accent text-xs font-semibold hover:bg-k-accent/25 transition-kernal"
+          title="Install KERNAL app"
+        >
+          <Download size={14} /> Install
+        </button>
+      )}
 
       {/* Theme Toggle */}
       <button

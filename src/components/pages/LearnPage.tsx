@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, Clock, ExternalLink } from 'lucide-react';
+import {
+  CheckCircle2, Circle, ChevronLeft, ChevronRight,
+  Bookmark, BookmarkCheck, Clock, ExternalLink,
+  Share2, Check, ThumbsUp, ThumbsDown, FileText, X, Award,
+} from 'lucide-react';
 import { loadLesson, loadCourse, loadModules } from '@/lib/content-engine';
 import { useSeo } from '@/lib/seo';
 import { useStore } from '@/store';
 import type { Lesson, Course, Module } from '@/types/content';
 import ContentRenderer from '@/components/content/ContentRenderer';
+import GitHubRefs from '@/components/content/GitHubRefs';
 import clsx from 'clsx';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -26,6 +31,47 @@ export default function LearnPage() {
   const { progress, bookmarks, markComplete, markIncomplete, toggleBookmark } = useStore();
   const isComplete  = lessonId ? !!progress[lessonId] : false;
   const isBookmarked = lessonId ? bookmarks.includes(lessonId) : false;
+
+  const [copied, setCopied] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [rating, setRating] = useState<'up' | 'down' | null>(() => {
+    try { return localStorage.getItem(`kernal_rating_${lessonId}`) as 'up' | 'down' | null; } catch { return null; }
+  });
+  const [note, setNote] = useState(() => {
+    try { return localStorage.getItem(`kernal_note_${lessonId}`) ?? ''; } catch { return ''; }
+  });
+  const [noteOpen, setNoteOpen] = useState(false);
+
+  const shareLesson = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const saveNote = (val: string) => {
+    setNote(val);
+    try { localStorage.setItem(`kernal_note_${lessonId}`, val); } catch { /* private */ }
+  };
+
+  const rateLesson = (val: 'up' | 'down') => {
+    const next = rating === val ? null : val;
+    setRating(next);
+    try {
+      if (next) localStorage.setItem(`kernal_rating_${lessonId}`, next);
+      else localStorage.removeItem(`kernal_rating_${lessonId}`);
+    } catch { /* private */ }
+  };
+
+  useEffect(() => {
+    setRating(null);
+    setNote('');
+    setNoteOpen(false);
+    try {
+      setRating(localStorage.getItem(`kernal_rating_${lessonId}`) as 'up' | 'down' | null);
+      setNote(localStorage.getItem(`kernal_note_${lessonId}`) ?? '');
+    } catch { /* private */ }
+  }, [lessonId]);
 
   useEffect(() => {
     if (!tech) return;
@@ -176,7 +222,14 @@ export default function LearnPage() {
           <span className="flex items-center gap-1 text-xs text-k-muted">
             <Clock size={12} /> {lesson.estimatedMinutes} min
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={shareLesson}
+              className="p-1.5 rounded-lg text-k-muted hover:text-k-accent hover:bg-k-surface transition-kernal"
+              aria-label="Share lesson"
+            >
+              {copied ? <Check size={15} className="text-k-success" /> : <Share2 size={15} />}
+            </button>
             <button
               onClick={() => lessonId && toggleBookmark(lessonId)}
               className="p-1.5 rounded-lg text-k-muted hover:text-k-warning hover:bg-k-surface transition-kernal"
@@ -262,12 +315,77 @@ export default function LearnPage() {
         </section>
       )}
 
+      {/* GitHub real code examples */}
+      {tech && lesson && (
+        <GitHubRefs tech={tech} lessonTitle={lesson.title} skills={lesson.skillsTaught ?? []} />
+      )}
+
+      {/* Notes */}
+      <section className="mt-6 border border-k-border rounded-kernal overflow-hidden">
+        <button
+          onClick={() => setNoteOpen(o => !o)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-k-surface hover:bg-k-surface-2 transition-kernal text-left"
+        >
+          <FileText size={15} className="text-k-muted shrink-0" />
+          <span className="text-sm font-medium text-k-text flex-1">My Notes</span>
+          {note && <span className="w-2 h-2 rounded-full bg-k-accent shrink-0" />}
+          <span className="text-xs text-k-muted">{noteOpen ? 'hide' : note ? 'edit' : 'add note'}</span>
+        </button>
+        {noteOpen && (
+          <div className="border-t border-k-border p-3">
+            <textarea
+              value={note}
+              onChange={e => saveNote(e.target.value)}
+              placeholder="Jot down anything — commands to remember, things to look up, your own explanation…"
+              rows={5}
+              className="w-full bg-k-bg border border-k-border rounded-lg px-3 py-2 text-sm text-k-text placeholder:text-k-muted outline-none focus:border-k-accent/60 resize-y font-mono"
+            />
+            <p className="text-xs text-k-muted mt-1">Saved automatically to this device.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Was this helpful */}
+      <div className="mt-6 flex items-center gap-4 py-4 border-y border-k-border">
+        <span className="text-sm text-k-muted">Was this lesson helpful?</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => rateLesson('up')}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-kernal',
+              rating === 'up'
+                ? 'bg-k-success/20 text-k-success border-k-success/40'
+                : 'border-k-border text-k-muted hover:border-k-success/40 hover:text-k-success'
+            )}
+          >
+            <ThumbsUp size={14} /> Yes
+          </button>
+          <button
+            onClick={() => rateLesson('down')}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-kernal',
+              rating === 'down'
+                ? 'bg-k-danger/20 text-k-danger border-k-danger/40'
+                : 'border-k-border text-k-muted hover:border-k-danger/40 hover:text-k-danger'
+            )}
+          >
+            <ThumbsDown size={14} /> No
+          </button>
+        </div>
+      </div>
+
       {/* Complete / Incomplete toggle */}
-      <div className="mt-10 pt-6 border-t border-k-border">
+      <div className="mt-6 flex items-center gap-3 flex-wrap">
         <button
           onClick={() => {
-            if (lessonId) {
-              if (isComplete) markIncomplete(lessonId); else markComplete(lessonId);
+            if (!lessonId) return;
+            if (isComplete) {
+              markIncomplete(lessonId);
+            } else {
+              markComplete(lessonId);
+              const updated = { ...progress, [lessonId]: true };
+              const allDone = allLessons.length > 0 && allLessons.every(l => updated[l.id]);
+              if (allDone) setShowCompletion(true);
             }
           }}
           className={clsx(
@@ -282,7 +400,39 @@ export default function LearnPage() {
             : <><Circle size={16} /> Mark as complete</>
           }
         </button>
+        <button
+          onClick={shareLesson}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-kernal border border-k-border text-k-muted text-sm hover:border-k-accent/50 hover:text-k-accent transition-kernal"
+        >
+          {copied ? <><Check size={15} className="text-k-success" /> Copied!</> : <><Share2 size={15} /> Share</>}
+        </button>
       </div>
+
+      {/* Track completion modal */}
+      {showCompletion && course && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="relative bg-k-surface border border-k-warning/40 rounded-kernal p-8 max-w-sm w-full text-center shadow-2xl">
+            <button
+              onClick={() => setShowCompletion(false)}
+              className="absolute top-3 right-3 p-1.5 text-k-muted hover:text-k-text transition-kernal"
+            >
+              <X size={16} />
+            </button>
+            <div className="text-5xl mb-4">🎉</div>
+            <Award size={32} className="text-k-warning mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-k-text mb-2">Track Complete!</h2>
+            <p className="text-k-muted text-sm mb-1">You finished all lessons in</p>
+            <p className="text-k-accent font-semibold mb-5">{course.name}</p>
+            <Link
+              to="/progress"
+              onClick={() => setShowCompletion(false)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-k-warning text-k-bg rounded-kernal font-semibold text-sm hover:bg-k-warning/90 transition-kernal"
+            >
+              <Award size={16} /> Claim Certificate
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Prev / Next navigation */}
       <nav className="flex items-center justify-between mt-8 pt-6 border-t border-k-border gap-4" aria-label="Lesson navigation">

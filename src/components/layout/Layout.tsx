@@ -12,6 +12,24 @@ export default function Layout() {
     useStore.getState().setSidebarOpen(window.innerWidth >= 1024);
   }, []);
 
+  // Swipe gesture — right edge swipe opens sidebar, swipe-left closes
+  useEffect(() => {
+    let startX = 0;
+    const onStart = (e: TouchEvent) => { startX = e.touches[0].clientX; };
+    const onEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const { setSidebarOpen } = useStore.getState();
+      if (dx > 60 && startX < 48) setSidebarOpen(true);
+      if (dx < -60) setSidebarOpen(false);
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen bg-k-bg">
       <TopNav />

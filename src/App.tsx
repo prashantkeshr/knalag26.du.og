@@ -9,6 +9,7 @@ import LearnPage from '@/components/pages/LearnPage';
 import RoadmapPage from '@/components/pages/RoadmapPage';
 import ProgressPage from '@/components/pages/ProgressPage';
 import SettingsPage from '@/components/pages/SettingsPage';
+import ApiExplorerPage from '@/components/pages/ApiExplorerPage';
 import NotFoundPage from '@/components/pages/NotFoundPage';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="roadmap" element={<RoadmapPage />} />
           <Route path="progress" element={<ProgressPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="api-explorer" element={<ApiExplorerPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
