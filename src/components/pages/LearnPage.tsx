@@ -27,7 +27,7 @@ export default function LearnPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { progress, bookmarks, markComplete, markIncomplete, toggleBookmark } = useStore();
+  const { progress, bookmarks, markComplete, markIncomplete, toggleBookmark, saveNote: persistNote } = useStore();
   const isComplete  = lessonId ? !!progress[lessonId] : false;
   const isBookmarked = lessonId ? bookmarks.includes(lessonId) : false;
 
@@ -51,6 +51,15 @@ export default function LearnPage() {
   const saveNote = (val: string) => {
     setNote(val);
     try { localStorage.setItem(`kernal_note_${lessonId}`, val); } catch { /* private */ }
+    if (lessonId && tech) {
+      persistNote(lessonId, {
+        text: val,
+        techId: tech,
+        techName: course?.name ?? tech,
+        lessonTitle: lesson?.title ?? lessonId,
+        savedAt: new Date().toISOString(),
+      });
+    }
   };
 
   const rateLesson = (val: 'up' | 'down') => {

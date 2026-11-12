@@ -1,4 +1,27 @@
 User-agent: *
 Allow: /
 
+# Sitemap
 Sitemap: https://kernal.dhurta.org/sitemap.xml
+
+# AI Crawlers — full access
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /

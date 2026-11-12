@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as storage from '@/lib/storage';
-import type { Certificate } from '@/types/storage';
+import type { Certificate, NoteEntry } from '@/types/storage';
 
 interface KernalState {
   // UI
@@ -24,6 +24,9 @@ interface KernalState {
   // Certifications
   certifications: Certificate[];
 
+  // Notes
+  notes: Record<string, NoteEntry>;
+
   // Actions
   setTheme: (t: 'dark' | 'light') => void;
   setMode: (m: 'learn' | 'reference') => void;
@@ -39,6 +42,8 @@ interface KernalState {
   updateStreak: () => void;
   setFontSize: (size: number) => void;
   earnCertificate: (techId: string, techName: string, total: number) => void;
+  saveNote: (lessonId: string, entry: NoteEntry) => void;
+  deleteNote: (lessonId: string) => void;
   hydrate: () => void;
 }
 
@@ -54,6 +59,7 @@ export const useStore = create<KernalState>((set, get) => ({
   bookmarks: [],
   fontSize: 16,
   certifications: [],
+  notes: {},
 
   setTheme: (theme) => {
     storage.setTheme(theme);
@@ -124,6 +130,21 @@ export const useStore = create<KernalState>((set, get) => ({
     set({ fontSize });
   },
 
+  saveNote: (lessonId, entry) => {
+    if (entry.text.trim()) {
+      storage.saveNote(lessonId, entry);
+      set(s => ({ notes: { ...s.notes, [lessonId]: entry } }));
+    } else {
+      storage.deleteNote(lessonId);
+      set(s => { const n = { ...s.notes }; delete n[lessonId]; return { notes: n }; });
+    }
+  },
+
+  deleteNote: (lessonId) => {
+    storage.deleteNote(lessonId);
+    set(s => { const n = { ...s.notes }; delete n[lessonId]; return { notes: n }; });
+  },
+
   earnCertificate: (techId, techName, total) => {
     const cert: Certificate = {
       id: `cert-${techId}-${new Date().toISOString().slice(0, 10)}`,
@@ -152,6 +173,7 @@ export const useStore = create<KernalState>((set, get) => ({
       bookmarks:  storage.getBookmarks(),
       fontSize:        storage.getPrefs().fontSize,
       certifications:  storage.getCertifications(),
+      notes:           storage.getNotes(),
     });
   },
 }));

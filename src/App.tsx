@@ -11,6 +11,7 @@ import ProgressPage from '@/components/pages/ProgressPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import ApiExplorerPage from '@/components/pages/ApiExplorerPage';
 import NotFoundPage from '@/components/pages/NotFoundPage';
+import NotesPage from '@/components/pages/NotesPage';
 
 export default function App() {
   const hydrate = useStore(s => s.hydrate);
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="progress" element={<ProgressPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="api-explorer" element={<ApiExplorerPage />} />
+          <Route path="notes" element={<NotesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

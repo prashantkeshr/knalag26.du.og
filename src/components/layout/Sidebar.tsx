@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import {
   ChevronRight, ChevronDown, CheckCircle2, Circle,
-  BookOpen, Map, BarChart2, Settings, Zap, Loader2,
+  BookOpen, Map, BarChart2, Settings, Zap, Loader2, StickyNote,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { loadTechnologies, loadModules } from '@/lib/content-engine';
@@ -72,19 +72,23 @@ export default function Sidebar() {
     if (window.innerWidth < 1024) useStore.getState().setSidebarOpen(false);
   };
 
+  const notes = useStore(s => s.notes);
+  const noteCount = Object.values(notes).filter(n => n?.text?.trim()).length;
+
   const navItems = [
-    { to: '/',             icon: BookOpen,  label: 'Home' },
-    { to: '/roadmap',      icon: Map,       label: 'Roadmap' },
-    { to: '/progress',     icon: BarChart2, label: 'Progress' },
-    { to: '/api-explorer', icon: Zap,       label: 'API Explorer' },
-    { to: '/settings',     icon: Settings,  label: 'Settings' },
+    { to: '/',             icon: BookOpen,   label: 'Home',         badge: undefined as number | undefined },
+    { to: '/roadmap',      icon: Map,        label: 'Roadmap',      badge: undefined },
+    { to: '/progress',     icon: BarChart2,  label: 'Progress',     badge: undefined },
+    { to: '/notes',        icon: StickyNote, label: 'Notes',        badge: noteCount || undefined },
+    { to: '/api-explorer', icon: Zap,        label: 'API Explorer', badge: undefined },
+    { to: '/settings',     icon: Settings,   label: 'Settings',     badge: undefined },
   ];
 
   return (
     <nav className="flex flex-col h-full py-4" aria-label="Site navigation">
       {/* Top nav links */}
       <div className="px-3 mb-4">
-        {navItems.map(({ to, icon: Icon, label }) => {
+        {navItems.map(({ to, icon: Icon, label, badge }) => {
           const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
           return (
             <Link
@@ -99,7 +103,12 @@ export default function Sidebar() {
               )}
             >
               <Icon size={16} />
-              {label}
+              <span className="flex-1">{label}</span>
+              {badge ? (
+                <span className="text-[10px] font-bold bg-k-accent/20 text-k-accent rounded-full px-1.5 py-0.5 leading-none">
+                  {badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}

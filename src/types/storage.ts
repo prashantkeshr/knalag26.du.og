@@ -87,4 +87,13 @@ export const STORAGE_KEYS = {
   PORTFOLIO:        'kernal_portfolio',
   CERTIFICATIONS:   'kernal_certifications',
   USER_NAME:        'kernal_username',
+  NOTES:            'kernal_notes',
 } as const;
+
+export interface NoteEntry {
+  text: string;
+  techId: string;
+  techName: string;
+  lessonTitle: string;
+  savedAt: string;
+}

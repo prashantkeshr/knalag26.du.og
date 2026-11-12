@@ -16,9 +16,11 @@ const searchIndex = JSON.parse(
 );
 
 const urls = [
-  { loc: `${BASE_URL}/`,         changefreq: 'weekly',  priority: '1.0', lastmod: NOW },
-  { loc: `${BASE_URL}/roadmap`,  changefreq: 'monthly', priority: '0.8', lastmod: NOW },
-  { loc: `${BASE_URL}/progress`, changefreq: 'never',   priority: '0.4' },
+  { loc: `${BASE_URL}/`,              changefreq: 'weekly',  priority: '1.0', lastmod: NOW },
+  { loc: `${BASE_URL}/roadmap`,       changefreq: 'monthly', priority: '0.8', lastmod: NOW },
+  { loc: `${BASE_URL}/progress`,      changefreq: 'never',   priority: '0.4' },
+  { loc: `${BASE_URL}/notes`,         changefreq: 'never',   priority: '0.4' },
+  { loc: `${BASE_URL}/api-explorer`,  changefreq: 'monthly', priority: '0.6', lastmod: NOW },
 ];
 
 for (const entry of searchIndex) {

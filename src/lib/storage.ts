@@ -1,4 +1,4 @@
-import { STORAGE_KEYS, UserPreferences, StreakData, QuizScore, SkillEvidenceEntry, PortfolioItem, DeviceProfile, Certificate } from '@/types/storage';
+import { STORAGE_KEYS, UserPreferences, StreakData, QuizScore, SkillEvidenceEntry, PortfolioItem, DeviceProfile, Certificate, NoteEntry } from '@/types/storage';
 
 function get<T>(key: string, fallback: T): T {
   try {
@@ -115,6 +115,17 @@ export const getCertifications  = () => get<Certificate[]>(STORAGE_KEYS.CERTIFIC
 export const hasCertification   = (techId: string) => getCertifications().some(c => c.techId === techId);
 export const addCertification   = (cert: Certificate) => {
   if (!hasCertification(cert.techId)) set(STORAGE_KEYS.CERTIFICATIONS, [...getCertifications(), cert]);
+};
+
+/* ─── Notes ──────────────────────────────────────────────── */
+export const getNotes = () => get<Record<string, NoteEntry>>(STORAGE_KEYS.NOTES, {});
+export const saveNote = (lessonId: string, entry: NoteEntry) =>
+  set(STORAGE_KEYS.NOTES, { ...getNotes(), [lessonId]: entry });
+export const deleteNote = (lessonId: string) => {
+  const n = getNotes();
+  delete n[lessonId];
+  set(STORAGE_KEYS.NOTES, n);
+  try { localStorage.removeItem(`kernal_note_${lessonId}`); } catch { /* ignore */ }
 };
 
 /* ─── User Name ──────────────────────────────────────────── */

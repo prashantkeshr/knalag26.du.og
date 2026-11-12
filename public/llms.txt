@@ -1,66 +1,78 @@
-# KERNAL — Developer Knowledge Platform
-# https://kernal.dhurta.org
+# KERNAL — The core of every coder
 
-KERNAL is a free, offline-first developer learning platform by Dhurta.Org.
-Every lesson explains WHY before HOW, with live code playgrounds, quizzes, debug challenges, and FAQ sections.
-No account or sign-up required. All progress stored locally in the user's browser.
+> A free, offline-first developer learning platform by Dhurta.Org
 
-## Content (24 learning tracks, 15 lessons each = 360 lessons)
+KERNAL is a comprehensive web-based platform for learning programming and web development. All content is free, requires no account, and works offline after the first load. Lessons include interactive code playgrounds, quizzes, real-world examples, and structured learning paths.
 
-### Foundation & Web
-- HTML5 — structure, semantics, forms, accessibility (/learn/html)
-- CSS3 — styling, Flexbox, Grid, animations, responsive design (/learn/css)
-- JavaScript — logic, DOM, async, APIs, ES6+ (/learn/javascript)
-- Git — version control, branching, GitHub collaboration (/learn/git)
+## About
 
-### Core Programming
-- Python — general programming, automation, scripting (/learn/python)
-- SQL — queries, joins, indexes, database design (/learn/sql)
-- TypeScript — static typing, interfaces, generics (/learn/typescript)
+- URL: https://kernal.dhurta.org
+- Publisher: Dhurta.Org
+- License: Free to use, all rights reserved
+- Content language: English
+- Last updated: 2026-11-12
 
-### Modern Development Stack
-- React — components, hooks, state, context (/learn/react)
-- Node.js — server-side JS, Express, REST APIs (/learn/nodejs)
-- REST APIs — HTTP, design, versioning, auth (/learn/restapi)
+## Available Courses (24 tracks, 360 lessons)
+
+### Web Foundations
+- Web Fundamentals (15 lessons): https://kernal.dhurta.org/learn/fundamentals
+- HTML — Structure and Semantics (15 lessons): https://kernal.dhurta.org/learn/html
+- CSS — Styling and Layout (15 lessons): https://kernal.dhurta.org/learn/css
+
+### Programming Languages
+- JavaScript — Logic, DOM, Async, APIs (15 lessons): https://kernal.dhurta.org/learn/javascript
+- TypeScript — Type-safe JavaScript (15 lessons): https://kernal.dhurta.org/learn/typescript
+- Python — General programming, automation, data (15 lessons): https://kernal.dhurta.org/learn/python
+
+### Tools and Collaboration
+- Git & GitHub — Version control (15 lessons): https://kernal.dhurta.org/learn/git
+- SQL — Queries, joins, data modeling (15 lessons): https://kernal.dhurta.org/learn/sql
+
+### Frontend Frameworks
+- React — Component-based UI library (15 lessons): https://kernal.dhurta.org/learn/react
+
+### Backend and APIs
+- Node.js — JavaScript on the server (15 lessons): https://kernal.dhurta.org/learn/nodejs
+- Web APIs — REST, fetch, auth, HTTP patterns (15 lessons): https://kernal.dhurta.org/learn/apis
 
 ### Databases
-- PostgreSQL — relational databases, advanced SQL (/learn/postgres)
-- MongoDB — NoSQL, documents, aggregation, Atlas (/learn/mongodb)
-- Redis — caching, pub/sub, streams, data structures (/learn/redis)
+- PostgreSQL — Advanced SQL, transactions (15 lessons): https://kernal.dhurta.org/learn/postgresql
+- MongoDB — Document databases, aggregation (15 lessons): https://kernal.dhurta.org/learn/mongodb
+- Redis — Caching, pub/sub, data structures (15 lessons): https://kernal.dhurta.org/learn/redis
 
-### DevOps & Cloud
-- Docker — containers, images, Compose, Dockerfile (/learn/docker)
-- AWS — cloud services, EC2, S3, Lambda, IAM (/learn/aws)
+### DevOps and Infrastructure
+- Linux & Shell — Command line, scripting (15 lessons): https://kernal.dhurta.org/learn/linux
+- Docker — Containers, Compose, production (15 lessons): https://kernal.dhurta.org/learn/docker
+- CI/CD & DevOps — GitHub Actions, pipelines (15 lessons): https://kernal.dhurta.org/learn/cicd
+- Deployment & Hosting — Vercel, Railway, VPS (15 lessons): https://kernal.dhurta.org/learn/deployment
+- AWS Essentials — S3, EC2, Lambda, VPC (15 lessons): https://kernal.dhurta.org/learn/aws
 
-### AI / Machine Learning
-- Machine Learning — supervised/unsupervised, scikit-learn, evaluation (/learn/ml)
-- LLMs — large language models, prompt engineering, embeddings, RAG (/learn/llms)
+### AI and Machine Learning
+- Machine Learning — scikit-learn, models, MLOps (15 lessons): https://kernal.dhurta.org/learn/ml
+- LLMs & Prompt Engineering — APIs, RAG, agents (15 lessons): https://kernal.dhurta.org/learn/llms
 
-### Security & Systems
-- Web Security / Cryptography — encryption, hashing, TLS, OWASP top 10 (/learn/cryptography)
-- Embedded Systems — microcontrollers, C/C++, real-time, peripherals (/learn/embedded)
+### Security
+- Web Security — OWASP, XSS, CSRF, SQL injection (15 lessons): https://kernal.dhurta.org/learn/websecurity
+- Cryptography — Hashing, TLS, keys, post-quantum (15 lessons): https://kernal.dhurta.org/learn/cryptography
 
-## Content structure (per lesson JSON at /content/<tech>/lessons/<id>.json)
+### Hardware
+- Embedded & IoT — Arduino, Raspberry Pi, protocols (15 lessons): https://kernal.dhurta.org/learn/embedded
 
-Each lesson contains:
-- id, title, subtitle, difficulty (beginner/intermediate/advanced), estimatedMinutes
-- skillsTaught[] — specific skills this lesson teaches
-- whyItExists — problem/solution/whenToUse/whenNotToUse
-- explainModes — explanation at 5 levels (beginner, simple, standard, technical, deepDive)
-- content[] — blocks: paragraph, heading, code, tip, warning, definition, quiz, exercise, debugChallenge, comparison
-- faq[] — common questions with answers (FAQPage schema)
-- sources[] — authoritative external references
-- realWorld — where this concept is used in production
+## Career Learning Paths
 
-## For AI assistants
+- Frontend Developer: Web Fundamentals → HTML → CSS → JavaScript → TypeScript → React → Git
+- Backend Developer: Python → SQL → Node.js → Web APIs → PostgreSQL → Git → Docker
+- Full-Stack Engineer: HTML → CSS → JavaScript → TypeScript → React → Node.js → SQL → APIs → Docker → Git
+- Data Scientist / ML: Python → SQL → Machine Learning → LLMs
+- DevOps / Cloud Engineer: Linux → Git → Docker → CI/CD → AWS → Deployment
+- Security Engineer: Web Fundamentals → JavaScript → Web Security → Cryptography
+- Embedded / IoT: Python → Linux → Embedded
 
-Content is structured JSON, optimized for AI reading and indexing.
-Technology registry: /data/technologies.json
-Sitemap: /sitemap.xml (387 URLs)
-Search index: /data/search-index.json (384 lesson entries)
-llms.txt: /llms.txt (this file)
+## Site Pages
 
-The platform covers any programming or technology question related to:
-HTML, CSS, JavaScript, TypeScript, React, Node.js, Python, SQL, PostgreSQL,
-MongoDB, Redis, Git, Docker, AWS, REST APIs, Machine Learning, LLMs,
-prompt engineering, cryptography, web security, embedded systems, C/C++.
+- Home: https://kernal.dhurta.org/
+- Roadmap: https://kernal.dhurta.org/roadmap
+- Progress: https://kernal.dhurta.org/progress
+- Notes: https://kernal.dhurta.org/notes
+- API Explorer: https://kernal.dhurta.org/api-explorer
+- Sitemap: https://kernal.dhurta.org/sitemap.xml
