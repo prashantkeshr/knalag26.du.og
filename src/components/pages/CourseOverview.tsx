@@ -7,6 +7,7 @@ import {
 import type { Course, Module } from '@/types/content';
 import { getOutcome } from '@/lib/course-outcomes';
 import { useStore } from '@/store';
+import VideoGuides from '@/components/content/VideoGuides';
 import clsx from 'clsx';
 
 interface Props {
@@ -125,6 +126,9 @@ export default function CourseOverview({ tech, course, modules }: Props) {
           accent="k-success"
         />
       </div>
+
+      {/* Video Guides */}
+      <VideoGuides tech={tech} />
 
       {/* Curriculum */}
       <section>
