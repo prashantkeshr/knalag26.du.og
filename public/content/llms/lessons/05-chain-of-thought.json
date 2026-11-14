@@ -1,54 +1,144 @@
 {
   "id": "05-chain-of-thought",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / GPT-4 / Extended Thinking",
   "technology": "llms",
   "module": "prompt-engineering",
   "title": "Chain-of-Thought Prompting",
   "subtitle": "Step-by-step reasoning and extended thinking",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "llms.prompting"
-  ],
-  "skillsTaught": [
-    "llms.cot"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.prompting"],
+  "skillsTaught": ["llms.cot"],
+  "whyItExists": {
+    "problem": "LLMs are autoregressive — they produce output token-by-token without backtracking. For complex multi-step problems, jumping straight to an answer often produces the wrong answer because there is no scratch pad to work through intermediate steps.",
+    "solution": "Chain-of-Thought (CoT) prompting asks the model to reason step-by-step BEFORE giving the final answer. This allocates token 'computation' to each intermediate step, dramatically improving accuracy on math, logic, and planning tasks.",
+    "whenToUse": "Multi-step math, logic puzzles, complex reasoning, planning, diagnosis tasks — any problem where you would need to show your work.",
+    "whenNotToUse": "Simple factual retrieval, single-step classification, short Q&A. CoT wastes tokens and adds latency for simple tasks."
+  },
+  "explainModes": {
+    "beginner": "It's like asking someone to show their work in math class. Instead of 'answer is 5', you say 'first I did this, then this, so the answer is 5'. When you force an AI to show its work, it makes fewer mistakes.",
+    "simple": "By adding 'think step by step' or showing intermediate reasoning in the prompt, the model writes out each step before the final answer. This is essentially giving the model a scratchpad — it uses those extra tokens to reason correctly.",
+    "standard": "CoT forces intermediate token generation that serves as computation. Research shows GPT-4 goes from ~40% to ~90% on GSM8K math benchmarks with CoT. Zero-shot CoT ('Let's think step by step') often works without examples. Few-shot CoT provides example reasoning chains.",
+    "technical": "Because autoregressive models only compute one pass per token, complex reasoning tasks require multiple tokens of 'computation'. CoT provides the tokens needed to work through each sub-problem. Claude's Extended Thinking API provides a dedicated reasoning budget that runs before the final response — similar to o1/o3 models.",
+    "deepDive": "CoT effectiveness scales with model size — it barely helps small models (<7B params) but dramatically helps large ones. This suggests CoT activates latent reasoning capabilities that exist but are suppressed during direct answering. Self-consistency (generating multiple CoT chains and voting on the final answer) further improves accuracy at the cost of more API calls."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Chain-of-Thought (CoT)"
+      "text": "Chain-of-Thought (CoT) Prompting"
     },
     {
       "type": "paragraph",
-      "text": "Asking the model to reason step by step before giving an answer dramatically improves accuracy on complex tasks."
+      "text": "Asking the model to <strong>reason step by step</strong> before giving an answer dramatically improves accuracy on complex tasks. The model uses the intermediate tokens as a scratchpad, working through sub-problems before committing to a final answer."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "cot.py",
-      "code": "# Standard prompt (may get wrong answer)\nprompt = \"If I have 5 apples and give 2 away, then buy 3 more, then eat 1, how many do I have?\"\n\n# CoT prompt\nprompt_cot = \"\"\"Solve this step by step:\nIf I have 5 apples and give 2 away, then buy 3 more, then eat 1, how many do I have?\n\nReasoning:\"\"\"\n# Model now walks through: 5 - 2 = 3, 3 + 3 = 6, 6 - 1 = 5\n\n# Zero-shot CoT\nprompt_zscot = prompt + \"\\nLet's think step by step.\""
+      "filename": "cot_comparison.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Without CoT — often wrong on multi-step problems\ndirect = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=50,\n    temperature=0,\n    messages=[{\"role\": \"user\", \"content\":\n        \"I have $240. I spend 1/4 on food, then half of what's left on rent. How much do I have?\"\n    }]\n)\nprint(\"Direct:\", direct.content[0].text)\n\n# With CoT — accurate\ncot = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=200,\n    temperature=0,\n    messages=[{\"role\": \"user\", \"content\":\n        \"\"\"Solve step by step:\nI have $240. I spend 1/4 on food, then half of what's left on rent. How much do I have?\n\nStep-by-step reasoning:\"\"\"\n    }]\n)\nprint(\"CoT:\", cot.content[0].text)\n# Step 1: 1/4 of $240 = $60 on food. Remaining: $240 - $60 = $180\n# Step 2: Half of $180 = $90 on rent. Remaining: $180 - $90 = $90\n# Answer: $90"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Zero-Shot vs Few-Shot CoT"
+    },
+    {
+      "type": "comparison",
+      "title": "Zero-Shot CoT vs Few-Shot CoT",
+      "a": {
+        "name": "Zero-Shot CoT",
+        "description": "Simply append 'Let's think step by step.' to any prompt — no examples needed.",
+        "strengths": ["No examples required", "Works immediately", "Zero extra prompt engineering"],
+        "weaknesses": ["Less control over reasoning format", "May be verbose"],
+        "useWhen": "Quick improvement on any reasoning task without preparing examples"
+      },
+      "b": {
+        "name": "Few-Shot CoT",
+        "description": "Provide 2-3 complete reasoning chain examples before the actual problem.",
+        "strengths": ["Full control over reasoning style", "More consistent format", "Higher accuracy"],
+        "weaknesses": ["More tokens (examples use context)", "Takes time to write good examples"],
+        "useWhen": "Production tasks where consistency and accuracy are critical"
+      }
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "few_shot_cot.py",
+      "code": "few_shot_prompt = \"\"\"Solve math word problems. Show your reasoning step by step.\n\nProblem: A store has 48 apples. They sell 1/3 and then receive a delivery of 20 more. How many apples?\nReasoning: \n  1. Sold: 48 × (1/3) = 16 apples\n  2. Remaining: 48 - 16 = 32 apples\n  3. After delivery: 32 + 20 = 52 apples\nAnswer: 52\n\nProblem: A train travels 60 mph for 2.5 hours, then 80 mph for 1 hour. What total distance?\nReasoning:\n  1. First leg: 60 × 2.5 = 150 miles\n  2. Second leg: 80 × 1 = 80 miles\n  3. Total: 150 + 80 = 230 miles\nAnswer: 230\n\nProblem: {problem}\nReasoning:\"\"\"\n\nimport anthropic\nclient = anthropic.Anthropic()\n\nproblem = \"Sarah earns $15/hr and works 8h on Monday and 6h on Tuesday. She spends 40% of her earnings. How much does she keep?\"\n\nresponse = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=300,\n    temperature=0,\n    messages=[{\"role\": \"user\", \"content\": few_shot_prompt.format(problem=problem)}]\n)\nprint(response.content[0].text)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Extended Thinking (Claude)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Claude supports an <strong>Extended Thinking</strong> API that provides a dedicated reasoning budget. The model reasons privately in a hidden scratchpad, then returns a polished answer. This is similar to OpenAI's o1/o3 models."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "extended_thinking.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Extended thinking for hard problems (uses more tokens but much more accurate)\nresponse = client.messages.create(\n    model=\"claude-opus-4-5\",\n    max_tokens=16000,\n    thinking={\n        \"type\": \"enabled\",\n        \"budget_tokens\": 10000  # tokens allocated for private reasoning\n    },\n    messages=[{\"role\": \"user\", \"content\":\n        \"\"\"A cryptarithmetic puzzle:\nSEND + MORE = MONEY\nEach letter represents a unique digit 0-9. Solve for all digits.\"\"\"\n    }]\n)\n\nfor block in response.content:\n    if block.type == \"thinking\":\n        print(f\"Thinking ({len(block.thinking)} chars)...\")\n    elif block.type == \"text\":\n        print(\"Answer:\", block.text)"
     },
     {
       "type": "tip",
-      "text": "For Claude, enable extended thinking with thinking: {type: \"enabled\"} for the hardest reasoning tasks."
+      "text": "For Claude, enable Extended Thinking with <code>thinking: {type: 'enabled', budget_tokens: 5000}</code> for the hardest reasoning tasks. For cheaper tasks, zero-shot CoT ('Let's think step by step') is free."
+    },
+    {
+      "type": "warning",
+      "text": "CoT increases token usage and latency. For simple tasks (factual lookup, yes/no questions, single-label classification), skip CoT entirely — it wastes tokens without improving accuracy."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Why does chain-of-thought prompting improve accuracy?",
+          "question": "Why does chain-of-thought prompting improve accuracy on math problems?",
           "type": "multiple-choice",
           "options": [
-            "It uses more tokens",
-            "It forces the model to allocate intermediate computation to each step",
-            "It increases model temperature",
-            "It bypasses safety filters"
+            "It makes the model use more GPU compute",
+            "It forces the model to allocate tokens to intermediate reasoning steps before answering",
+            "It increases model temperature automatically",
+            "It calls a separate math API"
           ],
           "correctAnswer": 1,
-          "explanation": "Step-by-step reasoning lets the model dedicate tokens to working through each part of the problem before answering."
+          "explanation": "CoT forces the generation of intermediate reasoning tokens. These tokens act as a scratchpad, allowing the model to work through each sub-problem correctly before committing to a final answer."
+        },
+        {
+          "id": "q2",
+          "question": "What is Zero-Shot CoT?",
+          "type": "multiple-choice",
+          "options": [
+            "Using no context in the prompt",
+            "Appending 'Let's think step by step' without providing example reasoning chains",
+            "Using the model without a system prompt",
+            "Running the model at temperature=0"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Zero-Shot CoT simply adds 'Let's think step by step' to trigger reasoning mode — no examples needed. It's surprisingly effective even on hard tasks."
+        },
+        {
+          "id": "q3",
+          "question": "When should you NOT use chain-of-thought?",
+          "type": "multiple-choice",
+          "options": [
+            "Math problems with multiple steps",
+            "Simple factual retrieval and single-label classification",
+            "Logic puzzles",
+            "Planning tasks with multiple constraints"
+          ],
+          "correctAnswer": 1,
+          "explanation": "CoT wastes tokens and adds latency for simple tasks. Use it for complex reasoning, math, and planning — not for 'What is the capital of France?'"
         }
       ]
     }
@@ -56,24 +146,39 @@
   "faq": [
     {
       "q": "Does CoT always help?",
-      "a": "No. For simple factual retrieval, CoT wastes tokens. Use it for multi-step reasoning, math, and planning tasks."
+      "a": "No. For simple factual retrieval, CoT wastes tokens. Use it for multi-step reasoning, math, and planning tasks. Research shows CoT helps most on problems that require >3 reasoning steps."
+    },
+    {
+      "q": "What is self-consistency?",
+      "a": "A technique that generates multiple CoT reasoning chains (e.g. 5 runs) and votes on the final answer. It improves accuracy further at the cost of 5x API calls. Use when accuracy is critical."
+    },
+    {
+      "q": "What is Claude's Extended Thinking?",
+      "a": "An API feature that gives Claude a private token budget to reason before answering. The thinking tokens are not shown in the response (or shown as a separate block). Similar to OpenAI's o1/o3 reasoning models."
     }
   ],
   "sources": [
     {
-      "name": "Chain-of-Thought Prompting",
-      "url": "https://www.anthropic.com/research/chain-of-thought",
-      "verified": "2026-11-04"
+      "name": "Chain-of-Thought Prompting Elicits Reasoning (Wei et al.)",
+      "url": "https://arxiv.org/abs/2201.11903",
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Claude Extended Thinking",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "math problem solving",
-      "complex analysis",
-      "planning"
+      "Financial analysis assistants requiring multi-step calculations",
+      "Legal reasoning over contract terms",
+      "Debugging assistants that trace execution step by step",
+      "Medical differential diagnosis tools"
     ],
     "examples": [
-      "Using CoT to build a financial analysis assistant"
+      "An accounting assistant that shows each ledger calculation step before giving a final balance",
+      "A legal contract analyzer that reasons through each clause before flagging risk"
     ]
   }
 }

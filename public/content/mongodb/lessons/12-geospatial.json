@@ -1,34 +1,99 @@
 {
   "id": "12-geospatial",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "advanced-queries",
   "title": "Geospatial Queries",
-  "subtitle": "2dsphere indexes and $near, $geoWithin",
+  "subtitle": "2dsphere indexes, GeoJSON, $near, $geoWithin, and $geoIntersects",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "mongodb.text-search"
-  ],
-  "skillsTaught": [
-    "mongodb.geospatial"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.text-search"],
+  "skillsTaught": ["mongodb.geospatial"],
+  "whyItExists": {
+    "problem": "Location-based features — 'find nearby restaurants', 'show stores within 5km', 'check if a delivery address is within a service zone' — require spherical geometry calculations that regular indexes and arithmetic can't handle accurately on the Earth's curved surface.",
+    "solution": "MongoDB's 2dsphere indexes and GeoJSON support enable all standard geospatial queries: find nearest points ($near), find points within a polygon ($geoWithin), and check if shapes intersect ($geoIntersects). All calculations use true spherical geometry for accuracy.",
+    "whenToUse": "Any feature requiring location awareness: nearby search, radius search, delivery zone checking, store finder, map clustering, ride-hailing matching, and geographic reporting.",
+    "whenNotToUse": "MongoDB geospatial is excellent for point-in-polygon and proximity queries. For complex GIS operations (routing, topology, projections), use a dedicated tool like PostGIS (PostgreSQL extension) or a GIS service."
+  },
+  "explainModes": {
+    "beginner": "MongoDB can store coordinates (longitude, latitude) for places and then answer questions like 'which restaurants are within 2km of me?' It understands that the Earth is round, so distances are calculated correctly even for long distances.",
+    "simple": "Store locations as GeoJSON Point objects: { type: 'Point', coordinates: [longitude, latitude] }. Create a 2dsphere index on the location field. Then use $near to find nearby documents sorted by distance, or $geoWithin to find documents within a shape.",
+    "standard": "MongoDB's 2dsphere index supports GeoJSON geometry types: Point, LineString, Polygon, MultiPoint, MultiPolygon, and GeometryCollection. Queries include $near (sorted by proximity), $nearSphere, $geoWithin (inside a shape), and $geoIntersects. All use WGS-84 spherical geometry.",
+    "technical": "The 2dsphere index uses an S2 geometry library (Google's spherical geometry library) to compute geohash-like S2 cells for each geometry. Proximity queries ($near) are answered by expanding S2 cell ranges until enough results are found. $geoWithin uses containment testing. The index can store mixed GeoJSON types in one collection.",
+    "deepDive": "MongoDB's 2dsphere index decomposes geometries into hierarchical S2 cells at multiple zoom levels. For a Point, this is straightforward. For a Polygon, the S2 library covers the polygon with a set of cells at different levels, stored in the index. $geoWithin queries find all indexed cells that fall within the query geometry. $near sorts by actual geodesic distance using Haversine formula after the index scan. The legacy 2d index (for flat-plane geometry) exists for backward compatibility but should not be used for real-world coordinates."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Geospatial Data"
+      "text": "GeoJSON and Coordinate Storage"
     },
     {
       "type": "paragraph",
-      "text": "MongoDB supports GeoJSON and legacy coordinate pairs for location queries. Use 2dsphere indexes for spherical geometry."
+      "text": "MongoDB uses the <strong>GeoJSON</strong> format for storing location data. GeoJSON is an open standard for encoding geographic data as JSON. For points, you store a <code>type: 'Point'</code> object with <code>coordinates: [longitude, latitude]</code>."
+    },
+    {
+      "type": "warning",
+      "text": "GeoJSON uses [longitude, latitude] order — the OPPOSITE of what many people expect! Google Maps shows (latitude, longitude) but GeoJSON is [longitude, latitude]. Always double-check your coordinate order when inserting location data."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "geo.js",
-      "code": "// Store a location as GeoJSON\nawait places.insertOne({\n  name: \"Taj Mahal\",\n  location: { type: \"Point\", coordinates: [78.0421, 27.1751] }\n});\n\n// Create 2dsphere index\nawait places.createIndex({ location: \"2dsphere\" });\n\n// Find places within 5km\nconst nearby = await places.find({\n  location: {\n    $near: {\n      $geometry: { type: \"Point\", coordinates: [78.04, 27.17] },\n      $maxDistance: 5000 // metres\n    }\n  }\n}).toArray();"
+      "filename": "geojson-storage.js",
+      "code": "// Store a place with GeoJSON coordinates\nawait places.insertOne({\n  name: 'Taj Mahal',\n  category: 'monument',\n  // GeoJSON Point — [LONGITUDE, LATITUDE] order!\n  location: {\n    type: 'Point',\n    coordinates: [78.0421, 27.1751]  // [lng, lat] — Agra, India\n  },\n  rating: 4.9\n});\n\n// Insert multiple places\nawait places.insertMany([\n  { name: 'Red Fort', location: { type: 'Point', coordinates: [77.2410, 28.6562] } },\n  { name: 'Gateway of India', location: { type: 'Point', coordinates: [72.8347, 18.9220] } },\n  { name: 'Qutub Minar', location: { type: 'Point', coordinates: [77.1855, 28.5244] } }\n]);\n\n// Create the 2dsphere index (REQUIRED before geospatial queries)\nawait places.createIndex({ location: '2dsphere' });"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "$near — Find Nearby Documents"
+    },
+    {
+      "type": "paragraph",
+      "text": "<code>$near</code> returns documents sorted by distance from a given point. You can specify a maximum distance (<code>$maxDistance</code>) and minimum distance (<code>$minDistance</code>) in meters."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "near-query.js",
+      "code": "// Find restaurants within 2km, sorted nearest first\nconst nearby = await restaurants.find({\n  location: {\n    $near: {\n      $geometry: {\n        type: 'Point',\n        coordinates: [77.2090, 28.6139]  // [lng, lat] — New Delhi\n      },\n      $maxDistance: 2000,   // 2000 metres = 2 km\n      $minDistance: 0       // optional minimum (omit for 0)\n    }\n  },\n  isOpen: true  // combine with other filters\n}).limit(10).toArray();\n\nconsole.log(`Found ${nearby.length} open restaurants within 2km`);\nnearby.forEach(r => console.log(r.name, r.cuisine));\n\n// Get distance in the result using aggregation\nconst withDistance = await restaurants.aggregate([\n  {\n    $geoNear: {\n      near: { type: 'Point', coordinates: [77.2090, 28.6139] },\n      distanceField: 'distance',  // adds 'distance' field (in metres)\n      maxDistance: 2000,\n      query: { isOpen: true },\n      spherical: true\n    }\n  },\n  { $limit: 10 },\n  { $project: { name: 1, cuisine: 1, distanceKm: { $divide: ['$distance', 1000] } } }\n]).toArray();"
+    },
+    {
+      "type": "tip",
+      "text": "Use $geoNear as the FIRST stage in an aggregation pipeline to get distances in the result documents. It adds a 'distanceField' to each result with the distance in meters, which you can then convert to km or miles."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "$geoWithin — Points Inside a Shape"
+    },
+    {
+      "type": "paragraph",
+      "text": "<code>$geoWithin</code> returns documents whose location falls within a given shape — a polygon, circle, or bounding box. Unlike <code>$near</code>, it does not sort by distance."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "geo-within.js",
+      "code": "// Find all deliveries within a service area polygon\nconst serviceArea = [\n  [77.1500, 28.5900],  // Southwest corner [lng, lat]\n  [77.2500, 28.5900],  // Southeast corner\n  [77.2500, 28.7000],  // Northeast corner\n  [77.1500, 28.7000],  // Northwest corner\n  [77.1500, 28.5900]   // Close the polygon (repeat first point)\n];\n\nconst inZone = await deliveries.find({\n  dropLocation: {\n    $geoWithin: {\n      $geometry: {\n        type: 'Polygon',\n        coordinates: [serviceArea]  // array of arrays — outer ring first\n      }\n    }\n  }\n}).toArray();\n\n// Simpler: $centerSphere — find within a radius (no polygon needed)\n// $centerSphere uses radians, not meters!\nconst radiusInKm = 5;\nconst earthRadiusKm = 6378.1;\n\nconst inRadius = await places.find({\n  location: {\n    $geoWithin: {\n      $centerSphere: [\n        [77.2090, 28.6139],                     // [lng, lat] center\n        radiusInKm / earthRadiusKm              // radius in radians!\n      ]\n    }\n  }\n}).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Storing Delivery Zones as Polygons"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "delivery-zones.js",
+      "code": "// Store a delivery zone as a GeoJSON Polygon\nawait zones.insertOne({\n  name: 'Zone A — North Delhi',\n  deliveryFee: 29,\n  boundary: {\n    type: 'Polygon',\n    coordinates: [[\n      [77.1500, 28.5900],\n      [77.2500, 28.5900],\n      [77.2500, 28.7000],\n      [77.1500, 28.7000],\n      [77.1500, 28.5900]  // close the ring\n    ]]\n  }\n});\nawait zones.createIndex({ boundary: '2dsphere' });\n\n// Check if a delivery address is within any zone\nconst customerLocation = [77.2090, 28.6139];  // [lng, lat]\n\nconst matchingZone = await zones.findOne({\n  boundary: {\n    $geoIntersects: {\n      $geometry: {\n        type: 'Point',\n        coordinates: customerLocation\n      }\n    }\n  }\n});\n\nif (matchingZone) {\n  console.log(`Delivery available! Zone: ${matchingZone.name}, Fee: ₹${matchingZone.deliveryFee}`);\n} else {\n  console.log('Sorry, outside delivery area');\n}"
     },
     {
       "type": "quiz",
@@ -44,7 +109,33 @@
             "hashed"
           ],
           "correctAnswer": 2,
-          "explanation": "$near requires a 2dsphere index for spherical (real-world) coordinates."
+          "explanation": "$near requires a 2dsphere index for spherical (real-world) coordinates. The 2dsphere index supports GeoJSON and uses true spherical geometry on the WGS-84 ellipsoid."
+        },
+        {
+          "id": "q2",
+          "question": "What coordinate order does GeoJSON use?",
+          "type": "multiple-choice",
+          "options": [
+            "[latitude, longitude]",
+            "[longitude, latitude]",
+            "[x, y, z]",
+            "[lat, lng, elevation]"
+          ],
+          "correctAnswer": 1,
+          "explanation": "GeoJSON uses [longitude, latitude] order — the opposite of what Google Maps shows. This is a very common source of bugs! Always double-check your coordinate order."
+        },
+        {
+          "id": "q3",
+          "question": "Which operator returns documents whose location is INSIDE a given polygon?",
+          "type": "multiple-choice",
+          "options": [
+            "$near",
+            "$geoWithin",
+            "$geoNear",
+            "$polygon"
+          ],
+          "correctAnswer": 1,
+          "explanation": "$geoWithin returns documents whose location falls inside the specified shape (polygon, circle, etc.). Unlike $near, it does not sort by distance — use it when you just need containment testing."
         }
       ]
     }
@@ -52,23 +143,40 @@
   "faq": [
     {
       "q": "What coordinate order does GeoJSON use?",
-      "a": "GeoJSON uses [longitude, latitude] order — the opposite of what many people expect."
+      "a": "GeoJSON uses [longitude, latitude] order — the opposite of what many people expect. Google Maps, OpenStreetMap, and most GPS devices show (latitude, longitude), but GeoJSON and MongoDB store [longitude, latitude]. This is the #1 geospatial bug in MongoDB applications."
+    },
+    {
+      "q": "What is the difference between $near and $geoWithin?",
+      "a": "$near returns documents sorted by distance from a point, closest first. It requires a 2dsphere index. $geoWithin returns all documents whose location falls within a given shape (polygon, circle), without distance sorting. $geoWithin can work without a 2dsphere index but is much faster with one."
+    },
+    {
+      "q": "Can I store multiple location types (points AND polygons) in one collection?",
+      "a": "Yes. A single 2dsphere index can index multiple GeoJSON types in the same collection. Some documents can have Point locations, others can have Polygon boundaries — the same index serves $near (for points) and $geoWithin/$geoIntersects (for shapes)."
     }
   ],
   "sources": [
     {
       "name": "Geospatial Queries",
       "url": "https://www.mongodb.com/docs/manual/geospatial-queries/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "2dsphere Index",
+      "url": "https://www.mongodb.com/docs/manual/core/2dsphere/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "location-based apps",
-      "store finders"
+      "Food delivery apps (Swiggy, Zomato) — nearby restaurants",
+      "Ride-hailing (Uber, Ola) — driver proximity matching",
+      "Store finders — nearest retail locations",
+      "Delivery zone validation — is address inside service area?"
     ],
     "examples": [
-      "Finding nearby restaurants within 2 km"
+      "Zomato-style: find({ location: { $near: { $geometry: userLocation, $maxDistance: 2000 } } }).limit(20)",
+      "Delivery zone check: find({ boundary: { $geoIntersects: { $geometry: deliveryPoint } } })",
+      "$geoNear aggregation: find 10 nearest stores with distance in km included in results"
     ]
   }
 }

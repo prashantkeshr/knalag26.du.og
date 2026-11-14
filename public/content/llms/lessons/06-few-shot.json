@@ -1,38 +1,100 @@
 {
   "id": "06-few-shot",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / OpenAI Chat API",
   "technology": "llms",
   "module": "prompt-engineering",
   "title": "Few-Shot Prompting",
   "subtitle": "Giving examples to steer output style and format",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "llms.cot"
-  ],
-  "skillsTaught": [
-    "llms.few-shot"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.cot"],
+  "skillsTaught": ["llms.few-shot"],
+  "whyItExists": {
+    "problem": "Written instructions alone often fail to fully specify a task. Humans learn by example, and so do LLMs — describing a format in prose is ambiguous, but showing 3 examples is unambiguous.",
+    "solution": "Few-shot prompting includes concrete input-output examples directly in the prompt. The model learns the exact format, style, and edge-case handling from the examples rather than interpreting abstract instructions.",
+    "whenToUse": "Whenever you need precise, consistent output format: classification labels, extraction schemas, code transformations, creative style matching.",
+    "whenNotToUse": "When you don't have good examples (bad examples actively hurt), when the task is simple enough for instructions alone, or when token budget is very tight."
+  },
+  "explainModes": {
+    "beginner": "It's like showing someone 3 filled-in forms before asking them to fill in the fourth. The pattern becomes obvious from examples — no explanation needed.",
+    "simple": "Including 2-5 input-output examples in your prompt teaches the model the exact format you want. It's the most reliable way to get consistent output because models imitate patterns more reliably than following written rules.",
+    "standard": "Few-shot prompting inserts worked examples before the target task. The model uses these as an in-context template. The examples must be representative, correctly formatted, and cover edge cases. Example placement matters: 3-5 examples in system prompt or at the start of the user message.",
+    "technical": "Few-shot learning is in-context learning — the model learns the task mapping from examples without weight updates. Research shows LLMs are very sensitive to example order (last example is weighted more heavily) and label balance (equal positive/negative examples prevents bias).",
+    "deepDive": "GPT-3 paper popularised in-context learning: the model can extrapolate a function from k examples without gradient descent. This works because pretraining exposed the model to countless (input, output) pattern completions. Modern instruction-tuned models already know most tasks; examples primarily communicate format rather than task definition."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Few-Shot Learning"
+      "text": "Zero-Shot vs One-Shot vs Few-Shot"
     },
     {
       "type": "paragraph",
-      "text": "Including a few input-output examples in the prompt teaches the model the exact format and style you want."
+      "text": "Including <strong>concrete input-output examples</strong> in the prompt teaches the model the exact format and style you want. It's the most reliable way to get consistent structured output, because models imitate patterns far more reliably than following written descriptions."
+    },
+    {
+      "type": "definition",
+      "term": "Zero-Shot",
+      "definition": "No examples — just instructions. Fast but less reliable for precise formats. 'Classify sentiment as POSITIVE/NEGATIVE/NEUTRAL.'"
+    },
+    {
+      "type": "definition",
+      "term": "One-Shot",
+      "definition": "One example plus the actual task. Good baseline improvement with minimal token cost."
+    },
+    {
+      "type": "definition",
+      "term": "Few-Shot",
+      "definition": "2–10 examples. The sweet spot for most tasks. More examples improve consistency but cost more tokens."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "fewshot.py",
-      "code": "system = \"\"\"Classify the sentiment of product reviews as POSITIVE, NEGATIVE, or NEUTRAL.\n\nExamples:\nReview: \"This laptop is incredible, best purchase I've made!\"\nSentiment: POSITIVE\n\nReview: \"Battery died after 2 months. Very disappointed.\"\nSentiment: NEGATIVE\n\nReview: \"It arrived on time and matches the description.\"\nSentiment: NEUTRAL\n\"\"\"\n\nuser = 'Review: \"The keyboard feels a bit mushy but I like the screen.\"'\n# Model: NEUTRAL (or NEGATIVE depending on weighting)"
+      "filename": "few_shot_sentiment.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Few-shot: 3 examples covering each label\nsystem = \"\"\"Classify the sentiment of product reviews.\nRespond ONLY with one word: POSITIVE, NEGATIVE, or NEUTRAL.\n\nExamples:\nReview: \"This laptop is incredible — best purchase I've made!\"\nSentiment: POSITIVE\n\nReview: \"Battery died after 2 months. Very disappointed.\"\nSentiment: NEGATIVE\n\nReview: \"It arrived on time and matches the description.\"\nSentiment: NEUTRAL\"\"\"\n\ntest_reviews = [\n    'Review: \"The keyboard feels a bit mushy but I love the screen.\"',\n    'Review: \"Absolutely useless. Returned immediately.\"',\n    'Review: \"Good value for the price. Does what it says.\"',\n]\n\nfor review in test_reviews:\n    response = client.messages.create(\n        model=\"claude-haiku-5-5\",\n        max_tokens=10,\n        temperature=0,\n        system=system,\n        messages=[{\"role\": \"user\", \"content\": review}]\n    )\n    print(f\"{review[:50]}... → {response.content[0].text.strip()}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Few-Shot for Structured Data Extraction"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "few_shot_extraction.py",
+      "code": "import anthropic, json\nclient = anthropic.Anthropic()\n\nsystem = \"\"\"Extract structured data from business card text. Return JSON only.\n\nExample input: \"Dr. Sarah Chen, CTO at Nexus AI, sarah.chen@nexusai.io, +1-415-555-0100\"\nExample output: {\"name\":\"Sarah Chen\",\"title\":\"CTO\",\"company\":\"Nexus AI\",\"email\":\"sarah.chen@nexusai.io\",\"phone\":\"+1-415-555-0100\"}\n\nExample input: \"Marcus Johnson - Lead Developer | Buildify Corp\\nm.johnson@buildify.com\"\nExample output: {\"name\":\"Marcus Johnson\",\"title\":\"Lead Developer\",\"company\":\"Buildify Corp\",\"email\":\"m.johnson@buildify.com\",\"phone\":null}\"\"\"\n\ncard_text = \"Priya Sharma, VP of Engineering, TechFlow Inc. priya@techflow.io | 650-555-9876\"\n\nresponse = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=200,\n    temperature=0,\n    system=system,\n    messages=[{\"role\": \"user\", \"content\": card_text}]\n)\n\ndata = json.loads(response.content[0].text)\nprint(data)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Best Practices for Few-Shot Examples"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "<strong>Cover all classes</strong>: For classification, include at least 1 example of each label — equal representation prevents the model biasing toward the most-seen class",
+        "<strong>Include edge cases</strong>: Show what to do when input is ambiguous or malformed",
+        "<strong>Use 3-5 examples</strong>: More is not always better — it uses up context. 3 good examples typically beats 10 mediocre ones",
+        "<strong>Match distribution</strong>: Examples should reflect real production inputs, not cherry-picked easy ones",
+        "<strong>Last example matters most</strong>: The model weighs the most recent example more heavily — put your most representative example last"
+      ]
     },
     {
       "type": "tip",
-      "text": "Use 3–5 examples that cover edge cases. More is not always better — it uses up context."
+      "text": "Use 3–5 examples that cover edge cases and all output labels. More examples are not always better — they use up context window and can introduce conflicting patterns."
+    },
+    {
+      "type": "warning",
+      "text": "Bad examples actively hurt performance. If your examples contain errors, inconsistencies, or don't cover edge cases, few-shot can perform WORSE than zero-shot. Always test examples on a held-out set."
     },
     {
       "type": "quiz",
@@ -42,38 +104,79 @@
           "question": "What is few-shot prompting?",
           "type": "multiple-choice",
           "options": [
-            "Training a small model",
-            "Providing input-output examples in the prompt",
-            "Reducing the token count",
-            "Lowering the temperature"
+            "Training a small fine-tuned model on a few examples",
+            "Including input-output examples directly in the prompt to demonstrate the desired format",
+            "Reducing the number of tokens in a prompt",
+            "Using a low temperature setting for consistency"
           ],
           "correctAnswer": 1,
-          "explanation": "Few-shot prompting provides examples directly in the prompt to demonstrate the desired output format or style."
+          "explanation": "Few-shot prompting provides complete input-output examples directly in the prompt. The model uses them as a template — no model training or weight updates occur."
+        },
+        {
+          "id": "q2",
+          "question": "Why is example balance important in few-shot classification prompts?",
+          "type": "multiple-choice",
+          "options": [
+            "More examples of the target class make the model more accurate",
+            "Unequal class representation causes the model to bias toward labels it has seen most",
+            "Each class needs at least 10 examples",
+            "Balance only matters for numeric outputs"
+          ],
+          "correctAnswer": 1,
+          "explanation": "If you show 3 POSITIVE examples and only 1 NEGATIVE example, the model will over-predict POSITIVE. Balance examples across all labels you want the model to predict."
+        },
+        {
+          "id": "q3",
+          "question": "When might zero-shot outperform few-shot prompting?",
+          "type": "multiple-choice",
+          "options": [
+            "Never — few-shot always wins",
+            "When the examples contain errors or unrepresentative inputs",
+            "When you have more than 3 output classes",
+            "When the model is very small (<7B parameters)"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Bad examples actively mislead the model. Zero-shot instructions alone can outperform few-shot if the examples are low-quality, inconsistent, or don't match the production data distribution."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "What is zero-shot vs few-shot?",
-      "a": "Zero-shot has no examples — the model uses only instructions. Few-shot includes examples. Few-shot is more reliable for precise formats."
+      "q": "What is the difference between zero-shot and few-shot?",
+      "a": "Zero-shot has no examples — the model uses only instructions. Few-shot includes examples. Few-shot is more reliable for precise formats and edge cases. Zero-shot is cheaper and faster."
+    },
+    {
+      "q": "How many examples should I use?",
+      "a": "3-5 examples is the sweet spot. For classification, 1-2 examples per class. For complex extractions, 3-4 diverse examples. More examples help diminishingly and cost more tokens."
+    },
+    {
+      "q": "Should examples go in the system prompt or user message?",
+      "a": "Either works. For Claude, examples in the system prompt are weighted heavily and don't repeat per request (cost-efficient). Examples in the user message are more flexible for dynamic tasks."
     }
   ],
   "sources": [
     {
-      "name": "Few-Shot Prompting",
+      "name": "Anthropic: Use examples in prompts",
       "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/use-examples",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "GPT-3 Paper (Brown et al. 2020) — in-context learning",
+      "url": "https://arxiv.org/abs/2005.14165",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "text classification",
-      "data labelling",
-      "format extraction"
+      "Sentiment classifiers for product review pipelines",
+      "Contact information extraction from unstructured text",
+      "Intent classification for customer support routing",
+      "Code transformation (convert Python to TypeScript with format examples)"
     ],
     "examples": [
-      "Sentiment classifier with 5 labeled examples in the prompt"
+      "An e-commerce platform classifying 10,000 daily reviews using 5 few-shot examples in the system prompt",
+      "A CRM tool extracting structured contact records from raw email signatures"
     ]
   }
 }

@@ -1,19 +1,35 @@
 {
   "id": "03-data-model",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-basics",
   "title": "The MongoDB Data Model",
   "subtitle": "BSON types, ObjectIds, and document structure",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "mongodb.setup"
-  ],
-  "skillsTaught": [
-    "mongodb.data-model"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.setup"],
+  "skillsTaught": ["mongodb.data-model"],
+  "whyItExists": {
+    "problem": "JSON is a great human-readable format, but it lacks precise data types. The number 42 and the string '42' look similar, dates become strings, and binary data can't be represented. This causes bugs, inconsistencies, and slow queries.",
+    "solution": "MongoDB uses BSON (Binary JSON), which extends JSON with additional types: Date, ObjectId, Decimal128, Binary, Regular Expression, and more. BSON also encodes length prefixes so the engine can skip fields without parsing the whole document.",
+    "whenToUse": "Understanding BSON types is essential when working with dates (use Date, not strings), monetary values (use Decimal128, not Double), unique IDs (use ObjectId), and binary data (use Binary instead of base64 strings).",
+    "whenNotToUse": "You rarely choose BSON types manually — MongoDB drivers automatically convert JavaScript/Python/Java types to BSON. The main decisions are around ObjectId vs custom _id and Double vs Decimal128 for precise decimals."
+  },
+  "explainModes": {
+    "beginner": "BSON is like JSON but smarter. It knows the difference between a number and a date, so you don't have to store dates as strings like '2026-01-01'. MongoDB automatically converts JavaScript Date objects to BSON Date when you insert them.",
+    "simple": "BSON extends JSON with typed values: Date (not strings), ObjectId (auto-generated IDs), Binary (for files), and Decimal128 (for precise money amounts). MongoDB drivers handle the conversion automatically.",
+    "standard": "BSON is MongoDB's internal binary format for documents. It adds type information to JSON's typeless values, enables fast seek (via size prefixes), and supports types that JSON can't represent like Date, Binary, and ObjectId. Each document field has an explicit BSON type tag.",
+    "technical": "BSON is a little-endian binary format. Each element starts with a 1-byte type identifier, followed by a c-string key, then type-specific value bytes. The ObjectId is a 12-byte value: 4-byte Unix timestamp + 5-byte random value + 3-byte incrementing counter — this gives both approximate insertion order and global uniqueness across machines.",
+    "deepDive": "BSON type tags map to MongoDB's internal C++ types. The ObjectId's timestamp component makes it roughly sortable by insertion time, which is why sorting by _id gives approximate chronological order without an explicit createdAt field. Decimal128 (IEEE 754-2008) gives 34 significant decimal digits — critical for financial calculations where Double's IEEE 754 floating-point can introduce rounding errors (0.1 + 0.2 ≠ 0.3)."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,22 +38,71 @@
     },
     {
       "type": "paragraph",
-      "text": "MongoDB stores documents as BSON, an extension of JSON that adds types like Date, ObjectId, and binary data."
+      "text": "MongoDB stores documents as <strong>BSON</strong> (Binary JSON), an extension of JSON that adds type information and binary encoding. BSON supports all JSON types plus several additional ones that are essential for a database: <code>Date</code>, <code>ObjectId</code>, <code>Binary</code>, <code>Decimal128</code>, and more."
     },
     {
-      "type": "definition",
-      "term": "ObjectId",
-      "definition": "A 12-byte unique identifier automatically generated for the _id field of each document."
+      "type": "paragraph",
+      "text": "You write documents in regular JSON (or JavaScript objects), and the MongoDB driver automatically converts them to BSON before sending to the server. When reading, BSON is decoded back to native types in your language."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "BSON Type Reference"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "types.js",
-      "code": "// BSON types in a document\n{\n  _id: ObjectId(),        // auto-generated\n  createdAt: new Date(), // Date\n  score: 95.5,           // Double\n  active: true,          // Boolean\n  tags: [\"js\",\"node\"],   // Array\n  address: {             // Embedded document\n    city: \"Delhi\",\n    zip: \"110001\"\n  }\n}"
+      "filename": "bson-types.js",
+      "code": "// BSON types used in a real document\nconst user = {\n  _id: new ObjectId(),              // ObjectId — 12-byte unique ID\n  name: \"Alice Sharma\",             // String\n  age: 30,                          // Int32 (or Double in some drivers)\n  score: 95.7,                      // Double (64-bit float)\n  balance: Decimal128(\"1234.56\"),   // Decimal128 — precise money values\n  active: true,                     // Boolean\n  tags: [\"admin\", \"editor\"],        // Array\n  address: {                        // Embedded document (nested object)\n    city: \"Delhi\",\n    zip: \"110001\"\n  },\n  createdAt: new Date(),            // Date (stored as 64-bit UTC ms since epoch)\n  updatedAt: null,                  // Null\n  avatar: Binary(Buffer.alloc(10)), // Binary — for files, images\n  pattern: /^[a-z]+$/i,            // Regular expression\n};\n\n// Check the BSON type of a value\nconsole.log(user._id instanceof ObjectId);  // true\nconsole.log(user._id.toString());           // \"507f1f77bcf86cd799439011\""
+    },
+    {
+      "type": "definition",
+      "term": "ObjectId",
+      "definition": "A 12-byte unique identifier automatically generated for the _id field of each document. Contains a 4-byte timestamp, 5-byte random value, and 3-byte counter. Because of the timestamp component, ObjectIds are roughly sortable by creation time."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The _id Field"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every MongoDB document must have a unique <code>_id</code> field. If you don't provide one, MongoDB automatically generates an <code>ObjectId</code>. The <code>_id</code> field is always indexed — queries by <code>_id</code> are instantaneous."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "objectid.js",
+      "code": "// Auto-generated ObjectId\nconst id = new ObjectId();\nconsole.log(id.toString());              // \"6752ab3f1234567890abcdef\"\nconsole.log(id.getTimestamp());          // Date object — when it was created\n\n// Extract creation timestamp from any ObjectId\nconst doc = await users.findOne({ name: 'Alice' });\nconsole.log(doc._id.getTimestamp());     // When Alice's document was created\n\n// Custom _id (e.g., use email as ID)\nawait users.insertOne({\n  _id: 'alice@example.com',  // custom string _id\n  name: 'Alice'\n});\n// Now you can find Alice without knowing her ObjectId:\nawait users.findOne({ _id: 'alice@example.com' });"
     },
     {
       "type": "tip",
-      "text": "Always let MongoDB generate _id unless you have a natural unique key."
+      "text": "Always let MongoDB generate _id using ObjectId unless you have a natural unique key (like email or username). ObjectIds are globally unique across machines and contain a creation timestamp for free."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using Dates Correctly"
+    },
+    {
+      "type": "paragraph",
+      "text": "One of the most common mistakes in MongoDB is storing dates as strings instead of BSON Date objects. Always use <code>new Date()</code> so you can sort, compare, and query date ranges correctly."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "dates.js",
+      "code": "// BAD: dates as strings — cannot sort, range query, or extract month\nawait events.insertOne({\n  name: 'Conference',\n  date: '2026-06-15'  // string — will sort lexicographically, not chronologically\n});\n\n// GOOD: use BSON Date\nawait events.insertOne({\n  name: 'Conference',\n  date: new Date('2026-06-15')  // ISODate — sortable, comparable, math-friendly\n});\n\n// Now you can query date ranges correctly:\nconst upcoming = await events.find({\n  date: { $gte: new Date() }  // all events from now onwards\n}).sort({ date: 1 }).toArray();\n\n// Extract year from date in aggregation:\ndb.events.aggregate([\n  { $project: { year: { $year: '$date' }, name: 1 } }\n]);"
+    },
+    {
+      "type": "warning",
+      "text": "Never store dates as strings like '2026-06-15'. Date comparison and range queries won't work correctly. Use new Date() or ISODate() in mongosh to store proper BSON Date values."
+    },
+    {
+      "type": "playground",
+      "lang": "javascript",
+      "title": "Explore BSON-like Types in JavaScript",
+      "starterCode": "// Simulate BSON type handling in JavaScript\n// (In real MongoDB, the driver handles this automatically)\n\n// Simulate ObjectId\nfunction createObjectId() {\n  const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');\n  const random = Math.random().toString(16).slice(2, 12).padStart(10, '0');\n  const counter = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');\n  return timestamp + random + counter;\n}\n\n// Create a document with proper types\nconst product = {\n  _id: createObjectId(),\n  name: 'Wireless Headphones',\n  price: 2499.99,          // Double\n  inStock: true,           // Boolean\n  tags: ['audio', 'wireless', 'bluetooth'],  // Array\n  specs: {                 // Embedded document\n    brand: 'SoundMax',\n    battery: '30h'\n  },\n  createdAt: new Date()    // Date\n};\n\nconsole.log('Product:', JSON.stringify(product, null, 2));\nconsole.log('\\n_id prefix (timestamp):', product._id.slice(0, 8));\nconsole.log('Created at:', product.createdAt.toISOString());"
     },
     {
       "type": "quiz",
@@ -53,7 +118,33 @@
             "String"
           ],
           "correctAnswer": 2,
-          "explanation": "MongoDB uses ObjectId as the default _id type."
+          "explanation": "MongoDB uses ObjectId as the default _id type — a 12-byte value containing a timestamp, random component, and counter."
+        },
+        {
+          "id": "q2",
+          "question": "What is the correct BSON type to use for storing a date?",
+          "type": "multiple-choice",
+          "options": [
+            "String like '2026-01-15'",
+            "Integer Unix timestamp",
+            "BSON Date (new Date())",
+            "Number of milliseconds as Double"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Always use BSON Date (new Date() in JavaScript) for dates. String dates cannot be sorted chronologically, and range queries won't work as expected."
+        },
+        {
+          "id": "q3",
+          "question": "What additional information is encoded inside a MongoDB ObjectId?",
+          "type": "multiple-choice",
+          "options": [
+            "The document's collection name",
+            "A creation timestamp",
+            "The database name",
+            "The user who inserted it"
+          ],
+          "correctAnswer": 1,
+          "explanation": "An ObjectId contains a 4-byte Unix timestamp, so you can extract the approximate document creation time with id.getTimestamp()."
         }
       ]
     }
@@ -61,23 +152,39 @@
   "faq": [
     {
       "q": "Can I use a custom _id?",
-      "a": "Yes. Set _id to any unique value you want, like a user email or slug. Just ensure uniqueness across the collection."
+      "a": "Yes. Set _id to any unique value: a string email, an integer, or any value you choose. Just ensure uniqueness — MongoDB will reject duplicate _id inserts with an E11000 duplicate key error."
+    },
+    {
+      "q": "What is the difference between Double and Decimal128?",
+      "a": "Double is a 64-bit IEEE 754 floating-point, which is fast but can have rounding errors (0.1 + 0.2 = 0.30000000000000004). Decimal128 is an arbitrary-precision decimal type that is accurate to 34 significant digits — use it for monetary values to avoid rounding bugs."
+    },
+    {
+      "q": "What is BSON and why doesn't MongoDB just use JSON?",
+      "a": "JSON is text-based and typeless — it cannot distinguish a date from a string, or store binary data. BSON is a binary format that adds explicit type tags and length prefixes to each field, making it faster to parse and encode, and supporting types that JSON doesn't have."
     }
   ],
   "sources": [
     {
-      "name": "BSON Types",
+      "name": "BSON Types Reference",
       "url": "https://www.mongodb.com/docs/manual/reference/bson-types/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "ObjectId Reference",
+      "url": "https://www.mongodb.com/docs/manual/reference/method/ObjectId/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "document identification",
-      "audit trails"
+      "Document identification across distributed systems",
+      "Audit trails with creation timestamps from ObjectId",
+      "Financial systems requiring Decimal128 precision"
     ],
     "examples": [
-      "Using email as _id for user collections"
+      "Using email as _id for user collections to avoid duplicate accounts without an extra unique index",
+      "Extracting creation date from ObjectId to avoid storing a separate createdAt field",
+      "Using Decimal128 for product prices in e-commerce to avoid floating-point rounding issues"
     ]
   }
 }

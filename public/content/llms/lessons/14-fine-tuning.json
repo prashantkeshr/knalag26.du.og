@@ -1,38 +1,102 @@
 {
   "id": "14-fine-tuning",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "OpenAI Fine-tuning / LoRA / PEFT",
   "technology": "llms",
   "module": "llm-production",
   "title": "Fine-Tuning LLMs",
   "subtitle": "When and how to fine-tune vs prompt engineer",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "llms.agents"
-  ],
-  "skillsTaught": [
-    "llms.fine-tuning"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.agents"],
+  "skillsTaught": ["llms.fine-tuning"],
+  "whyItExists": {
+    "problem": "Even with excellent prompting, models may inconsistently follow a very specific style, produce a unique output format, or excel at a highly domain-specific task. When consistency is required at scale and prompting has reached its limits, fine-tuning is the next lever.",
+    "solution": "Fine-tuning trains model weights on your curated input-output examples, ingraining specific behavior. The result is a model that consistently behaves as desired without large system prompts per request.",
+    "whenToUse": "When prompt engineering is inconsistent at scale, when you need to reduce system prompt size (cost), when output style/format needs to be exact and reproducible, when you have 100+ high-quality labeled examples.",
+    "whenNotToUse": "To inject new factual knowledge (use RAG instead), when you have <50 examples, when the task can be solved with better prompting, early in a project before you understand requirements."
+  },
+  "explainModes": {
+    "beginner": "Imagine training a new employee for 3 months versus giving a smart contractor a detailed briefing each time. Fine-tuning is the 3-month training — after it, the model 'just knows' your style. Prompting is the contractor briefing — works great but you repeat it every time.",
+    "simple": "Fine-tuning updates the model's weights using your examples so it permanently learns your specific style or format. The fine-tuned model behaves differently from the base model without needing a large system prompt every request.",
+    "standard": "Fine-tuning creates a new model checkpoint by continuing training on a small labeled dataset of (input, output) pairs. It's supervised learning on your data — gradient descent updates the weights to better reproduce your outputs. The result is cheaper per request (smaller prompts) and more consistent formatting.",
+    "technical": "OpenAI fine-tuning: upload a JSONL file of {messages: [{role, content}]} objects, create a fine-tuning job, wait for training, then use the fine_tuned_model ID. Full fine-tuning updates all weights. LoRA (Low-Rank Adaptation) only trains small rank-decomposition matrices, reducing trainable parameters by ~1000x — much cheaper and prevents catastrophic forgetting.",
+    "deepDive": "Parameter-efficient fine-tuning (PEFT) methods: LoRA (adds low-rank matrices A, B to attention layers, trains only A and B), QLoRA (quantised LoRA on 4-bit base models), prefix tuning (learnable prefix tokens), adapter modules. RLHF (Reinforcement Learning from Human Feedback) uses a reward model trained on human preferences to fine-tune with PPO — the technique behind ChatGPT's alignment. DPO (Direct Preference Optimisation) achieves similar results without the RL loop."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Fine-Tuning vs Prompting"
+      "text": "Fine-Tuning vs Prompt Engineering"
     },
     {
       "type": "paragraph",
-      "text": "Fine-tuning trains the model on your data to specialise its behaviour. It is expensive and usually unnecessary — good prompting covers 90% of use cases."
+      "text": "Fine-tuning <strong>trains the model's weights</strong> on your data, permanently specialising its behaviour. It is expensive and usually unnecessary — good prompting covers 90% of use cases. But when consistency and style precision are critical at scale, fine-tuning unlocks the remaining 10%."
+    },
+    {
+      "type": "comparison",
+      "title": "Fine-Tuning vs Prompt Engineering",
+      "a": {
+        "name": "Prompt Engineering",
+        "description": "No training — instructions and examples in every request",
+        "strengths": ["No training cost", "Instantly updatable", "Works with any model", "Great for most tasks"],
+        "weaknesses": ["Large system prompts cost tokens every request", "May be inconsistent at scale", "Limited by context window"],
+        "useWhen": "Starting any project. 90% of tasks. When style consistency isn't mission-critical."
+      },
+      "b": {
+        "name": "Fine-Tuning",
+        "description": "New model checkpoint trained on your labeled examples",
+        "strengths": ["Smaller prompts per request (cost savings at scale)", "Very consistent style/format", "Can learn task-specific patterns beyond prompting's reach"],
+        "weaknesses": ["Training cost ($50-$1000+)", "Requires 100+ quality examples", "Retraining needed when requirements change", "Risk of catastrophic forgetting"],
+        "useWhen": "High-volume production (millions of requests), very specific style requirements, reducing per-request costs when system prompt is large."
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "OpenAI Fine-Tuning Workflow"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "finetune.py",
-      "code": "# Fine-tuning is typically done through provider APIs\n# Example: OpenAI fine-tuning workflow\nfrom openai import OpenAI\nclient = OpenAI()\n\n# 1. Upload training data (JSONL format)\nresponse = client.files.create(\n    file=open(\"training_data.jsonl\", \"rb\"),\n    purpose=\"fine-tune\"\n)\nfile_id = response.id\n\n# 2. Create a fine-tuning job\njob = client.fine_tuning.jobs.create(\n    training_file=file_id,\n    model=\"gpt-4o-mini\"\n)\n\n# 3. Wait and use the fine-tuned model\n# client.chat.completions.create(model=job.fine_tuned_model, ...)"
+      "filename": "finetune_openai.py",
+      "code": "from openai import OpenAI\nimport json\n\nclient = OpenAI()\n\n# Step 1: Prepare training data (JSONL format)\ntraining_examples = [\n    {\n        \"messages\": [\n            {\"role\": \"system\", \"content\": \"You write product descriptions in our brand voice: confident, friendly, and focused on benefits.\"},\n            {\"role\": \"user\", \"content\": \"Product: Wireless noise-cancelling headphones with 30h battery\"},\n            {\"role\": \"assistant\", \"content\": \"Drown out the world. These headphones wrap you in silence so you can focus, create, or just breathe — for up to 30 hours without reaching for a charger.\"}\n        ]\n    },\n    # ... 100+ more examples\n]\n\n# Write to JSONL file\nwith open(\"training_data.jsonl\", \"w\") as f:\n    for ex in training_examples:\n        f.write(json.dumps(ex) + \"\\n\")\n\n# Step 2: Upload training file\nupload = client.files.create(\n    file=open(\"training_data.jsonl\", \"rb\"),\n    purpose=\"fine-tune\"\n)\nprint(f\"File ID: {upload.id}\")\n\n# Step 3: Create fine-tuning job\njob = client.fine_tuning.jobs.create(\n    training_file=upload.id,\n    model=\"gpt-4o-mini\",  # cheap base model\n    hyperparameters={\"n_epochs\": 3}\n)\nprint(f\"Job ID: {job.id}\")\n\n# Step 4: Check status (poll or use webhooks)\nstatus = client.fine_tuning.jobs.retrieve(job.id)\nprint(f\"Status: {status.status}\")  # validating_files → running → succeeded"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "finetune_use.py",
+      "code": "from openai import OpenAI\nclient = OpenAI()\n\n# Step 5: Use your fine-tuned model (no system prompt needed!)\nFINE_TUNED_MODEL = \"ft:gpt-4o-mini:your-org:product-copy:AbCd1234\"\n\nresponse = client.chat.completions.create(\n    model=FINE_TUNED_MODEL,\n    messages=[{\n        \"role\": \"user\",\n        \"content\": \"Product: Reusable bamboo coffee cups (4-pack)\"\n    }]\n)\nprint(response.choices[0].message.content)\n# Output is now consistently in your brand voice — no system prompt needed"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "LoRA: Efficient Fine-Tuning of Open Models"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>LoRA (Low-Rank Adaptation)</strong> fine-tunes open-source models (Llama, Mistral) by adding small trainable rank-decomposition matrices to attention layers. It trains 1000x fewer parameters than full fine-tuning — achievable on a single GPU in hours."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "lora_training.py",
+      "code": "# pip install peft transformers datasets\nfrom transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments\nfrom peft import LoraConfig, get_peft_model, TaskType\nfrom trl import SFTTrainer\n\n# Load base model (Llama or Mistral)\nmodel_name = \"mistralai/Mistral-7B-Instruct-v0.3\"\nmodel = AutoModelForCausalLM.from_pretrained(model_name, load_in_4bit=True)  # QLoRA\ntokenizer = AutoTokenizer.from_pretrained(model_name)\n\n# Configure LoRA — only train rank-decomposition matrices\nlora_config = LoraConfig(\n    task_type=TaskType.CAUSAL_LM,\n    r=16,            # rank of low-rank matrices\n    lora_alpha=32,   # scaling factor\n    lora_dropout=0.1,\n    target_modules=[\"q_proj\", \"v_proj\"]  # which attention layers\n)\nmodel = get_peft_model(model, lora_config)\nmodel.print_trainable_parameters()  # e.g., 0.1% of total parameters!\n\n# Train with SFTTrainer\ntrainer = SFTTrainer(\n    model=model,\n    train_dataset=your_dataset,  # Hugging Face dataset\n    args=TrainingArguments(\n        output_dir=\"./lora_output\",\n        per_device_train_batch_size=4,\n        num_train_epochs=3,\n    )\n)\ntrainer.train()"
     },
     {
       "type": "tip",
-      "text": "Always try prompt engineering + few-shot examples before fine-tuning. Fine-tuning costs money and time."
+      "text": "Always try prompt engineering + few-shot examples <strong>before</strong> fine-tuning. Fine-tuning costs money, time, and locks you into static behavior. If prompting works at 95% quality, it's usually not worth fine-tuning for the remaining 5%."
+    },
+    {
+      "type": "warning",
+      "text": "Fine-tuning does <strong>NOT</strong> reliably add new factual knowledge. Use RAG for that. Fine-tuning is for style, format, and task specialisation. A fine-tuned model still hallucinates facts it doesn't know."
     },
     {
       "type": "quiz",
@@ -42,13 +106,39 @@
           "question": "When is fine-tuning most justified?",
           "type": "multiple-choice",
           "options": [
-            "When you want to chat with an LLM",
-            "When you need consistent output formatting at scale and prompting has reached its limits",
-            "When you want to give an LLM new knowledge",
-            "Whenever you have more than 100 examples"
+            "When you want to add new factual knowledge to the model",
+            "When you need consistent style/format at scale and prompting has reached its limits",
+            "Whenever you have more than 20 training examples",
+            "When you want faster response times"
           ],
           "correctAnswer": 1,
-          "explanation": "Fine-tuning is best for ingraining a specific style or format when prompting is inconsistent at high volumes."
+          "explanation": "Fine-tuning is best for ingraining specific style and format when prompting is inconsistent at high volumes. For new knowledge, use RAG. Fine-tuning doesn't reliably add facts."
+        },
+        {
+          "id": "q2",
+          "question": "What is LoRA?",
+          "type": "multiple-choice",
+          "options": [
+            "A vector database optimised for LLM embeddings",
+            "Low-Rank Adaptation — adds small trainable matrices to attention layers, reducing trainable params by ~1000x",
+            "A loss function for RLHF training",
+            "An Anthropic fine-tuning API"
+          ],
+          "correctAnswer": 1,
+          "explanation": "LoRA adds low-rank rank-decomposition matrices (A and B) to existing weight matrices. Only A and B are trained — the base model stays frozen. This reduces trainable parameters to ~0.1% of full fine-tuning."
+        },
+        {
+          "id": "q3",
+          "question": "What is the minimum recommended number of training examples for fine-tuning?",
+          "type": "multiple-choice",
+          "options": [
+            "5-10 (a few is enough)",
+            "50-100 high-quality, diverse examples",
+            "10,000+ examples are always needed",
+            "Fine-tuning works with any amount of data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "50-100 high-quality examples are typically the minimum. Quality matters more than quantity — 50 perfect examples outperform 1000 noisy ones. For complex tasks, 500-1000 examples."
         }
       ]
     }
@@ -56,23 +146,39 @@
   "faq": [
     {
       "q": "Can I fine-tune Claude?",
-      "a": "Anthropic offers fine-tuning for select enterprise customers. For most developers, prompt engineering with the base model is the recommended path."
+      "a": "Anthropic offers fine-tuning for select enterprise customers through their API. For most developers, prompt engineering with the base model is the recommended path. OpenAI offers fine-tuning on gpt-4o-mini and gpt-3.5-turbo for all API customers."
+    },
+    {
+      "q": "What is catastrophic forgetting?",
+      "a": "When fine-tuning on a narrow dataset, models can 'forget' general capabilities. LoRA mitigates this because the base model weights stay frozen — only the small adapters are trained."
+    },
+    {
+      "q": "How much does fine-tuning cost?",
+      "a": "OpenAI gpt-4o-mini fine-tuning: ~$3/1M training tokens. A typical dataset of 1000 examples × 500 tokens = 500K tokens → ~$1.50 to train. Inference with the fine-tuned model costs ~2x the base model. Hugging Face LoRA on Mistral-7B: free on a rented A100 GPU for a few hours."
     }
   ],
   "sources": [
     {
-      "name": "Fine-Tuning Overview",
+      "name": "OpenAI Fine-Tuning Guide",
       "url": "https://platform.openai.com/docs/guides/fine-tuning",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "LoRA Paper (Hu et al.)",
+      "url": "https://arxiv.org/abs/2106.09685",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "domain-specific assistants",
-      "format enforcement at scale"
+      "Brand-voice content generation at scale (marketing teams)",
+      "Legal/medical document summarisation with domain-specific output format",
+      "Customer service response generation with consistent tone",
+      "Code style enforcement (always generate in company's coding conventions)"
     ],
     "examples": [
-      "Fine-tuning a model on company tone-of-voice guidelines"
+      "A marketing SaaS fine-tunes gpt-4o-mini on 500 approved product descriptions to consistently output in brand voice — eliminating the 400-token system prompt per request",
+      "A legal firm fine-tunes Llama 3 with LoRA on 1000 contract summaries to match their specific clause structure"
     ]
   }
 }

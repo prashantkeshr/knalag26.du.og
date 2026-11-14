@@ -1,19 +1,35 @@
 {
   "id": "11-vector-databases",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "ChromaDB / Pinecone / pgvector",
   "technology": "llms",
   "module": "rag-systems",
   "title": "Vector Databases",
   "subtitle": "Embeddings, similarity search, and vector stores",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "llms.rag"
-  ],
-  "skillsTaught": [
-    "llms.vector-db"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.rag"],
+  "skillsTaught": ["llms.vector-db"],
+  "whyItExists": {
+    "problem": "LLM embeddings are dense 768-3072 dimensional vectors. Traditional databases (SQL, key-value) cannot efficiently search millions of vectors for semantic nearest neighbors — a linear scan over 1M × 1536-dim vectors takes seconds.",
+    "solution": "Vector databases use Approximate Nearest Neighbor (ANN) algorithms (HNSW, IVF) to index and search high-dimensional vectors in milliseconds. They are purpose-built for the retrieval phase of RAG pipelines.",
+    "whenToUse": "When you need semantic search over more than ~10K documents. For small collections, in-memory FAISS or ChromaDB works. For production scale (millions of vectors), use Pinecone, Weaviate, or pgvector.",
+    "whenNotToUse": "If you have fewer than 10K chunks, a simple in-memory list + numpy cosine similarity is fast enough and simpler. Don't add vector DB infrastructure for small use cases."
+  },
+  "explainModes": {
+    "beginner": "A vector database is a special filing system for AI knowledge. Instead of searching by exact words, it searches by meaning — 'best Italian food' and 'finest pasta restaurant' are filed close together because they mean similar things.",
+    "simple": "Every piece of text is converted to a list of numbers (a vector) that captures its meaning. A vector database stores millions of these number lists and can quickly find the ones most similar to a query — even if they use different words.",
+    "standard": "Vector databases store embedding vectors alongside metadata. At query time, they perform ANN (Approximate Nearest Neighbor) search using algorithms like HNSW to find semantically similar vectors in O(log n) time. They return the original document chunks for use in RAG prompts.",
+    "technical": "HNSW (Hierarchical Navigable Small World) builds a multi-layer graph where each node is an embedding vector. Search traverses from coarse to fine layers, following nearest-neighbor edges. IVF (Inverted File Index) clusters vectors into Voronoi cells and searches only the nearest cells. Both achieve <10ms retrieval at million-scale.",
+    "deepDive": "Production vector stores offer filtering (metadata filter + ANN combined), namespaces (per-tenant isolation), and hybrid search (combine dense + sparse BM25 scores). pgvector brings vector search to PostgreSQL: CREATE EXTENSION vector; allows VECTOR columns and <-> (L2), <=> (cosine), <#> (inner product) operators with ivfflat or hnsw index types."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,22 +38,67 @@
     },
     {
       "type": "paragraph",
-      "text": "Vector databases store embeddings and perform approximate nearest-neighbour search to find semantically similar content."
+      "text": "Vector databases store <strong>embedding vectors</strong> and perform <strong>approximate nearest-neighbour (ANN) search</strong> to find semantically similar content in milliseconds. They are the retrieval backbone of every production RAG system."
+    },
+    {
+      "type": "definition",
+      "term": "Embedding Vector",
+      "definition": "A list of floats (e.g., 1536 dimensions for text-embedding-3-small) representing the semantic meaning of text. Similar texts have geometrically close vectors. Distance metrics: cosine similarity, dot product, Euclidean distance."
+    },
+    {
+      "type": "definition",
+      "term": "Cosine Similarity",
+      "definition": "A distance metric: cos(θ) = (A·B)/(|A||B|). Ranges from -1 (opposite) to 1 (identical). Used because it measures angle, not magnitude — so text length doesn't bias similarity scores."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "vectordb.py",
-      "code": "from chromadb import Client\nimport chromadb\n\nclient = chromadb.Client()\ncollection = client.create_collection(\"docs\")\n\n# Add documents (ChromaDB embeds automatically)\ncollection.add(\n    documents=[\"Redis is an in-memory data store\", \"MongoDB is a document database\"],\n    ids=[\"doc1\", \"doc2\"]\n)\n\n# Query\nresults = collection.query(\n    query_texts=[\"What is Redis?\"],\n    n_results=1\n)\nprint(results[\"documents\"])"
+      "filename": "chromadb_basic.py",
+      "code": "# pip install chromadb\nimport chromadb\n\nclient = chromadb.Client()  # In-memory (dev/prototype)\n# For persistence: chromadb.PersistentClient(path=\"./chroma_db\")\n\ncollection = client.create_collection(\n    name=\"docs\",\n    metadata={\"hnsw:space\": \"cosine\"}  # cosine similarity\n)\n\n# Add documents (ChromaDB auto-embeds with default model)\ncollection.add(\n    documents=[\n        \"Redis is an in-memory key-value store used for caching and pub/sub\",\n        \"MongoDB is a NoSQL document database storing JSON-like BSON documents\",\n        \"PostgreSQL is a relational database with ACID compliance and SQL support\",\n        \"Pinecone is a managed vector database optimised for semantic search at scale\",\n    ],\n    ids=[\"doc1\", \"doc2\", \"doc3\", \"doc4\"]\n)\n\n# Semantic search\nresults = collection.query(\n    query_texts=[\"What database should I use for caching?\"],\n    n_results=2\n)\nprint(results[\"documents\"])  # ['Redis is an in-memory...', ...]  — correct!\nprint(results[\"distances\"])  # Cosine distances"
     },
     {
-      "type": "definition",
-      "term": "Embedding",
-      "definition": "A vector (list of floats) representing the semantic meaning of text. Similar texts have similar vectors."
+      "type": "heading",
+      "level": 2,
+      "text": "Choosing a Vector Database"
+    },
+    {
+      "type": "comparison",
+      "title": "ChromaDB (local) vs Pinecone (managed cloud)",
+      "a": {
+        "name": "ChromaDB",
+        "description": "Open-source, runs locally or self-hosted. Great for prototyping and small-medium scale.",
+        "strengths": ["Free, no API key needed", "Easy local dev setup", "Python-native", "Persistent storage with PersistentClient"],
+        "weaknesses": ["No managed scaling", "No built-in replication", "Limited to single machine"],
+        "useWhen": "Prototyping, side projects, internal tools with <1M vectors"
+      },
+      "b": {
+        "name": "Pinecone",
+        "description": "Fully managed cloud vector database. Scales to billions of vectors.",
+        "strengths": ["Fully managed — no ops", "Scales to billions of vectors", "Sub-5ms query latency", "Metadata filtering", "Multi-tenant namespaces"],
+        "weaknesses": ["Paid service", "Data leaves your infrastructure", "Vendor lock-in"],
+        "useWhen": "Production apps, multi-tenant SaaS, >1M vectors, need 99.9% uptime SLA"
+      }
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pinecone_example.py",
+      "code": "# pip install pinecone-client openai\nfrom pinecone import Pinecone\nfrom openai import OpenAI\n\npc = Pinecone(api_key=\"YOUR_PINECONE_KEY\")\noai = OpenAI()\n\n# Create or connect to an index\nindex = pc.Index(\"docs-index\")\n\ndef embed(text: str) -> list[float]:\n    return oai.embeddings.create(\n        input=text, model=\"text-embedding-3-small\"\n    ).data[0].embedding\n\n# Upsert vectors with metadata\nvectors = [\n    {\"id\": \"chunk_1\", \"values\": embed(\"Redis caching guide\"), \"metadata\": {\"source\": \"redis_docs.pdf\", \"page\": 1}},\n    {\"id\": \"chunk_2\", \"values\": embed(\"MongoDB aggregation pipeline\"), \"metadata\": {\"source\": \"mongo_docs.pdf\", \"page\": 5}},\n]\nindex.upsert(vectors=vectors)\n\n# Query with metadata filter\nresults = index.query(\n    vector=embed(\"How do I cache API responses?\"),\n    top_k=3,\n    filter={\"source\": {\"$eq\": \"redis_docs.pdf\"}},  # only search Redis docs\n    include_metadata=True\n)\nfor match in results.matches:\n    print(f\"Score: {match.score:.3f} | Source: {match.metadata['source']}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "pgvector: Vector Search in PostgreSQL"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pgvector_example.py",
+      "code": "# pip install psycopg2-binary pgvector\nimport psycopg2\nfrom pgvector.psycopg2 import register_vector\nfrom openai import OpenAI\n\noai = OpenAI()\n\n# Connect and enable extension\nconn = psycopg2.connect(\"postgresql://user:pass@localhost/mydb\")\nregister_vector(conn)\ncur = conn.cursor()\n\n# Create table with vector column\ncur.execute(\"\"\"\n    CREATE EXTENSION IF NOT EXISTS vector;\n    CREATE TABLE IF NOT EXISTS docs (\n        id SERIAL PRIMARY KEY,\n        content TEXT,\n        embedding VECTOR(1536),\n        source VARCHAR\n    );\n    CREATE INDEX IF NOT EXISTS docs_embedding_idx ON docs\n        USING hnsw (embedding vector_cosine_ops);\n\"\"\")\nconn.commit()\n\n# Insert a document\ncontent = \"Redis is used for session storage and caching\"\nembedding = oai.embeddings.create(input=content, model=\"text-embedding-3-small\").data[0].embedding\ncur.execute(\"INSERT INTO docs (content, embedding, source) VALUES (%s, %s, %s)\",\n            (content, embedding, \"redis_guide.pdf\"))\nconn.commit()\n\n# Cosine similarity search\nquery_emb = oai.embeddings.create(input=\"How to cache data?\", model=\"text-embedding-3-small\").data[0].embedding\ncur.execute(\"\"\"\n    SELECT content, 1 - (embedding <=> %s::vector) AS similarity\n    FROM docs ORDER BY similarity DESC LIMIT 3\"\"\", (query_emb,))\nfor row in cur.fetchall():\n    print(f\"Similarity: {row[1]:.3f} | {row[0][:60]}\")"
     },
     {
       "type": "tip",
-      "text": "For production, use managed vector DBs like Pinecone, Weaviate, or pgvector (Postgres extension)."
+      "text": "For production, use managed vector DBs like Pinecone, Weaviate, or pgvector (Postgres extension). ChromaDB is excellent for prototyping but requires self-managed scaling."
     },
     {
       "type": "quiz",
@@ -47,13 +108,39 @@
           "question": "What does a vector database use to find similar documents?",
           "type": "multiple-choice",
           "options": [
-            "Exact keyword matching",
+            "Exact keyword matching (inverted index)",
             "Cosine similarity between embedding vectors",
-            "SQL LIKE queries",
-            "BM25 ranking"
+            "SQL LIKE queries on text columns",
+            "BM25 TF-IDF ranking"
           ],
           "correctAnswer": 1,
-          "explanation": "Vector databases compute cosine similarity (or dot product) between query and document embeddings to find semantic matches."
+          "explanation": "Vector databases compute cosine similarity (or dot product, or L2 distance) between query and document embeddings to find semantic matches — not exact word matches."
+        },
+        {
+          "id": "q2",
+          "question": "Why is ANN (Approximate Nearest Neighbor) used instead of exact nearest neighbor?",
+          "type": "multiple-choice",
+          "options": [
+            "ANN is more accurate",
+            "Exact search is O(n) over all vectors — too slow for millions of vectors. ANN is O(log n) with minimal accuracy loss",
+            "ANN uses less memory",
+            "Exact search doesn't work in high dimensions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Exact nearest neighbor requires comparing the query to all n vectors — O(n). For 10M vectors at 1536 dims, this takes seconds. HNSW and IVF index the space to find approximate nearest neighbors in <10ms."
+        },
+        {
+          "id": "q3",
+          "question": "What advantage does pgvector offer over dedicated vector databases?",
+          "type": "multiple-choice",
+          "options": [
+            "It is faster for billion-scale search",
+            "It runs vector search inside PostgreSQL, letting you combine metadata filtering with SQL queries in one database",
+            "It uses less storage",
+            "It supports all embedding models natively"
+          ],
+          "correctAnswer": 1,
+          "explanation": "pgvector adds vector columns and ANN indexes to PostgreSQL. This lets you combine semantic search with relational queries (JOINs, WHERE clauses) without maintaining a separate database."
         }
       ]
     }
@@ -61,24 +148,39 @@
   "faq": [
     {
       "q": "What embedding model should I use?",
-      "a": "For English-only use cases, text-embedding-3-small (OpenAI) is fast and cheap. For multilingual, use multilingual-e5-large or Cohere embed v3."
+      "a": "For English-only: text-embedding-3-small (OpenAI, 1536 dims, cheap and fast). For multilingual: multilingual-e5-large or Cohere embed-multilingual-v3. Always use the SAME model for indexing and querying."
+    },
+    {
+      "q": "How many vectors can ChromaDB handle?",
+      "a": "ChromaDB works well up to ~1M vectors on a single machine. Beyond that, use a managed solution (Pinecone, Weaviate, Qdrant) or pgvector with dedicated storage."
+    },
+    {
+      "q": "What is metadata filtering?",
+      "a": "Most vector databases allow filtering by document metadata before or alongside vector search. Example: search only documents from 2024 or only from department='engineering'. This prevents irrelevant results from other data segments."
     }
   ],
   "sources": [
     {
-      "name": "ChromaDB",
+      "name": "ChromaDB Documentation",
       "url": "https://docs.trychroma.com/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "pgvector GitHub",
+      "url": "https://github.com/pgvector/pgvector",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "semantic search",
-      "RAG pipelines",
-      "duplicate detection"
+      "Semantic search over 10,000+ support articles",
+      "Duplicate detection in large document corpora",
+      "Recommendation systems based on content similarity",
+      "Code search tools that find semantically similar functions"
     ],
     "examples": [
-      "Semantic search over 10,000 support articles"
+      "GitHub's code search uses embedding-based semantic search to find similar code snippets across repositories",
+      "A HR platform using pgvector to find candidate resumes semantically similar to job descriptions, combined with SQL filters for location and experience"
     ]
   }
 }

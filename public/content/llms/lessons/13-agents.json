@@ -1,19 +1,35 @@
 {
   "id": "13-agents",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / Anthropic Agent SDK",
   "technology": "llms",
   "module": "llm-production",
   "title": "LLM Agents",
   "subtitle": "Tool-using agents, planning, and multi-step reasoning",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "llms.retrieval"
-  ],
-  "skillsTaught": [
-    "llms.agents"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.retrieval"],
+  "skillsTaught": ["llms.agents"],
+  "whyItExists": {
+    "problem": "Single-turn LLM calls can answer questions but can't complete multi-step tasks that require actions in the world — searching the web, running code, writing files, calling APIs — and adapting based on what they find.",
+    "solution": "LLM agents combine a reasoning loop with tool access. The model iteratively calls tools, reasons about results, and decides what to do next until a goal is achieved. This enables autonomous task completion.",
+    "whenToUse": "Tasks that require multiple steps, information-gathering before answering, taking actions (send email, write code, deploy), or adapting based on intermediate results.",
+    "whenNotToUse": "Simple Q&A, single-step extraction, tasks that can be solved in one LLM call. Agents are expensive and can go wrong — use them only when necessary."
+  },
+  "explainModes": {
+    "beginner": "An LLM agent is like a robot that keeps trying until it finishes a task. You say 'research this topic and write a summary'. It searches the web, reads results, searches more based on what it found, then writes the summary — without you doing any of those steps.",
+    "simple": "Instead of one LLM call, an agent loops: call the LLM → it requests a tool → run the tool → send result back to LLM → repeat until done. The model decides when it has enough information to give a final answer.",
+    "standard": "An agent loop: (1) Send messages + tools to LLM; (2) If stop_reason=tool_use, execute all tool calls, append results; (3) Re-send messages; (4) If stop_reason=end_turn, return final text. The loop runs until the model stops requesting tools or hits a max_iterations limit.",
+    "technical": "The agentic loop maintains a growing messages list: initial user message, assistant tool calls, tool results, further assistant reasoning. Each loop adds 2 message turns. Tool execution is synchronous; for parallel tools (multiple tool_use blocks), execute concurrently and return all results in one tool message. Critically: set max_iterations to prevent infinite loops and cost overruns.",
+    "deepDive": "Multi-agent architectures: orchestrator agent decomposes tasks and delegates to specialist subagents (researcher, coder, reviewer). Claude's Agent SDK provides built-in computer use, web search, and code execution tools. Memory architectures: in-context (messages array), external (key-value store), semantic (vector DB). ReAct pattern (Reason-Act-Observe) structures each step as thought + action + observation."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,33 +38,88 @@
     },
     {
       "type": "paragraph",
-      "text": "An agent is an LLM that iteratively calls tools, reasons about the results, and decides what to do next until a goal is achieved."
+      "text": "An agent is an LLM that <strong>iteratively calls tools, reasons about results, and decides what to do next</strong> until a goal is achieved. Unlike a single API call, agents can take sequences of actions — search, compute, write — and adapt based on what they find."
+    },
+    {
+      "type": "definition",
+      "term": "Agentic Loop",
+      "definition": "The while loop that drives an agent: send messages + tools → if model requests tools, execute them and append results → repeat until model returns end_turn without tool calls."
+    },
+    {
+      "type": "definition",
+      "term": "ReAct Pattern",
+      "definition": "Reason-Act-Observe: at each step, the model reasons (Thought), takes an action (tool call), and observes the result. This structure makes agent reasoning transparent and debuggable."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "agent.py",
-      "code": "import anthropic\nclient = anthropic.Anthropic()\n\ndef run_agent(goal: str):\n    messages = [{\"role\": \"user\", \"content\": goal}]\n    tools = [search_tool, calculator_tool, write_file_tool]\n\n    while True:\n        response = client.messages.create(\n            model=\"claude-opus-4-5\",\n            max_tokens=4096,\n            tools=tools,\n            messages=messages\n        )\n\n        if response.stop_reason == \"end_turn\":\n            return response.content[0].text\n\n        # Execute all requested tool calls\n        tool_results = []\n        for block in response.content:\n            if block.type == \"tool_use\":\n                result = execute_tool(block.name, block.input)\n                tool_results.append({\n                    \"type\": \"tool_result\",\n                    \"tool_use_id\": block.id,\n                    \"content\": str(result)\n                })\n\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\n        messages.append({\"role\": \"user\", \"content\": tool_results})"
+      "filename": "agent_loop.py",
+      "code": "import anthropic\nimport json\n\nclient = anthropic.Anthropic()\n\n# Define tools the agent can use\ntools = [\n    {\n        \"name\": \"web_search\",\n        \"description\": \"Search the web for current information. Use for facts, news, prices.\",\n        \"input_schema\": {\"type\": \"object\", \"properties\": {\n            \"query\": {\"type\": \"string\", \"description\": \"Search query\"}\n        }, \"required\": [\"query\"]}\n    },\n    {\n        \"name\": \"calculator\",\n        \"description\": \"Evaluate a mathematical expression. Input must be a Python expression string.\",\n        \"input_schema\": {\"type\": \"object\", \"properties\": {\n            \"expression\": {\"type\": \"string\", \"description\": \"e.g. '2 ** 10 + 3 * 7'\"}\n        }, \"required\": [\"expression\"]}\n    }\n]\n\ndef execute_tool(name: str, input_data: dict) -> str:\n    \"\"\"Execute a tool and return the result as a string.\"\"\"\n    if name == \"web_search\":\n        return f\"[Search results for '{input_data['query']}': Revenue grew 18% YoY to $2.4M]\"  # stub\n    elif name == \"calculator\":\n        try:\n            return str(eval(input_data[\"expression\"], {\"__builtins__\": {}}))\n        except Exception as e:\n            return f\"Error: {e}\"\n    return \"Tool not found\"\n\ndef run_agent(goal: str, max_iterations: int = 10) -> str:\n    messages = [{\"role\": \"user\", \"content\": goal}]\n\n    for iteration in range(max_iterations):\n        response = client.messages.create(\n            model=\"claude-opus-4-5\",\n            max_tokens=4096,\n            tools=tools,\n            messages=messages\n        )\n\n        if response.stop_reason == \"end_turn\":\n            # Agent is done — extract final text\n            return next((b.text for b in response.content if hasattr(b, \"text\")), \"\")\n\n        # Execute all tool calls in this response\n        tool_results = []\n        for block in response.content:\n            if block.type == \"tool_use\":\n                result = execute_tool(block.name, block.input)\n                tool_results.append({\n                    \"type\": \"tool_result\",\n                    \"tool_use_id\": block.id,\n                    \"content\": result\n                })\n\n        # Append assistant response + tool results to messages\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\n        messages.append({\"role\": \"user\", \"content\": tool_results})\n\n    return \"Max iterations reached\"\n\nresult = run_agent(\"What is 18% of Acme Corp's Q3 revenue if they had $2.4M total revenue?\")\nprint(result)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Multi-Agent Architecture"
+    },
+    {
+      "type": "paragraph",
+      "text": "For complex tasks, an <strong>orchestrator agent</strong> decomposes the goal and delegates to specialist <strong>subagents</strong>. The orchestrator manages the overall plan; subagents execute specific subtasks in parallel or sequence."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "multi_agent.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Specialist subagents (each is a focused agent with limited tools)\ndef researcher_agent(topic: str) -> str:\n    \"\"\"Searches and summarises information on a topic.\"\"\"\n    response = client.messages.create(\n        model=\"claude-haiku-5-5\",\n        max_tokens=1024,\n        system=\"You are a research assistant. Search thoroughly and report key facts.\",\n        messages=[{\"role\": \"user\", \"content\": f\"Research: {topic}\"}]\n    )\n    return response.content[0].text\n\ndef writer_agent(outline: str, research: str) -> str:\n    \"\"\"Writes a document section from an outline and research notes.\"\"\"\n    response = client.messages.create(\n        model=\"claude-sonnet-5-5\",\n        max_tokens=2048,\n        system=\"You are a professional writer. Use the research to write the section.\",\n        messages=[{\"role\": \"user\", \"content\": f\"Outline: {outline}\\n\\nResearch: {research}\"}]\n    )\n    return response.content[0].text\n\n# Orchestrator coordinates the pipeline\ndef orchestrate_report(topic: str) -> str:\n    # Step 1: Research\n    research = researcher_agent(topic)\n    # Step 2: Write based on research\n    outline = f\"Introduction, Key Findings, Implications for {topic}\"\n    report = writer_agent(outline, research)\n    return report\n\nprint(orchestrate_report(\"the impact of AI on software engineering jobs\"))"
     },
     {
       "type": "tip",
-      "text": "Add a maximum iteration limit to agents to prevent infinite loops and runaway API costs."
+      "text": "Always add a <code>max_iterations</code> limit to agent loops. Without it, a confused agent can loop indefinitely and generate thousands of dollars in API costs. Log every iteration for debugging."
+    },
+    {
+      "type": "warning",
+      "text": "Agents with write access (send email, delete files, deploy code) can cause irreversible damage if they make wrong decisions. Add human-in-the-loop confirmation for all destructive or external-facing actions."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What determines when an agent stops looping?",
+          "question": "What determines when an agent loop stops?",
           "type": "multiple-choice",
           "options": [
-            "A timer",
-            "The LLM returning stop_reason \"end_turn\" without a tool call",
+            "A timer after 60 seconds",
+            "The LLM returning stop_reason 'end_turn' without requesting any tool calls",
             "The user pressing Escape",
-            "A predefined number of steps"
+            "A predefined number of tool calls"
           ],
           "correctAnswer": 1,
-          "explanation": "An agent loop continues until the LLM indicates it has finished (end_turn) rather than requesting another tool call."
+          "explanation": "An agent loop continues until the LLM indicates it has finished (stop_reason='end_turn') without tool_use content blocks — meaning it has all the information it needs and is returning the final answer."
+        },
+        {
+          "id": "q2",
+          "question": "What is the ReAct pattern for agents?",
+          "type": "multiple-choice",
+          "options": [
+            "React.js-based frontend for agent UIs",
+            "Reason-Act-Observe: the model thinks, takes an action (tool call), then observes the result before deciding next steps",
+            "Retry-Error-Continue: a pattern for handling tool failures",
+            "A reactive programming model for streaming agents"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ReAct (Reason-Act-Observe) structures each agent step: the model reasons about what to do, calls a tool (action), and observes the result. This pattern makes agent reasoning transparent and debuggable."
+        },
+        {
+          "id": "q3",
+          "question": "Why should you limit agent iterations?",
+          "type": "multiple-choice",
+          "options": [
+            "More iterations produce worse answers",
+            "Without a limit, confused agents can loop indefinitely causing massive unexpected costs",
+            "LLMs slow down with more context",
+            "Tools stop working after too many calls"
+          ],
+          "correctAnswer": 1,
+          "explanation": "An agent stuck in a loop (e.g., repeatedly calling search with no progress) can rack up thousands of tokens per iteration. A max_iterations guard of 10-20 prevents runaway costs while allowing complex tasks."
         }
       ]
     }
@@ -56,23 +127,39 @@
   "faq": [
     {
       "q": "What frameworks exist for building agents?",
-      "a": "LangChain, LlamaIndex, and Anthropic's own Claude agent SDK. For simple agents, a plain while loop is often clearer."
+      "a": "LangChain, LlamaIndex, and Anthropic's own Claude agent SDK. For simple agents, a plain while loop is often clearer and easier to debug than a framework. Use frameworks for multi-agent orchestration and complex memory management."
+    },
+    {
+      "q": "How do agents handle memory between sessions?",
+      "a": "Agents have no built-in memory. Options: (1) in-context — summarise conversation history and prepend to next session; (2) key-value store — save important facts to Redis/DynamoDB; (3) vector memory — embed past interactions for semantic retrieval."
+    },
+    {
+      "q": "What is a 'computer use' agent?",
+      "a": "Anthropic's computer use API lets Claude control a desktop computer — take screenshots, move the mouse, type, and interact with any application. This enables agents that can automate GUI tasks without an API."
     }
   ],
   "sources": [
     {
-      "name": "Tool Use Agents",
+      "name": "Anthropic Tool Use Agents",
       "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use/create-tools",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "ReAct Paper (Yao et al.)",
+      "url": "https://arxiv.org/abs/2210.03629",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "autonomous research assistants",
-      "coding agents"
+      "Autonomous research assistants that search, synthesise, and write reports",
+      "Coding agents that write, test, and fix code iteratively (Devin, GitHub Copilot Agent)",
+      "Customer support agents that check order status, process refunds, and escalate",
+      "Data analysis agents that query databases, run analysis, and produce visualisations"
     ],
     "examples": [
-      "Research agent that searches the web and writes a summary report"
+      "An e-commerce agent that checks inventory, queries the user's order history, calculates shipping options, and processes a return — all in one conversation",
+      "A coding agent that takes a bug report, reads relevant files, writes a fix, runs tests, and opens a PR"
     ]
   }
 }

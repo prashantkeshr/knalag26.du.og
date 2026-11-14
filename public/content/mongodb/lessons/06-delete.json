@@ -1,38 +1,121 @@
 {
   "id": "06-delete",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "crud-operations",
   "title": "Deleting Documents",
   "subtitle": "deleteOne, deleteMany, and safe deletion patterns",
   "difficulty": "beginner",
-  "estimatedMinutes": 8,
+  "estimatedMinutes": 12,
   "status": "published",
-  "prerequisites": [
-    "mongodb.crud-update"
-  ],
-  "skillsTaught": [
-    "mongodb.crud-delete"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.crud-update"],
+  "skillsTaught": ["mongodb.crud-delete"],
+  "whyItExists": {
+    "problem": "Applications need to remove data — expired sessions, deleted user accounts, old log entries. But hard deletion is irreversible and can break audit trails, referential integrity, and analytics.",
+    "solution": "MongoDB provides deleteOne() and deleteMany() for hard deletes, plus the common pattern of soft-delete (adding a deletedAt timestamp) for recoverable deletion. TTL indexes can auto-expire documents.",
+    "whenToUse": "Hard delete for truly temporary data (sessions, caches). Soft delete for user data where you might need to restore, audit, or comply with data retention policies. TTL indexes for automatic expiry.",
+    "whenNotToUse": "Don't hard delete if you need an audit trail, need to restore deleted items, or have referential integrity concerns (other documents referencing the deleted one). Don't use deleteMany({}) without double-checking — it's irreversible."
+  },
+  "explainModes": {
+    "beginner": "deleteOne removes one matching document, deleteMany removes all matching ones. It's like selecting rows in a spreadsheet and pressing delete. But once gone, they're gone — which is why many apps use 'soft delete' (mark as deleted without actually removing).",
+    "simple": "MongoDB has deleteOne() and deleteMany() for removal. In production, most apps prefer soft delete — adding a deletedAt field — so records can be recovered or audited.",
+    "standard": "deleteOne() removes the first match. deleteMany() removes all matches. Both return { deletedCount }. For safety, prefer soft deletes in production. TTL indexes automatically expire documents after a set duration.",
+    "technical": "MongoDB delete operations acquire a document-level write lock. deleteMany() on large collections can be slow without indexes — MongoDB must scan. For high-volume deletes, consider bulk write operations or batching. Dropped collections are unrecoverable without a backup.",
+    "deepDive": "MongoDB does not physically zero-out deleted document space immediately — WiredTiger marks pages as reusable. Physical reclamation happens during compaction. The oplog records each delete as an idempotent 'd' operation. TTL index expiration runs a background thread every 60 seconds that calls deleteMany() with a filter on the TTL field."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Deleting Documents"
+      "text": "Delete Methods"
     },
     {
       "type": "paragraph",
-      "text": "deleteOne() removes the first matching document. deleteMany() removes all matches. Both return a result with deletedCount."
+      "text": "MongoDB provides three deletion methods: <code>deleteOne()</code> removes the first document that matches the filter, <code>deleteMany()</code> removes all matching documents, and <code>findOneAndDelete()</code> atomically removes and returns the deleted document."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "delete.js",
-      "code": "// Delete one\nconst result = await products.deleteOne({ name: \"Widget\" });\nconsole.log(result.deletedCount); // 1\n\n// Delete all out-of-stock items\nawait products.deleteMany({ inStock: false });\n\n// Soft delete pattern (preferred in production)\nawait products.updateOne(\n  { _id: id },\n  { $set: { deletedAt: new Date() } }\n);"
+      "filename": "delete-basic.js",
+      "code": "const products = db.collection('products');\n\n// Delete one matching document\nconst r1 = await products.deleteOne({ name: 'Old Widget' });\nconsole.log('Deleted:', r1.deletedCount);  // 0 or 1\n\n// Delete all out-of-stock products\nconst r2 = await products.deleteMany({ inStock: false });\nconsole.log('Deleted:', r2.deletedCount, 'documents');\n\n// Delete with more complex filter\nconst oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);\nconst r3 = await sessions.deleteMany({\n  expiresAt: { $lt: new Date() }  // delete all expired sessions\n});\n\n// Delete by ID\nconst { ObjectId } = require('mongodb');\nawait products.deleteOne({ _id: new ObjectId('6752ab3f1234567890abcdef') });\n\n// findOneAndDelete — atomically remove and return the document\nconst deleted = await tasks.findOneAndDelete(\n  { status: 'completed' },\n  { sort: { completedAt: 1 } }  // remove oldest completed task first\n);\nif (deleted) console.log('Archived task:', deleted.title);"
+    },
+    {
+      "type": "warning",
+      "text": "deleteMany({}) deletes ALL documents in the collection. The empty filter {} matches everything. Always double-check your filter before running deleteMany() in production."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Dropping Collections and Databases"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "drop.js",
+      "code": "// Drop a collection — removes all documents AND all indexes\nawait db.collection('temp_data').drop();\n\n// Drop an entire database — removes all collections and data\nawait client.db('old_project').dropDatabase();\n\n// Drop is IRREVERSIBLE — no recycle bin, no undo!\n// Always back up before dropping in production.\n\n// In mongosh:\ndb.temp_data.drop()       // drop collection\ndb.dropDatabase()         // drop current database"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Soft Delete Pattern (Recommended in Production)"
+    },
+    {
+      "type": "paragraph",
+      "text": "In production applications, <strong>hard deletes are rarely the right choice</strong>. Instead, use a soft delete: add a <code>deletedAt</code> timestamp and filter it out in queries. This gives you an audit trail, allows recovery, and supports compliance requirements like GDPR data retention periods."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "soft-delete.js",
+      "code": "// Soft delete: mark as deleted without removing the document\nawait users.updateOne(\n  { _id: userId },\n  { $set: { deletedAt: new Date(), deletedBy: adminId } }\n);\n\n// In all queries, filter out deleted records\nconst activeUsers = await users.find({\n  deletedAt: { $exists: false }  // only undeleted users\n}).toArray();\n\n// Or use $eq: null (works for both missing field and null value)\nconst activeUsers2 = await users.find({\n  deletedAt: null\n}).toArray();\n\n// Restore a soft-deleted record\nawait users.updateOne(\n  { _id: userId },\n  { $unset: { deletedAt: '', deletedBy: '' } }\n);\n\n// Hard delete after retention period (GDPR compliance)\nconst thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);\nawait users.deleteMany({\n  deletedAt: { $lt: thirtyDaysAgo }\n});"
     },
     {
       "type": "tip",
-      "text": "Prefer soft deletes in production — set a deletedAt timestamp instead of removing the document."
+      "text": "Create a partial index on deletedAt for efficient queries: db.users.createIndex({ email: 1 }, { partialFilterExpression: { deletedAt: { $exists: false } } }). This index only covers active (non-deleted) users."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "TTL Indexes for Auto-Expiry"
+    },
+    {
+      "type": "paragraph",
+      "text": "A <strong>TTL (Time To Live) index</strong> automatically deletes documents after a specified duration. Perfect for sessions, caches, temporary verification codes, and log retention."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "ttl.js",
+      "code": "// Create a TTL index: delete sessions 24 hours after createdAt\nawait sessions.createIndex(\n  { createdAt: 1 },\n  { expireAfterSeconds: 86400 }  // 86400 seconds = 24 hours\n);\n\n// Now just insert normally — MongoDB auto-deletes after 24h\nawait sessions.insertOne({\n  userId: userId,\n  token: generateToken(),\n  createdAt: new Date()  // TTL field\n});\n\n// For exact expiry time, use expiresAt field\nawait sessions.createIndex(\n  { expiresAt: 1 },\n  { expireAfterSeconds: 0 }  // expire AT the expiresAt time\n);\nawait sessions.insertOne({\n  userId: userId,\n  token: generateToken(),\n  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // 7 days from now\n});"
+    },
+    {
+      "type": "info",
+      "text": "MongoDB's TTL background thread runs every 60 seconds, so there is a slight delay between when a document expires and when it is actually deleted. Don't rely on TTL for precise second-level expiry."
+    },
+    {
+      "type": "comparison",
+      "title": "Hard Delete vs Soft Delete",
+      "a": {
+        "name": "Hard Delete",
+        "description": "Permanently remove the document from the collection",
+        "strengths": ["Frees storage immediately", "No filter needed in queries", "Simple implementation"],
+        "weaknesses": ["Irreversible — no recovery", "Breaks audit trails", "May violate data retention laws"],
+        "useWhen": "Temporary data (caches, anonymous sessions), data with no compliance requirements, or when you have full backups"
+      },
+      "b": {
+        "name": "Soft Delete",
+        "description": "Mark as deleted with deletedAt timestamp, keep the document",
+        "strengths": ["Recoverable", "Full audit trail", "Supports GDPR/compliance retention", "Can query history"],
+        "weaknesses": ["All queries must filter deleted records", "Storage grows over time", "Need periodic cleanup"],
+        "useWhen": "User accounts, orders, transactions, any data that may need auditing or recovery"
+      }
     },
     {
       "type": "quiz",
@@ -42,13 +125,39 @@
           "question": "What does deleteMany({}) do?",
           "type": "multiple-choice",
           "options": [
-            "Deletes the collection",
+            "Deletes the collection itself",
             "Deletes all documents in the collection",
-            "Throws an error",
-            "Deletes the database"
+            "Throws an error — empty filter not allowed",
+            "Deletes the entire database"
           ],
           "correctAnswer": 1,
-          "explanation": "An empty filter {} matches every document, so deleteMany({}) removes them all."
+          "explanation": "An empty filter {} matches every document, so deleteMany({}) removes all documents from the collection. The collection itself (and its indexes) remain."
+        },
+        {
+          "id": "q2",
+          "question": "What is a soft delete?",
+          "type": "multiple-choice",
+          "options": [
+            "Using deleteOne() instead of deleteMany()",
+            "Adding a deletedAt timestamp and filtering it out in queries",
+            "Dropping the index before deleting",
+            "Deleting in small batches"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Soft delete marks a document as deleted (usually with a deletedAt timestamp) instead of removing it. Queries exclude soft-deleted records by filtering { deletedAt: { $exists: false } }."
+        },
+        {
+          "id": "q3",
+          "question": "What does a TTL index do?",
+          "type": "multiple-choice",
+          "options": [
+            "Speeds up time-based queries",
+            "Automatically deletes documents after a set duration",
+            "Encrypts documents after expiry",
+            "Archives documents to cold storage"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A TTL (Time To Live) index automatically deletes documents after expireAfterSeconds seconds have elapsed since the indexed date field. Used for sessions, caches, and log retention."
         }
       ]
     }
@@ -56,24 +165,39 @@
   "faq": [
     {
       "q": "How do I drop an entire collection?",
-      "a": "Use collection.drop(). This removes all documents and indexes. This is irreversible."
+      "a": "Use collection.drop(). This removes all documents, all indexes, and the collection metadata. It is irreversible — there is no recycle bin. Always back up before dropping a production collection."
+    },
+    {
+      "q": "Can I recover a deleted document?",
+      "a": "No — hard deletes in MongoDB are permanent unless you have a backup. This is why soft deletes (marking with deletedAt) are preferred in production. If you have an Atlas backup or a replica set oplog, you may be able to restore from there, but it's complex."
+    },
+    {
+      "q": "How do I delete old data automatically?",
+      "a": "Use a TTL index: createIndex({ createdAt: 1 }, { expireAfterSeconds: N }). MongoDB automatically deletes documents where createdAt is older than N seconds. The background job runs every 60 seconds."
     }
   ],
   "sources": [
     {
       "name": "Delete Documents",
       "url": "https://www.mongodb.com/docs/manual/tutorial/remove-documents/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "TTL Indexes",
+      "url": "https://www.mongodb.com/docs/manual/core/index-ttl/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "data cleanup",
-      "TTL expiry"
+      "Session management (auto-expiry with TTL)",
+      "GDPR-compliant user deletion",
+      "Data cleanup pipelines"
     ],
     "examples": [
-      "Purging expired sessions",
-      "Soft-deleting user accounts"
+      "TTL index on JWT token blacklist — auto-delete after token expiry time",
+      "Soft delete for user accounts with 30-day recovery window",
+      "Hard delete of raw ingest events after aggregation, keeping only the daily rollup"
     ]
   }
 }

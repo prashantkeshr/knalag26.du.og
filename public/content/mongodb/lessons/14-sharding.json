@@ -1,59 +1,160 @@
 {
   "id": "14-sharding",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-production",
   "title": "Sharding",
-  "subtitle": "Horizontal scaling with shard keys",
+  "subtitle": "Horizontal scaling, shard keys, and cluster architecture",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "mongodb.replication"
-  ],
-  "skillsTaught": [
-    "mongodb.sharding"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.replication"],
+  "skillsTaught": ["mongodb.sharding"],
+  "whyItExists": {
+    "problem": "Even the largest single server has limits. When your dataset exceeds what one machine can store (terabytes to petabytes), or when write throughput exceeds what one primary can handle (millions of writes per second), you need to distribute data across multiple machines.",
+    "solution": "MongoDB sharding distributes data across multiple replica sets (shards). Each shard holds a subset of the data, determined by the shard key. A mongos router directs queries to the right shards. This scales both storage and write throughput horizontally — add more shards to handle more data.",
+    "whenToUse": "Only shard when a single replica set can no longer handle your data volume or write throughput. MongoDB Atlas automatically manages sharding when you need it. Most applications never need sharding — optimize queries and indexes first.",
+    "whenNotToUse": "Sharding adds significant operational complexity. It makes transactions harder, $lookup across shards is limited, and debugging performance issues is more complex. Try vertical scaling (larger instance) and query optimization before sharding."
+  },
+  "explainModes": {
+    "beginner": "Sharding is like splitting a giant filing cabinet across 3 smaller ones. Each cabinet (shard) holds some of the files. A secretary (mongos router) knows where each file is and finds it for you. When one cabinet gets too full, you add a fourth one and move some files there.",
+    "simple": "Sharding splits a collection across multiple servers (shards) based on a shard key. A mongos router handles queries by directing them to the right shards. Hashed shard keys give even distribution. Range shard keys allow efficient range queries but risk hotspots.",
+    "standard": "A sharded cluster has: shards (each a replica set storing a chunk of data), mongos routers (stateless query routers), and config servers (store metadata about which chunks are on which shards). The shard key determines how documents are distributed — choose it carefully as it cannot be changed.",
+    "technical": "MongoDB sharding uses chunk-based distribution. The sharding key space is divided into chunks (default 128MB). The balancer moves chunks between shards to maintain even distribution. Targeted queries (include the shard key in the filter) go to one shard. Scatter-gather queries (no shard key in filter) fan out to all shards and are expensive. Transactions across multiple shards are supported but slower.",
+    "deepDive": "MongoDB's sharding architecture uses vector clock (shard version + collection version) to track chunk migrations. The balancer runs on the primary config server and uses a threshold-based algorithm to decide when to migrate chunks. Zone sharding (formerly tag-aware sharding) allows pinning ranges of data to specific shards — useful for data locality compliance (store EU user data only on EU shards). The shard key immutability is a fundamental constraint since the shard key determines storage location — changing it would require moving every document."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Sharding for Scale"
+      "text": "What is Sharding?"
     },
     {
       "type": "paragraph",
-      "text": "Sharding distributes data across multiple machines (shards). MongoDB routes queries to the correct shard using a shard key."
+      "text": "<strong>Sharding</strong> is MongoDB's approach to horizontal scaling. It distributes data across multiple machines called shards. Unlike replication (which keeps copies of the same data on multiple nodes), sharding divides the data so each shard holds a different subset."
     },
     {
-      "type": "definition",
-      "term": "Shard Key",
-      "definition": "The field (or fields) MongoDB uses to distribute documents across shards. Choose it carefully — it cannot be changed."
+      "type": "code",
+      "lang": "text",
+      "filename": "sharded-cluster.txt",
+      "code": "Sharded Cluster Architecture:\n\n  Client Applications\n         │\n         ▼\n   ┌─────────────┐\n   │   mongos    │  ← Query Router (stateless)\n   │  (router)   │\n   └─────────────┘\n         │\n    ┌────┴────┐\n    ▼         ▼\n ┌──────┐  ┌──────┐  ← Shards (each is a Replica Set!)\n │Shard1│  │Shard2│\n │  RS  │  │  RS  │\n └──────┘  └──────┘\n\n ┌────────────────────┐\n │  Config Servers    │  ← Metadata (which chunks on which shard)\n │  (Replica Set)     │\n └────────────────────┘\n\nShard 1 holds: users where _id hashed to range A-M\nShard 2 holds: users where _id hashed to range N-Z"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Shard Key"
+    },
+    {
+      "type": "paragraph",
+      "text": "The <strong>shard key</strong> is the field (or fields) MongoDB uses to distribute documents across shards. <strong>Choose it carefully — the shard key cannot be changed after sharding.</strong> A good shard key has high cardinality, even distribution, and matches your query patterns."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "shard.js",
-      "code": "// Enable sharding on a database\nsh.enableSharding(\"mydb\");\n\n// Shard a collection by userId\nsh.shardCollection(\"mydb.events\", { userId: \"hashed\" });"
+      "filename": "shard-setup.js",
+      "code": "// In mongos shell: enable sharding on a database\nsh.enableSharding('mydb');\n\n// Shard a collection by a HASHED key (best for even distribution)\nsh.shardCollection('mydb.events', { userId: 'hashed' });\n// Hashed sharding: MongoDB hashes userId, distributes evenly\n// All writes go to random shards — no hotspots\n// Downside: range queries on userId go to ALL shards\n\n// Shard a collection by RANGE key (use when range queries are common)\nsh.shardCollection('mydb.orders', { customerId: 1 });\n// Range sharding: orders with nearby customerId go to same shard\n// Good: orders.find({ customerId: { $gte: 'A', $lte: 'M' } }) → 1 shard\n// Bad risk: if most writes have customerId starting with 'A', creates a hotspot\n\n// Compound shard key (more cardinality, avoids hotspots)\nsh.shardCollection('mydb.logs', { region: 1, timestamp: 1 });\n// First field: 'region' scopes the shard. Second field: 'timestamp' distributes within region"
     },
     {
-      "type": "tip",
-      "text": "Hashed shard keys give even distribution. Range shard keys allow efficient range queries but risk hotspots."
+      "type": "heading",
+      "level": 2,
+      "text": "Targeted vs Scatter-Gather Queries"
+    },
+    {
+      "type": "paragraph",
+      "text": "Including the shard key in your query filter allows MongoDB to route the query to a single shard (<strong>targeted query</strong>). Queries without the shard key must be sent to all shards and results merged (<strong>scatter-gather</strong>), which is much slower."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "targeted-queries.js",
+      "code": "// Assume collection is sharded by { userId: 'hashed' }\n\n// TARGETED — includes shard key (userId)\n// mongos routes to exactly ONE shard\nconst userOrders = await orders.find({ userId: 'user123' }).toArray();\n// Fast: one network hop to one shard\n\n// SCATTER-GATHER — no shard key in filter\n// mongos sends to ALL shards, merges results\nconst pendingOrders = await orders.find({ status: 'pending' }).toArray();\n// Slow: N network hops to N shards, results merged on mongos\n// Gets worse as you add more shards!\n\n// Best practice: always include the shard key in your most frequent queries\n// Design shard key to match your highest-frequency query pattern\n\n// Check if a query is targeted:\nconst plan = await orders.find({ userId: 'user123' }).explain();\nconsole.log(plan.queryPlanner.winningPlan.shards.length); // 1 = targeted, N = scatter-gather"
+    },
+    {
+      "type": "definition",
+      "term": "Hotspot",
+      "definition": "A shard receiving disproportionately more writes or reads than other shards, defeating the purpose of sharding. Caused by monotonically increasing shard keys (like timestamps or auto-increment IDs) which always route new writes to the same shard."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Avoiding Hotspots"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "hotspot-avoidance.js",
+      "code": "// BAD shard key: timestamp (monotonically increasing)\n// All new events go to the shard holding the latest range\n// → one shard is always the 'hot' shard receiving all new writes\nsh.shardCollection('mydb.events', { timestamp: 1 });\n\n// BAD shard key: _id with ObjectId\n// ObjectId's first 4 bytes are a timestamp — same hotspot problem!\nsh.shardCollection('mydb.events', { _id: 1 });\n\n// GOOD: hashed _id — distributes writes evenly across all shards\nsh.shardCollection('mydb.events', { _id: 'hashed' });\n// MongoDB hashes the ObjectId, distributing writes randomly\n\n// GOOD: compound with high-cardinality field first\n// region is low-cardinality (8 regions) → use as zone partition\n// userId is high-cardinality → distributes within each region\nsh.shardCollection('mydb.events', { region: 1, userId: 'hashed' });"
+    },
+    {
+      "type": "comparison",
+      "title": "Hashed vs Range Sharding",
+      "a": {
+        "name": "Hashed Sharding",
+        "description": "MongoDB hashes the shard key and distributes by hash value",
+        "strengths": ["Even write distribution — no hotspots", "Best for insert-heavy workloads"],
+        "weaknesses": ["Range queries on shard key → scatter-gather", "Documents with similar keys on different shards"],
+        "useWhen": "Mostly insert-heavy workloads where you query by exact shard key value (find by userId)"
+      },
+      "b": {
+        "name": "Range Sharding",
+        "description": "Documents with adjacent shard key values stored on same shard",
+        "strengths": ["Range queries can be targeted to 1-2 shards", "Better for time-range queries"],
+        "weaknesses": ["Risk of hotspots with monotonic keys", "Requires careful shard key selection"],
+        "useWhen": "Range queries on the shard key are your most common access pattern"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "Never shard before you need to. Sharding adds complexity: transactions span more infrastructure, $lookup across shards is restricted, debugging is harder. Try vertical scaling (larger instance) and query/index optimization first. Most applications never need sharding."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is a hotspot in a sharded cluster?",
+          "question": "What is a hotspot in a sharded MongoDB cluster?",
           "type": "multiple-choice",
           "options": [
-            "A popular document",
-            "A shard receiving disproportionately more writes than others",
-            "A failed shard",
-            "A slow query"
+            "A popular document accessed frequently",
+            "A shard receiving disproportionately more traffic than others",
+            "A failed shard that needs replacement",
+            "A slow query on a large collection"
           ],
           "correctAnswer": 1,
-          "explanation": "A hotspot occurs when one shard receives most of the traffic, defeating the purpose of sharding."
+          "explanation": "A hotspot occurs when one shard receives most of the write or read traffic, defeating the purpose of sharding. It's caused by poor shard key choice — like a timestamp that routes all new writes to the same shard."
+        },
+        {
+          "id": "q2",
+          "question": "What is the role of mongos in a sharded cluster?",
+          "type": "multiple-choice",
+          "options": [
+            "It stores the data for the cluster",
+            "It replicates data between shards",
+            "It routes queries to the correct shard(s)",
+            "It manages shard key elections"
+          ],
+          "correctAnswer": 2,
+          "explanation": "mongos is a stateless query router. Applications connect to mongos instead of individual shards. mongos uses the config servers' metadata to route each query to the correct shard(s)."
+        },
+        {
+          "id": "q3",
+          "question": "A query that does NOT include the shard key in its filter is called a:",
+          "type": "multiple-choice",
+          "options": [
+            "Covered query",
+            "Targeted query",
+            "Scatter-gather query",
+            "Broadcast query"
+          ],
+          "correctAnswer": 2,
+          "explanation": "A scatter-gather query is sent to ALL shards because mongos doesn't know which shard has the matching documents. Results are merged on mongos. These are expensive — the cost grows with every shard you add."
         }
       ]
     }
@@ -61,23 +162,39 @@
   "faq": [
     {
       "q": "When should I shard?",
-      "a": "Only shard when a single replica set can no longer handle your data volume or write throughput. Sharding adds operational complexity."
+      "a": "Only shard when a single replica set cannot handle your data volume or write throughput. First optimize queries and indexes. Then try a larger instance (vertical scaling). Only when neither works, consider sharding. Most applications — even at significant scale — never need it."
+    },
+    {
+      "q": "Can I change the shard key after sharding?",
+      "a": "Starting MongoDB 4.4, you can reshard a collection with a new shard key, but it's an expensive operation. In earlier versions, the shard key was permanently immutable. Even now, choose your shard key carefully upfront to avoid a costly reshard operation."
+    },
+    {
+      "q": "Does MongoDB Atlas handle sharding automatically?",
+      "a": "Yes. With Atlas, you can enable sharding on a cluster and Atlas handles the infrastructure. You still choose the shard key for your collections. Atlas also provides Global Clusters for geographic data distribution (e.g., EU user data stays on EU shards)."
     }
   ],
   "sources": [
     {
-      "name": "Sharding",
+      "name": "Sharding Documentation",
       "url": "https://www.mongodb.com/docs/manual/sharding/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Shard Keys",
+      "url": "https://www.mongodb.com/docs/manual/core/sharding-shard-key/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "large-scale applications",
-      "IoT data ingestion"
+      "IoT platforms ingesting millions of events per second",
+      "Social media platforms with billions of posts",
+      "E-commerce at peak sale events (Black Friday)"
     ],
     "examples": [
-      "Sharding user events by hashed userId"
+      "Events collection sharded by { _id: 'hashed' } to distribute high-volume writes evenly",
+      "User data sharded by { region: 1, _id: 'hashed' } for GDPR data locality compliance",
+      "MongoDB Atlas Global Cluster: EU user data only on EU shards, US data only on US shards"
     ]
   }
 }

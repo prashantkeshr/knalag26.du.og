@@ -1,38 +1,95 @@
 {
   "id": "07-api-integration",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Anthropic SDK 0.40+ / OpenAI SDK 1.x",
   "technology": "llms",
   "module": "llm-apis",
   "title": "Integrating LLM APIs",
   "subtitle": "Authentication, rate limits, retries, and cost management",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "llms.few-shot"
-  ],
-  "skillsTaught": [
-    "llms.api"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.few-shot"],
+  "skillsTaught": ["llms.api"],
+  "whyItExists": {
+    "problem": "LLM APIs have unique failure modes — rate limits, timeout on long generations, transient 500s, and unpredictable latency. Naive HTTP requests fail in production.",
+    "solution": "Official SDKs handle retries, timeouts, and streaming. Proper key management, error handling, and cost tracking are essential for production-grade integrations.",
+    "whenToUse": "Any time you integrate an LLM into a backend service, web app, or batch pipeline.",
+    "whenNotToUse": "Playground/prototype use — just use the web UI. Only add API integrations when you need programmatic control."
+  },
+  "explainModes": {
+    "beginner": "Using an LLM API is like calling a web service. You send your prompt as an HTTP request with your API key, and get back a response with the generated text. The official SDKs make this much simpler than writing raw HTTP.",
+    "simple": "Install the official SDK, set your API key as an environment variable, and call the create method with your model name and messages. The SDK handles retries and error types automatically.",
+    "standard": "LLM API integrations need: (1) secure key management via environment variables or secret managers; (2) SDK-based error handling for rate limits and API errors; (3) usage tracking for cost monitoring; (4) appropriate timeout settings for long generations.",
+    "technical": "The Anthropic SDK auto-retries on 529/503 (overload) and 429 (rate limit) with exponential backoff up to 2 retries by default. Each model has separate rate limits (RPM and TPM). Prompt caching reduces costs for repeated prefixes: Claude caches system prompts with ≥1024 tokens for 5 minutes.",
+    "deepDive": "Production LLM integrations typically include: a circuit breaker for sustained failures, model fallback routing (Opus → Sonnet on rate limit), semantic caching (store responses for similar queries), and structured logging with token counts for cost attribution per user/feature."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Working with LLM APIs"
+      "text": "SDK Setup and Authentication"
     },
     {
       "type": "paragraph",
-      "text": "Most LLM providers expose a REST API. Use the official SDK, never raw HTTP, for automatic retries and error handling."
+      "text": "Most LLM providers expose a REST API. Use the <strong>official SDK</strong> rather than raw HTTP — it handles retries, error types, and streaming automatically. Never hardcode API keys in source code."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "api.py",
-      "code": "import anthropic\nimport os\n\nclient = anthropic.Anthropic(api_key=os.environ[\"ANTHROPIC_API_KEY\"])\n\ntry:\n    msg = client.messages.create(\n        model=\"claude-opus-4-5\",\n        max_tokens=1024,\n        messages=[{\"role\": \"user\", \"content\": \"Hello!\"}]\n    )\n    print(msg.content[0].text)\nexcept anthropic.RateLimitError:\n    print(\"Rate limit hit — back off and retry\")\nexcept anthropic.APIStatusError as e:\n    print(f\"API error {e.status_code}: {e.message}\")"
+      "filename": "setup.py",
+      "code": "# pip install anthropic\nimport anthropic\nimport os\n\n# Option 1: SDK auto-reads ANTHROPIC_API_KEY from environment\nclient = anthropic.Anthropic()\n\n# Option 2: Explicit key (use env var or secrets manager)\nclient = anthropic.Anthropic(api_key=os.environ[\"ANTHROPIC_API_KEY\"])\n\n# Option 3: Azure OpenAI or custom base URL\nfrom openai import AzureOpenAI\nazure_client = AzureOpenAI(\n    api_key=os.environ[\"AZURE_OPENAI_KEY\"],\n    api_version=\"2024-02-01\",\n    azure_endpoint=os.environ[\"AZURE_OPENAI_ENDPOINT\"]\n)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Error Handling"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "error_handling.py",
+      "code": "import anthropic\nimport time\nimport logging\n\nclient = anthropic.Anthropic()\nlogger = logging.getLogger(\"llm\")\n\ndef call_with_retry(prompt: str, max_retries: int = 3) -> str:\n    \"\"\"Call Claude with exponential backoff on rate limits.\"\"\"\n    for attempt in range(max_retries):\n        try:\n            response = client.messages.create(\n                model=\"claude-haiku-5-5\",\n                max_tokens=1024,\n                messages=[{\"role\": \"user\", \"content\": prompt}]\n            )\n            return response.content[0].text\n\n        except anthropic.RateLimitError as e:\n            wait = 2 ** attempt  # 1s, 2s, 4s\n            logger.warning(f\"Rate limited. Waiting {wait}s (attempt {attempt+1}/{max_retries})\")\n            time.sleep(wait)\n\n        except anthropic.APIStatusError as e:\n            if e.status_code >= 500:\n                logger.error(f\"Server error {e.status_code}. Retrying...\")\n                time.sleep(1)\n            else:\n                raise  # 4xx client errors won't get better on retry\n\n        except anthropic.APIConnectionError:\n            logger.error(\"Network error. Retrying...\")\n            time.sleep(1)\n\n    raise RuntimeError(\"All retries exhausted\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cost Tracking and Usage Monitoring"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cost_tracking.py",
+      "code": "import anthropic\nfrom dataclasses import dataclass, field\nfrom threading import Lock\n\nclient = anthropic.Anthropic()\n\n# Claude pricing (Nov 2026, per 1M tokens)\nPRICING = {\n    \"claude-haiku-5-5\":  {\"input\": 0.25,  \"output\": 1.25},\n    \"claude-sonnet-5-5\": {\"input\": 3.00,  \"output\": 15.00},\n    \"claude-opus-5-5\":   {\"input\": 15.00, \"output\": 75.00},\n}\n\n@dataclass\nclass UsageTracker:\n    total_input_tokens: int = 0\n    total_output_tokens: int = 0\n    total_cost_usd: float = 0.0\n    _lock: Lock = field(default_factory=Lock)\n\n    def record(self, model: str, usage):\n        p = PRICING.get(model, PRICING[\"claude-haiku-5-5\"])\n        cost = (usage.input_tokens / 1e6) * p[\"input\"] + (usage.output_tokens / 1e6) * p[\"output\"]\n        with self._lock:\n            self.total_input_tokens  += usage.input_tokens\n            self.total_output_tokens += usage.output_tokens\n            self.total_cost_usd      += cost\n\ntracker = UsageTracker()\nMODEL = \"claude-haiku-5-5\"\n\nresponse = client.messages.create(\n    model=MODEL,\n    max_tokens=512,\n    messages=[{\"role\": \"user\", \"content\": \"What is the capital of France?\"}]\n)\ntracker.record(MODEL, response.usage)\nprint(f\"Answer: {response.content[0].text}\")\nprint(f\"Total cost so far: ${tracker.total_cost_usd:.6f}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Prompt Caching (Anthropic)"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Prompt caching</strong> stores frequently-used prompt prefixes (like system prompts or large documents) on Anthropic's servers for 5 minutes. Cache hits cost 90% less than uncached input tokens — critical when you have a large system prompt used by thousands of requests."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "prompt_caching.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Large system prompt (must be >= 1024 tokens to cache)\nlarge_system_prompt = \"\"\"You are an expert financial advisor...\n\"\"\" + \"(much more context here — policies, examples, domain knowledge)\" * 50\n\n# Mark the system prompt for caching with cache_control\nresponse = client.messages.create(\n    model=\"claude-sonnet-5-5\",\n    max_tokens=1024,\n    system=[\n        {\n            \"type\": \"text\",\n            \"text\": large_system_prompt,\n            \"cache_control\": {\"type\": \"ephemeral\"}  # cache for 5 minutes\n        }\n    ],\n    messages=[{\"role\": \"user\", \"content\": \"What is the best ETF for a 30-year-old?\"}]\n)\n\n# Second request hits cache — 90% cheaper on the system prompt\nprint(f\"Cache creation input tokens: {response.usage.cache_creation_input_tokens}\")\nprint(f\"Cache read input tokens: {response.usage.cache_read_input_tokens}\")"
     },
     {
       "type": "tip",
-      "text": "Never hardcode API keys. Load from environment variables or a secrets manager."
+      "text": "Never hardcode API keys. Load from environment variables (<code>os.environ['ANTHROPIC_API_KEY']</code>) or a secrets manager like AWS Secrets Manager, HashiCorp Vault, or Doppler."
+    },
+    {
+      "type": "warning",
+      "text": "Rate limits are per model and per tier. Hitting a rate limit on <code>claude-opus-5-5</code> doesn't affect your <code>claude-haiku-5-5</code> quota. Use different models for different priority levels in the same application."
     },
     {
       "type": "quiz",
@@ -42,13 +99,39 @@
           "question": "Where should you store your LLM API key?",
           "type": "multiple-choice",
           "options": [
-            "In the source code",
+            "In source code (easy to find)",
             "In an environment variable or secrets manager",
-            "In a public README",
-            "In a JSON config file"
+            "In a public README for transparency",
+            "In a JSON config file committed to git"
           ],
           "correctAnswer": 1,
-          "explanation": "API keys must never be in source code. Use environment variables or a secrets manager like AWS Secrets Manager."
+          "explanation": "API keys must never be in source code. Leaked keys can result in thousands of dollars of charges. Use environment variables or a secrets manager (AWS Secrets Manager, Doppler, etc.)."
+        },
+        {
+          "id": "q2",
+          "question": "Which HTTP status code indicates you should retry with exponential backoff?",
+          "type": "multiple-choice",
+          "options": [
+            "400 Bad Request — your prompt is malformed",
+            "401 Unauthorized — your API key is invalid",
+            "429 Too Many Requests — rate limit hit",
+            "404 Not Found — model doesn't exist"
+          ],
+          "correctAnswer": 2,
+          "explanation": "429 means you've hit rate limits. Back off and retry with exponential delay. 400/401/404 are client errors that won't get better on retry — fix the request instead."
+        },
+        {
+          "id": "q3",
+          "question": "What does Anthropic prompt caching do?",
+          "type": "multiple-choice",
+          "options": [
+            "Caches the full response so the same question always returns the same answer",
+            "Stores frequently-used prompt prefixes server-side, reducing costs by 90% for cached tokens",
+            "Compresses the prompt to reduce token count",
+            "Saves prompts locally to avoid repeated API calls"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Prompt caching stores prompt prefixes (e.g. large system prompts) on Anthropic's infrastructure for 5 minutes. Cache hits cost 90% less than normal input tokens — huge savings for apps with large system prompts."
         }
       ]
     }
@@ -56,23 +139,38 @@
   "faq": [
     {
       "q": "How do I reduce API costs?",
-      "a": "Use caching for repeated prompts, choose smaller models for simpler tasks, reduce max_tokens, and implement prompt caching (prefix caching) where available."
+      "a": "Use caching for repeated prompts, choose smaller/cheaper models for simpler tasks (Haiku is 60x cheaper than Opus), reduce max_tokens, implement prompt caching for large system prompts, and batch requests where possible."
+    },
+    {
+      "q": "What is a good default timeout for LLM API calls?",
+      "a": "Set a generous timeout — 60-120 seconds for long generations. The Anthropic SDK defaults to 10 minutes but you can tune with timeout parameter. For streaming, consider first-token timeout (10s) separately from full response timeout."
+    },
+    {
+      "q": "Should I use the Anthropic SDK or raw HTTP?",
+      "a": "Always use the official SDK. It handles retries, streaming, type safety, and SDK updates that track API changes. Raw HTTP requires you to reimplement all of this."
     }
   ],
   "sources": [
     {
       "name": "Claude API Reference",
       "url": "https://docs.anthropic.com/en/api/getting-started",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Prompt Caching Guide",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "web apps",
-      "backend services"
+      "Backend services that call LLM APIs for content generation",
+      "Batch processing pipelines (10K+ documents per day)",
+      "Multi-tenant SaaS applications with per-user cost attribution"
     ],
     "examples": [
-      "Wrapping the Anthropic API with retry logic and cost tracking"
+      "A content moderation service that tracks per-customer token usage for billing",
+      "A document processing pipeline with retry logic handling Anthropic's occasional overload errors"
     ]
   }
 }

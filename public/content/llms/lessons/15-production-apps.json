@@ -1,54 +1,145 @@
 {
   "id": "15-production-apps",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / Langfuse / LiteLLM",
   "technology": "llms",
   "module": "llm-production",
   "title": "LLM Apps in Production",
   "subtitle": "Observability, guardrails, latency, and cost optimisation",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "llms.fine-tuning"
-  ],
-  "skillsTaught": [
-    "llms.production"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.fine-tuning"],
+  "skillsTaught": ["llms.production"],
+  "whyItExists": {
+    "problem": "Deploying an LLM to production without observability is flying blind. Costs spiral unexpectedly. Models hallucinate in edge cases you didn't test. Latency spikes hurt UX. Users find ways to misuse the system.",
+    "solution": "Production-grade LLM systems require: structured logging with token counts, model routing by complexity, semantic caching, guardrails for input/output safety, and latency budgets. These are engineering problems, not prompting problems.",
+    "whenToUse": "Before launching any LLM feature to real users. Set up observability first — you can't debug what you can't see.",
+    "whenNotToUse": "Early-stage prototyping — don't add production infrastructure before you've validated the product idea."
+  },
+  "explainModes": {
+    "beginner": "Putting an AI in production is like opening a restaurant. Good food (prompt) isn't enough — you need to track orders (logging), manage costs (model routing), prevent bad ingredients (guardrails), and serve quickly (caching/latency). All of these are separate from the AI itself.",
+    "simple": "Production LLM apps need: logging every call with token counts for cost tracking, routing cheap requests to smaller models, caching common questions, checking inputs/outputs for harmful content, and monitoring for errors and latency.",
+    "standard": "Production stack: (1) Observability — Langfuse/Helicone for prompt versioning, trace logging, token costs; (2) Model routing — simple queries → Haiku, complex → Opus; (3) Semantic caching — cache embeddings of past queries, return cached response if similarity > 0.95; (4) Guardrails — input validation and output filtering; (5) Rate limiting per user.",
+    "technical": "LLM ops tools (Langfuse, LangSmith) wrap API calls to log full traces: prompt, response, latency, token costs, model, user ID. Semantic caching stores (query_embedding, response) pairs; at query time, embed the new query, check for cosine similarity > threshold before making an API call. Circuit breakers (retry budget + fallback model) handle API outages.",
+    "deepDive": "Cost optimisation at scale: prompt caching (prefix cache the system prompt at Anthropic, 90% discount on cache hits), model cascading (run Haiku first, escalate to Sonnet if confidence is low, Opus only if Sonnet fails threshold), async batching (batch multiple single-turn requests in a queue). Safety: Llama Guard 3 for input/output content classification, NeMo Guardrails for rule-based topic steering, Constitutional AI prompts for self-critique."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Production Challenges"
+      "text": "The Production LLM Checklist"
     },
     {
       "type": "paragraph",
-      "text": "Running LLMs in production requires managing latency, costs, safety guardrails, and observability."
+      "text": "Running LLMs in production requires much more than a working prompt. You need to manage <strong>latency, costs, safety, and observability</strong> — and each is a separate engineering concern."
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "<strong>Observability</strong>: Log every call with user ID, model, prompt version, tokens in/out, latency, cost",
+        "<strong>Model routing</strong>: Route simple tasks to cheap models (Haiku), complex tasks to powerful models (Opus)",
+        "<strong>Semantic caching</strong>: Return cached responses for semantically identical queries — huge cost savings",
+        "<strong>Guardrails</strong>: Validate inputs (block injections) and filter outputs (block harmful content)",
+        "<strong>Rate limiting</strong>: Protect against abuse and runaway costs per user/account",
+        "<strong>Fallbacks</strong>: If primary model fails, fall back to secondary (e.g., Sonnet → GPT-4)"
+      ]
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "prod.py",
-      "code": "import anthropic\nimport time\nimport logging\n\nclient = anthropic.Anthropic()\nlogger = logging.getLogger(\"llm\")\n\ndef call_llm_with_observability(prompt: str, user_id: str):\n    start = time.time()\n    try:\n        response = client.messages.create(\n            model=\"claude-haiku-5-5\",  # cheapest model for simple tasks\n            max_tokens=256,\n            messages=[{\"role\":\"user\",\"content\":prompt}]\n        )\n        text = response.content[0].text\n        latency = time.time() - start\n        logger.info({\n            \"user_id\": user_id,\n            \"tokens_in\": response.usage.input_tokens,\n            \"tokens_out\": response.usage.output_tokens,\n            \"latency_ms\": int(latency * 1000)\n        })\n        return text\n    except Exception as e:\n        logger.error({\"error\": str(e), \"user_id\": user_id})\n        raise"
+      "filename": "observability.py",
+      "code": "import anthropic\nimport time\nimport logging\nimport uuid\nfrom dataclasses import dataclass\n\nclient = anthropic.Anthropic()\nlogger = logging.getLogger(\"llm_calls\")\n\nPRICING = {\n    \"claude-haiku-5-5\":  {\"in\": 0.25,  \"out\": 1.25},\n    \"claude-sonnet-5-5\": {\"in\": 3.00,  \"out\": 15.00},\n}\n\ndef call_with_observability(\n    prompt: str,\n    model: str = \"claude-haiku-5-5\",\n    user_id: str = \"anonymous\"\n) -> str:\n    call_id = str(uuid.uuid4())[:8]\n    start = time.perf_counter()\n\n    try:\n        response = client.messages.create(\n            model=model,\n            max_tokens=1024,\n            messages=[{\"role\": \"user\", \"content\": prompt}]\n        )\n        text = response.content[0].text\n        latency_ms = int((time.perf_counter() - start) * 1000)\n\n        # Cost calculation\n        p = PRICING.get(model, PRICING[\"claude-haiku-5-5\"])\n        cost = (response.usage.input_tokens / 1e6 * p[\"in\"] +\n                response.usage.output_tokens / 1e6 * p[\"out\"])\n\n        logger.info({\n            \"call_id\": call_id, \"user_id\": user_id, \"model\": model,\n            \"tokens_in\": response.usage.input_tokens,\n            \"tokens_out\": response.usage.output_tokens,\n            \"latency_ms\": latency_ms,\n            \"cost_usd\": round(cost, 6),\n            \"status\": \"success\"\n        })\n        return text\n\n    except Exception as e:\n        logger.error({\"call_id\": call_id, \"user_id\": user_id, \"error\": str(e), \"status\": \"error\"})\n        raise"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Model Routing by Complexity"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "model_router.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Claude Haiku is 60x cheaper than Opus — route simple tasks to it\nSIMPLE_PATTERNS = [\n    \"what is\", \"define\", \"when was\", \"how many\",\n    \"yes or no\", \"true or false\", \"translate\"\n]\n\ndef select_model(prompt: str) -> str:\n    prompt_lower = prompt.lower()\n    # Simple factual lookup → Haiku\n    if any(p in prompt_lower for p in SIMPLE_PATTERNS) and len(prompt) < 200:\n        return \"claude-haiku-5-5\"\n    # Medium complexity → Sonnet\n    elif len(prompt) < 1000:\n        return \"claude-sonnet-5-5\"\n    # Long/complex → Opus\n    else:\n        return \"claude-opus-5-5\"\n\ndef smart_call(prompt: str, user_id: str) -> str:\n    model = select_model(prompt)\n    return call_with_observability(prompt, model=model, user_id=user_id)\n\n# Simple query → Haiku ($0.0001)\nprint(smart_call(\"What is the capital of Germany?\", \"user123\"))\n\n# Complex query → Sonnet ($0.012)\nprint(smart_call(\"Analyse this 500-word contract and identify all obligations...\", \"user123\"))"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Semantic Caching"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "semantic_cache.py",
+      "code": "import numpy as np\nfrom openai import OpenAI\n\noai = OpenAI()\n\nclass SemanticCache:\n    \"\"\"Cache LLM responses for semantically similar queries.\"\"\"\n    def __init__(self, threshold: float = 0.95):\n        self.threshold = threshold\n        self.entries = []  # List of {embedding, response}\n\n    def _embed(self, text: str) -> np.ndarray:\n        vec = oai.embeddings.create(input=text, model=\"text-embedding-3-small\").data[0].embedding\n        return np.array(vec)\n\n    def _cosine(self, a: np.ndarray, b: np.ndarray) -> float:\n        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))\n\n    def get(self, query: str):\n        q_emb = self._embed(query)\n        for entry in self.entries:\n            sim = self._cosine(q_emb, entry[\"embedding\"])\n            if sim >= self.threshold:\n                return entry[\"response\"]  # Cache hit!\n        return None\n\n    def set(self, query: str, response: str):\n        self.entries.append({\"embedding\": self._embed(query), \"response\": response})\n\ncache = SemanticCache(threshold=0.95)\n\ndef cached_call(prompt: str) -> str:\n    # Check cache first\n    cached = cache.get(prompt)\n    if cached:\n        print(\"[CACHE HIT] Returning cached response\")\n        return cached\n    # Miss: call API\n    response = call_with_observability(prompt)\n    cache.set(prompt, response)  # Store for future similar queries\n    return response\n\ncached_call(\"What is the capital of France?\")       # API call\ncached_call(\"What's the capital city of France?\")   # Cache hit! Sim ~0.97"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Input Guardrails"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "guardrails.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Simple LLM-based content classifier (you can also use Llama Guard)\ndef is_safe_input(user_message: str) -> tuple[bool, str]:\n    \"\"\"Returns (is_safe, reason).\"\"\"\n    response = client.messages.create(\n        model=\"claude-haiku-5-5\",  # cheapest model for this check\n        max_tokens=50,\n        temperature=0,\n        system=\"\"\"Classify if the input is safe for a customer support chatbot.\nOutput ONLY 'SAFE' or 'UNSAFE: <reason in 5 words'.\"\"\",\n        messages=[{\"role\": \"user\", \"content\": user_message}]\n    )\n    result = response.content[0].text.strip()\n    is_safe = result.startswith(\"SAFE\")\n    return is_safe, result\n\ndef safe_chat(user_message: str) -> str:\n    safe, reason = is_safe_input(user_message)\n    if not safe:\n        return f\"I can't help with that request. ({reason})\"\n    return call_with_observability(user_message)\n\nprint(safe_chat(\"How do I track my order?\"))   # Normal support query → OK\nprint(safe_chat(\"How do I hack my bank account?\"))  # Flagged → Refused"
     },
     {
       "type": "tip",
-      "text": "Use the cheapest model that meets quality requirements. Claude Haiku is 20x cheaper than Opus."
+      "text": "Use the cheapest model that meets quality requirements. Claude Haiku is 60x cheaper than Opus for the same call. Route simple queries to Haiku and reserve Opus for genuinely complex tasks."
+    },
+    {
+      "type": "warning",
+      "text": "Never expose raw LLM errors to end users — they may leak system prompt details. Catch all API errors and return a generic user-facing message. Log the full error internally."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "How can you reduce LLM API costs in production?",
+          "question": "How can you most effectively reduce LLM API costs in production?",
           "type": "multiple-choice",
           "options": [
-            "Use larger context windows",
-            "Route simple tasks to cheaper/smaller models",
-            "Always use the largest model",
-            "Disable streaming"
+            "Always use the largest context window available",
+            "Route simple tasks to cheap models (Haiku) and expensive tasks to powerful models (Opus)",
+            "Always use the largest model for consistency",
+            "Disable streaming to avoid extra overhead"
           ],
           "correctAnswer": 1,
-          "explanation": "Model routing — using cheaper models for simple requests and expensive models only when needed — is the most effective cost-reduction strategy."
+          "explanation": "Model routing is the highest-leverage cost reduction. Claude Haiku costs 60x less than Opus. Routing simple Q&A to Haiku and complex reasoning to Opus can reduce costs by 50-80%."
+        },
+        {
+          "id": "q2",
+          "question": "What does semantic caching do?",
+          "type": "multiple-choice",
+          "options": [
+            "Caches the model weights for faster loading",
+            "Returns stored responses for queries that are semantically similar to past queries, skipping the API call",
+            "Stores the user's conversation history in a database",
+            "Pre-generates common responses at model deployment"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Semantic caching embeds new queries and checks cosine similarity against past queries. If similarity exceeds a threshold (e.g., 0.95), the cached response is returned without an API call — saving time and money."
+        },
+        {
+          "id": "q3",
+          "question": "What should you log on every LLM API call in production?",
+          "type": "multiple-choice",
+          "options": [
+            "Nothing — logging adds latency",
+            "User ID, model, prompt version, token counts, latency, and cost",
+            "Only errors and exceptions",
+            "Only the final output text"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Structured logging per call enables cost attribution, debugging, A/B testing prompt versions, and detecting anomalies. Without it, you can't diagnose issues or control costs."
         }
       ]
     }
@@ -56,23 +147,39 @@
   "faq": [
     {
       "q": "What are guardrails?",
-      "a": "Guardrails are pre/post-processing checks that filter harmful inputs or outputs. Tools like Llama Guard, NeMo Guardrails, and prompt-based checks can prevent misuse."
+      "a": "Pre/post-processing checks that filter harmful inputs or outputs. Tools like Llama Guard (open-source), NeMo Guardrails (rule-based), and simple LLM classifiers can prevent misuse. Output guardrails catch hallucinations or policy violations before showing responses to users."
+    },
+    {
+      "q": "What LLM observability tools are available?",
+      "a": "Langfuse (open-source, self-hostable), Helicone (cloud), LangSmith (LangChain ecosystem), Traceloop (OpenTelemetry-compatible). All provide prompt versioning, trace logging, cost tracking, and latency dashboards."
+    },
+    {
+      "q": "How do I handle LLM API outages in production?",
+      "a": "Use a circuit breaker pattern: after N consecutive failures, fail fast for 30 seconds. Have a fallback model (Anthropic → OpenAI). Keep a degraded mode that shows a 'service temporarily unavailable' message rather than hanging. The Anthropic SDK auto-retries on 529/503 up to 2 times."
     }
   ],
   "sources": [
     {
-      "name": "Production Best Practices",
+      "name": "Anthropic Production Best Practices",
       "url": "https://docs.anthropic.com/en/docs/build-with-claude/best-practices-for-production",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Langfuse Observability",
+      "url": "https://langfuse.com/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "SaaS AI features",
-      "enterprise chat assistants"
+      "SaaS AI features with multi-tenant cost attribution",
+      "High-traffic chatbots requiring semantic caching for common questions",
+      "Enterprise AI platforms requiring audit logs and compliance",
+      "Consumer apps with safety guardrails protecting brand reputation"
     ],
     "examples": [
-      "Cost-aware model router selecting Haiku vs Opus based on query complexity"
+      "A B2B SaaS routes classification tasks to Claude Haiku and document analysis to Sonnet — 65% cost reduction vs using Sonnet for everything",
+      "A consumer chatbot uses semantic caching for FAQs (40% cache hit rate) and Llama Guard to filter harmful inputs before every API call"
     ]
   }
 }

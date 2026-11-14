@@ -1,54 +1,141 @@
 {
   "id": "12-retrieval-strategies",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Cohere Rerank / Anthropic Contextual Retrieval",
   "technology": "llms",
   "module": "rag-systems",
   "title": "Advanced Retrieval Strategies",
   "subtitle": "Reranking, hybrid search, and contextual retrieval",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "llms.vector-db"
-  ],
-  "skillsTaught": [
-    "llms.retrieval"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.vector-db"],
+  "skillsTaught": ["llms.retrieval"],
+  "whyItExists": {
+    "problem": "Basic vector search alone misses ~30% of relevant documents. Pure semantic search fails for exact keywords, product codes, and proper nouns. Retrieved chunks often lack context (a chunk saying 'it was 42%' makes no sense without knowing WHAT was 42%).",
+    "solution": "Advanced retrieval combines: hybrid search (vector + BM25 keywords), reranking (cross-encoder rescoring), and contextual retrieval (embedding chunks with their document context). These techniques close the gap between finding related text and finding truly relevant text.",
+    "whenToUse": "When basic RAG gives wrong or incomplete answers, when documents contain product codes/IDs (hybrid search), when chunk quality is degraded without surrounding context.",
+    "whenNotToUse": "Early prototype stage — these add complexity and cost. Build basic RAG first, evaluate, then upgrade specific weak points."
+  },
+  "explainModes": {
+    "beginner": "Basic RAG is like asking a librarian 'find books about dogs'. Advanced retrieval is like saying 'find books about dogs, specifically about training puppies, that have photos, and sort the results with the most practical guide first'. More filters and better sorting = better results.",
+    "simple": "Instead of just finding the most semantically similar chunks (vector search), advanced retrieval also matches keywords (hybrid), re-scores results with a smarter model (rerank), and adds context to each chunk so its meaning doesn't get lost (contextual retrieval).",
+    "standard": "Advanced retrieval pipeline: (1) Hybrid search: union of dense vector search results and sparse BM25 keyword results; (2) Reranking: a cross-encoder model re-scores the top-20 candidates to select top-5; (3) Contextual retrieval: each chunk is indexed with an LLM-generated context summary prepended.",
+    "technical": "Hybrid search uses Reciprocal Rank Fusion (RRF) to combine dense and sparse result lists: RRF_score(d) = Σ 1/(k + rank_i(d)) where k=60 is a constant. Cross-encoder rerankers (e.g. Cohere Rerank 3) take (query, document) pairs and output precise relevance scores — O(n) but only on top-20 candidates. Contextual retrieval (Anthropic): prepend each chunk with 'This chunk is from a document about [X]. Context: [Y].' before embedding.",
+    "deepDive": "Multi-query expansion: generate 3-5 paraphrased queries, retrieve for each, union results, then rerank the union. HyDE (Hypothetical Document Embeddings): ask the LLM to generate a hypothetical answer, embed that answer, and use it as the query vector — this bridges the query-document embedding gap. Sentence-window retrieval: embed individual sentences but retrieve ±2 sentence window for better context."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Improving Retrieval Quality"
+      "text": "Why Basic Retrieval Falls Short"
     },
     {
       "type": "paragraph",
-      "text": "Basic vector search misses exact keyword matches. Hybrid search combines dense (vector) and sparse (keyword) retrieval for better results."
+      "text": "Pure vector search misses <strong>exact keyword matches</strong> (product codes, model numbers, names) and retrieves chunks whose meaning is lost without context. Advanced retrieval combines multiple signals to significantly improve answer quality."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>Hybrid search</strong>: combines dense vector search with sparse BM25 keyword search",
+        "<strong>Reranking</strong>: re-scores top-20 retrieved candidates with a cross-encoder for better relevance ordering",
+        "<strong>Contextual retrieval</strong>: prepends document context to each chunk before embedding so chunks are meaningful in isolation",
+        "<strong>Multi-query expansion</strong>: generates paraphrased queries to broaden retrieval coverage"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Reranking"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "rerank.py",
-      "code": "from anthropic import Anthropic\n\n# Step 1: Over-retrieve (top 20)\ncandidates = vector_store.search(query_embedding, top_k=20)\n\n# Step 2: Rerank with a cross-encoder or via LLM\n# Using Cohere rerank API as example\nimport cohere\nco = cohere.Client(\"YOUR_KEY\")\nreranked = co.rerank(\n    query=query,\n    documents=[c.text for c in candidates],\n    top_n=5\n)\n# Use only the top-5 reranked results in the prompt"
+      "code": "# pip install cohere\nimport cohere\n\nco = cohere.Client(\"YOUR_COHERE_KEY\")\n\n# Step 1: Over-retrieve (top 20 from vector search)\ncandidates = [\n    \"Redis is an in-memory database for caching\",\n    \"How to set up Redis Sentinel for high availability\",\n    \"Redis cache eviction policies: LRU, LFU, TTL\",\n    \"MongoDB document database for storing JSON data\",\n    \"Redis Cluster for distributed caching at scale\",\n    # ... 15 more candidates\n]\n\nquery = \"How do I configure Redis cache expiration?\"\n\n# Step 2: Cross-encoder rerank — much more accurate than cosine similarity\nresults = co.rerank(\n    query=query,\n    documents=candidates,\n    top_n=3,  # keep only top 3\n    model=\"rerank-english-v3.0\"\n)\n\nprint(\"Top 3 reranked results:\")\nfor result in results.results:\n    print(f\"  Score: {result.relevance_score:.3f} | {candidates[result.index][:60]}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hybrid Search with BM25 + Vector"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "hybrid_search.py",
+      "code": "# Reciprocal Rank Fusion (RRF) to combine dense + sparse results\nfrom rank_bm25 import BM25Okapi  # pip install rank_bm25\nimport numpy as np\n\ndocs = [\n    \"Redis TTL command sets expiry on keys\",\n    \"Redis cache eviction with maxmemory-policy\",\n    \"MongoDB TTL index for automatic document expiration\",\n    \"Python TTL cache decorator for function caching\",\n]\n\nquery = \"Redis TTL expiration\"\n\n# BM25 keyword ranking\ntokenized = [d.lower().split() for d in docs]\nbm25 = BM25Okapi(tokenized)\nbm25_scores = bm25.get_scores(query.lower().split())\nbm25_rank = np.argsort(-bm25_scores)  # descending\n\n# (Assume we also have vector search ranks from ChromaDB)\nvector_rank = [0, 2, 1, 3]  # simulated vector search order\n\n# RRF combination\ndef rrf_score(ranks: list[list[int]], k: int = 60) -> np.ndarray:\n    scores = np.zeros(len(docs))\n    for rank_list in ranks:\n        for position, doc_idx in enumerate(rank_list):\n            scores[doc_idx] += 1.0 / (k + position + 1)\n    return scores\n\ncombined = rrf_score([list(bm25_rank), vector_rank])\nfinal_order = np.argsort(-combined)\n\nprint(\"Hybrid search results:\")\nfor idx in final_order:\n    print(f\"  RRF score: {combined[idx]:.4f} | {docs[idx]}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Contextual Retrieval (Anthropic)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Anthropic's <strong>contextual retrieval</strong> technique prepends a short, LLM-generated context description to each chunk before embedding it. This solves the problem of chunks like 'It increased by 42%' that have no meaning without knowing what 'it' refers to."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "contextual_retrieval.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\ndef add_context_to_chunk(full_document: str, chunk: str) -> str:\n    \"\"\"Prepend document context to a chunk before embedding.\"\"\"\n    response = client.messages.create(\n        model=\"claude-haiku-5-5\",  # cheap model for context generation\n        max_tokens=200,\n        system=\"Provide a short (2-3 sentence) context for the following chunk.\",\n        messages=[{\"role\": \"user\", \"content\": f\"\"\"\n<document>\n{full_document[:2000]}  <!-- truncate for large docs -->\n</document>\n\n<chunk>\n{chunk}\n</chunk>\n\nWrite a brief context paragraph that explains what this chunk is about,\nreferencing the broader document. Output only the context, no preamble.\"\"\"\n        }]\n    )\n    context = response.content[0].text\n    return f\"{context}\\n\\n{chunk}\"  # prepend context to chunk\n\n# Example\ndoc = \"Q3 2026 Financial Report for Acme Corp. Revenue grew 18% YoY...\"\nchunk = \"The growth rate accelerated to 42% in the enterprise segment.\"\n\ncontextual_chunk = add_context_to_chunk(doc, chunk)\nprint(contextual_chunk)\n# Output: \"This chunk is from Acme Corp's Q3 2026 financial report and discusses\n# enterprise revenue growth. The 42% refers to YoY growth in enterprise revenue.\n#\n# The growth rate accelerated to 42% in the enterprise segment.\""
     },
     {
       "type": "tip",
-      "text": "Always evaluate retrieval quality separately from generation quality. A bad retriever makes even the best LLM fail."
+      "text": "Always evaluate retrieval quality separately from generation quality. A bad retriever makes even the best LLM fail. Use RAGAS or a held-out Q&A set to measure retrieval recall before tuning the generation prompt."
+    },
+    {
+      "type": "warning",
+      "text": "Reranking adds ~200-500ms latency per query and costs additional API calls. Only add it when you have confirmed retrieval quality issues. Over-retrieve (top-20), rerank to top-5 — not the other way around."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the purpose of reranking?",
+          "question": "What is the purpose of reranking in a RAG pipeline?",
           "type": "multiple-choice",
           "options": [
-            "To reduce embedding costs",
-            "To re-score retrieved documents using a more accurate model for better relevance ordering",
-            "To split documents into chunks",
-            "To generate a summary"
+            "To reduce embedding costs by using a smaller model",
+            "To re-score a large candidate set with a more accurate cross-encoder for better relevance ordering",
+            "To split documents into smaller chunks",
+            "To generate a document summary before embedding"
           ],
           "correctAnswer": 1,
-          "explanation": "A reranker takes a large candidate set and re-scores them with a cross-encoder for more precise relevance ordering."
+          "explanation": "A reranker (cross-encoder) takes (query, document) pairs and outputs precise relevance scores — far more accurate than cosine similarity. It's applied to the top-20 candidates to select the top-5 for the LLM context."
+        },
+        {
+          "id": "q2",
+          "question": "Why does hybrid search outperform pure vector search for some queries?",
+          "type": "multiple-choice",
+          "options": [
+            "Vector search is slower",
+            "BM25 keyword matching finds exact terms (product codes, names) that semantic vectors miss",
+            "Hybrid search uses a larger embedding model",
+            "BM25 handles multilingual documents better"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Semantic vectors capture meaning but miss exact keyword matches. If a user searches for 'SKU-4821', vector search finds 'product' documents; BM25 finds the exact SKU. Hybrid search gets both."
+        },
+        {
+          "id": "q3",
+          "question": "What problem does contextual retrieval solve?",
+          "type": "multiple-choice",
+          "options": [
+            "Chunks that are too large to fit in the context window",
+            "Chunks that lose meaning in isolation because they refer to preceding content",
+            "Embedding model accuracy issues",
+            "Slow vector search performance"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Chunks like 'The value increased by 42%' are ambiguous without knowing what 'the value' refers to. Contextual retrieval prepends LLM-generated context to each chunk before embedding, preserving meaning."
         }
       ]
     }
@@ -56,23 +143,39 @@
   "faq": [
     {
       "q": "What is contextual retrieval?",
-      "a": "Anthropic's technique of prepending a contextual description to each chunk before embedding, so the embedding captures both the chunk and its document-level context."
+      "a": "Anthropic's technique of using an LLM to generate a short context description for each chunk and prepending it before embedding. This makes chunks self-contained and dramatically improves retrieval recall, especially for chunks that reference prior content."
+    },
+    {
+      "q": "What is Reciprocal Rank Fusion (RRF)?",
+      "a": "An algorithm to combine ranked lists from multiple retrieval methods (e.g. BM25 + vector). Each document gets a score = Σ 1/(k + rank), where k=60. Documents appearing high in multiple lists rank highest."
+    },
+    {
+      "q": "Should I always use reranking?",
+      "a": "Not necessarily. Measure your baseline retrieval quality first. Reranking adds 200-500ms and API cost. Use it when you confirm that precision at top-5 is low — when you're retrieving the right 20 but selecting the wrong 5."
     }
   ],
   "sources": [
     {
-      "name": "Contextual Retrieval",
+      "name": "Anthropic Contextual Retrieval",
       "url": "https://www.anthropic.com/news/contextual-retrieval",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Cohere Rerank 3",
+      "url": "https://docs.cohere.com/docs/rerank-2",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "enterprise search",
-      "multi-document Q&A"
+      "Enterprise search over product catalogs with both semantic and SKU search",
+      "Legal document retrieval where exact clause references must be found",
+      "Medical Q&A systems requiring high precision retrieval",
+      "Code search combining semantic meaning with exact function name matching"
     ],
     "examples": [
-      "Hybrid BM25 + vector search over a legal document corpus"
+      "A B2B SaaS support bot using hybrid search to find both semantically related docs and exact error code references",
+      "An enterprise knowledge base using contextual retrieval to prevent 'it increased by 42%' from being meaningless in isolation"
     ]
   }
 }

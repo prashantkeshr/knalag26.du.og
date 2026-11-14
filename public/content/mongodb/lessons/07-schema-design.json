@@ -1,19 +1,35 @@
 {
   "id": "07-schema-design",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "data-modeling",
   "title": "Schema Design Patterns",
   "subtitle": "Designing flexible yet efficient MongoDB schemas",
   "difficulty": "intermediate",
-  "estimatedMinutes": 15,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "mongodb.crud-delete"
-  ],
-  "skillsTaught": [
-    "mongodb.schema"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.crud-delete"],
+  "skillsTaught": ["mongodb.schema"],
+  "whyItExists": {
+    "problem": "MongoDB's flexibility is a double-edged sword. Without deliberate schema design, you end up with slow queries, oversized documents, unbounded arrays, and data that's difficult to query. Schema-free doesn't mean schema-less in practice.",
+    "solution": "Design your schema around how your application queries the data, not around normalizing relationships. The key decisions are embed vs. reference, and which patterns (bucket, computed, schema versioning) solve your specific access patterns.",
+    "whenToUse": "Think about schema design before writing any code. Consider: What are your most frequent queries? What data do you always read together? What data grows unboundedly? These questions drive embed vs. reference decisions.",
+    "whenNotToUse": "Don't over-engineer a schema for a prototype. MongoDB's flexibility means you can always migrate later. Start simple, then optimize based on real query patterns."
+  },
+  "explainModes": {
+    "beginner": "In a SQL database, you split data into separate tables and JOIN them. In MongoDB, you have two choices: put related data inside the same document (embed), or store it separately and link by ID (reference). Embedding is like putting a note inside an envelope; referencing is like writing the envelope's address instead.",
+    "simple": "MongoDB schema design has two strategies: embedding (store related data inside the same document) and referencing (store a foreign _id and look up separately). Embed for data you always read together. Reference for data that's shared, large, or grows unboundedly.",
+    "standard": "MongoDB schema design is query-driven, not normalized. The key patterns are: embed for 1-to-few relationships, reference for 1-to-many or shared data, bucket pattern for time-series, computed pattern for aggregated values, schema versioning for evolving structures.",
+    "technical": "MongoDB recommends a data model that maps to your application's access patterns. Embedding reduces latency by colocating data in one document read. Referencing requires multiple round-trips or a $lookup (aggregation join). The 16MB document size limit constrains embedding for arrays that grow over time.",
+    "deepDive": "The extended reference pattern precomputes JOIN results into the parent document (denormalization), trading write complexity for read speed. The bucket pattern groups time-series data into one document per time window (e.g., one doc per day per sensor), reducing document count from millions to thousands. The outlier pattern handles the few documents that break the pattern (like a celebrity's follower list). These patterns are described in the MongoDB Schema Design Anti-Patterns guide."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,27 +38,98 @@
     },
     {
       "type": "paragraph",
-      "text": "Even though MongoDB is schema-free, good schema design is critical for performance. The key question: embed or reference?"
+      "text": "Even though MongoDB is schema-flexible, good schema design is <strong>critical for performance</strong>. In SQL, you normalize data into tables to avoid duplication. In MongoDB, you design around your query patterns — sometimes duplicating data intentionally to make reads faster."
     },
     {
-      "type": "definition",
-      "term": "Embedding",
-      "definition": "Storing related data inside the same document. Reduces joins but can bloat documents."
+      "type": "paragraph",
+      "text": "The golden rule: <strong>data that is accessed together should be stored together</strong>. If you always load a blog post with its author's name, consider embedding the author's name inside the post document instead of doing a separate lookup."
     },
     {
-      "type": "definition",
-      "term": "Referencing",
-      "definition": "Storing the _id of related documents and looking them up separately. Equivalent to SQL foreign keys."
+      "type": "heading",
+      "level": 2,
+      "text": "Embedding vs Referencing"
+    },
+    {
+      "type": "comparison",
+      "title": "Embedding vs Referencing",
+      "a": {
+        "name": "Embedding",
+        "description": "Store related data inside the same document as a nested object or array",
+        "strengths": ["Single document read — no joins", "Atomic updates on the whole unit", "Faster reads for related data"],
+        "weaknesses": ["16MB document size limit", "Can't query embedded data as independent documents", "Duplication if same data in many documents"],
+        "useWhen": "Data is always read together, belongs to only one parent, and doesn't grow unboundedly (1-to-few)"
+      },
+      "b": {
+        "name": "Referencing",
+        "description": "Store the _id of related documents and look them up separately",
+        "strengths": ["No document size concerns", "Data can be updated in one place", "Related data queryable independently"],
+        "weaknesses": ["Multiple queries or $lookup required", "$lookup is slower than embedded reads", "No referential integrity enforcement"],
+        "useWhen": "Data is shared between many documents, can grow large, or needs to be queried and updated independently (1-to-many, N-N)"
+      }
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "schema.js",
-      "code": "// Embedding (good for 1-to-few relationships)\n{\n  _id: ObjectId(),\n  title: \"MongoDB Basics\",\n  tags: [\"nosql\", \"database\"],  // embedded array\n  author: { name: \"Alice\", email: \"alice@ex.com\" }  // embedded doc\n}\n\n// Referencing (good for 1-to-many)\n{\n  _id: ObjectId(),\n  title: \"Blog Post\",\n  authorId: ObjectId(\"...\")  // reference to users collection\n}"
+      "filename": "embed-vs-reference.js",
+      "code": "// EMBEDDING — 1-to-few (order with its items)\n// Good: items belong only to this order, always loaded together\n{\n  _id: ObjectId(),\n  orderId: 'ORD-001',\n  customerId: ObjectId('...'),\n  items: [                    // embedded array — OK for small, bounded arrays\n    { sku: 'ABC', qty: 2, price: 999 },\n    { sku: 'XYZ', qty: 1, price: 299 }\n  ],\n  total: 2297,\n  status: 'confirmed'\n}\n\n// REFERENCING — 1-to-many (user with their orders)\n// Bad to embed: a user could have thousands of orders over time\n{\n  _id: ObjectId(),\n  email: 'alice@example.com',\n  name: 'Alice'\n  // orders: [...] — DON'T embed, can grow unboundedly!\n  // Instead, store userId in each order document\n}\n\n// Orders collection — reference back to user\n{\n  _id: ObjectId(),\n  userId: ObjectId('...'),  // reference to users collection\n  total: 2297,\n  placedAt: new Date()\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Common Schema Patterns"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Pattern 1: Extended Reference (Denormalization)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Instead of referencing and joining, copy frequently-read fields from the referenced document into the parent. This avoids a join at read time."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "extended-reference.js",
+      "code": "// Pure reference — requires $lookup to get author name\n{\n  _id: ObjectId(),\n  title: 'MongoDB Schema Design',\n  authorId: ObjectId('...')  // must $lookup users collection\n}\n\n// Extended reference — author name copied in for fast reads\n{\n  _id: ObjectId(),\n  title: 'MongoDB Schema Design',\n  author: {\n    _id: ObjectId('...'),   // keep _id for linking\n    name: 'Alice Sharma',   // copied from users — no join needed!\n    avatar: '/avatars/alice.jpg'\n  }\n  // Note: if Alice changes her name, you must update this too\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Pattern 2: Computed Pattern"
+    },
+    {
+      "type": "paragraph",
+      "text": "Pre-compute and store frequently-read aggregated values to avoid expensive real-time aggregation."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "computed-pattern.js",
+      "code": "// Instead of computing average rating on every page load:\n// SELECT AVG(rating) FROM reviews WHERE productId = '...'\n\n// Store the computed values in the product document:\n{\n  _id: ObjectId(),\n  name: 'Wireless Headphones',\n  price: 2499,\n  // Pre-computed aggregates — updated whenever a review is added\n  ratings: {\n    average: 4.3,\n    count: 128,\n    sum: 550.4  // kept for recalculation accuracy\n  }\n}\n\n// When a new review is added, update atomically:\nawait products.updateOne(\n  { _id: productId },\n  {\n    $inc: { 'ratings.count': 1, 'ratings.sum': newRating },\n    $set: { 'ratings.average': (currentSum + newRating) / (currentCount + 1) }\n  }\n);"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Pattern 3: Bucket Pattern (Time-Series)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Group time-series data into time buckets (e.g., one document per hour per sensor) to reduce document count and enable efficient range queries."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "bucket-pattern.js",
+      "code": "// BAD: one document per measurement — millions of tiny documents\n{ sensorId: 'S1', timestamp: ISODate('2026-11-12T10:00:01Z'), temp: 22.5 }\n{ sensorId: 'S1', timestamp: ISODate('2026-11-12T10:00:02Z'), temp: 22.6 }\n// ... millions more\n\n// GOOD: bucket pattern — one document per hour per sensor\n{\n  sensorId: 'S1',\n  date: ISODate('2026-11-12T10:00:00Z'),  // hour bucket start\n  count: 3600,\n  measurements: [\n    { ts: ISODate('2026-11-12T10:00:01Z'), temp: 22.5 },\n    { ts: ISODate('2026-11-12T10:00:02Z'), temp: 22.6 },\n    // up to 3600 entries per document\n  ],\n  stats: { min: 22.1, max: 23.4, avg: 22.7 }  // computed\n}\n// Result: 24 documents per sensor per day instead of 86,400!"
+    },
+    {
+      "type": "warning",
+      "text": "Never store unbounded arrays in a document — arrays that grow forever will eventually hit MongoDB's 16MB document limit. If a list can grow beyond ~1000 items, use referencing or the bucket pattern instead."
     },
     {
       "type": "tip",
-      "text": "Embed when data is queried together. Reference when data is updated independently or is very large."
+      "text": "MongoDB provides a native Time Series collection type (since 5.0) that automatically applies the bucket pattern for you. Consider using it for IoT sensor data or analytics events instead of building the bucket pattern manually."
     },
     {
       "type": "quiz",
@@ -52,13 +139,39 @@
           "question": "When should you embed a document instead of referencing?",
           "type": "multiple-choice",
           "options": [
-            "When the sub-document is shared across many documents",
-            "When data is always queried together and rarely changes independently",
+            "When the sub-document is shared across many parent documents",
+            "When data is always queried together and the array is bounded in size",
             "When the array can grow unboundedly",
-            "When you need strict consistency"
+            "When you need strict consistency across documents"
           ],
           "correctAnswer": 1,
-          "explanation": "Embedding is best when the related data is always read together and belongs to one parent."
+          "explanation": "Embedding is best when related data is always read together and belongs to only one parent. Avoid embedding if the array can grow without bound — it will eventually hit the 16MB document limit."
+        },
+        {
+          "id": "q2",
+          "question": "What problem does the Computed Pattern solve?",
+          "type": "multiple-choice",
+          "options": [
+            "Documents growing too large",
+            "Expensive real-time aggregations on every read",
+            "Missing foreign key constraints",
+            "Storing binary data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The Computed Pattern pre-calculates aggregate values (like ratings.average) and stores them in the document, so reads don't need to run expensive aggregations on every request."
+        },
+        {
+          "id": "q3",
+          "question": "A document in MongoDB can be at most how large?",
+          "type": "multiple-choice",
+          "options": [
+            "1 MB",
+            "16 MB",
+            "64 MB",
+            "Unlimited"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MongoDB documents are limited to 16 MB. This limit is a key reason to avoid embedding unbounded arrays and to use referencing or the bucket pattern for large collections."
         }
       ]
     }
@@ -66,23 +179,39 @@
   "faq": [
     {
       "q": "Can a MongoDB document have size limits?",
-      "a": "Yes. A single document cannot exceed 16 MB. For large arrays that grow over time, referencing is safer."
+      "a": "Yes. A single BSON document cannot exceed 16 MB. For large arrays that grow over time (like all comments on a popular post), use referencing (store post_id in each comment) or the bucket pattern rather than embedding."
+    },
+    {
+      "q": "Should I normalize my data like SQL, or denormalize in MongoDB?",
+      "a": "MongoDB favors denormalization (embedding related data) for read-heavy workloads. Duplication is acceptable when it means avoiding slow joins. However, if the same data needs to be updated in many places, referencing is better to avoid consistency problems."
+    },
+    {
+      "q": "Does MongoDB enforce schema rules?",
+      "a": "Not by default, but you can use JSON Schema validation on a collection: db.createCollection('users', { validator: { $jsonSchema: { ... } } }). This lets you require certain fields and enforce types while still allowing flexibility."
     }
   ],
   "sources": [
     {
       "name": "Data Model Design",
       "url": "https://www.mongodb.com/docs/manual/core/data-model-design/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Schema Design Patterns",
+      "url": "https://www.mongodb.com/blog/post/building-with-patterns-a-summary",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "e-commerce",
-      "blogging platforms"
+      "E-commerce (order documents with embedded line items)",
+      "Blogging platforms (posts with embedded author reference copy)",
+      "IoT time-series (bucket pattern for sensor data)"
     ],
     "examples": [
-      "Embedding order items in an order document"
+      "Amazon-style order: embed line items (bounded), reference customer (shared, can update address independently)",
+      "Blog post: embed author name/avatar (read-always), reference author._id (for profile page link)",
+      "Sensor data: bucket by hour — from 86,400 docs/day to 24 docs/day, enabling fast range queries"
     ]
   }
 }

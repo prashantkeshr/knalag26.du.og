@@ -1,44 +1,126 @@
 {
   "id": "02-installation",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-basics",
   "title": "Installing MongoDB",
   "subtitle": "Setting up MongoDB locally and connecting with mongosh",
   "difficulty": "beginner",
-  "estimatedMinutes": 8,
+  "estimatedMinutes": 12,
   "status": "published",
-  "prerequisites": [
-    "mongodb.basics"
-  ],
-  "skillsTaught": [
-    "mongodb.setup"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.basics"],
+  "skillsTaught": ["mongodb.setup"],
+  "whyItExists": {
+    "problem": "Before you can use MongoDB, you need a running server and a way to interact with it. Setting up MongoDB correctly on your OS avoids common connection and authentication issues.",
+    "solution": "MongoDB provides official installers for all major platforms, plus mongosh (the modern MongoDB Shell) for interactive queries. MongoDB Atlas provides a free cloud cluster that requires zero local installation.",
+    "whenToUse": "Local installation for full control and offline development. MongoDB Atlas for cloud development, team collaboration, and production deployments.",
+    "whenNotToUse": "Don't install MongoDB locally just to try it — MongoDB Atlas free tier gives you a real cluster with no setup. Local install is best when you need offline access or OS-level control."
+  },
+  "explainModes": {
+    "beginner": "Installing MongoDB is like installing any other program. Once installed, you start the MongoDB server, then use 'mongosh' (the shell) to type commands to it — like a command prompt for your database.",
+    "simple": "MongoDB has a server (mongod) and a shell (mongosh). You install the server, start it, then use mongosh to run JavaScript commands against your data.",
+    "standard": "MongoDB Community Edition runs as a system service (mongod). You interact with it via mongosh, the Node.js-based interactive shell. MongoDB Atlas provides a free cloud cluster as an alternative to local installation.",
+    "technical": "mongod is the MongoDB server daemon that listens on port 27017 by default. mongosh is a REPL built on Node.js v8 that supports modern JavaScript, async/await, and built-in helper methods. The MongoDB Driver (for Node.js, Python, etc.) connects to mongod via the MongoDB Wire Protocol.",
+    "deepDive": "The MongoDB Wire Protocol is a TCP-based protocol. MongoDB 7.x uses a compressed wire protocol with snappy or zlib. mongosh uses the MongoDB Node.js driver internally. The mongod process manages the WiredTiger storage engine, journal, and network layer. Data files are stored in /var/lib/mongodb (Linux) or C:/data/db (Windows) by default, with one .wt file per collection."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Install MongoDB Community Edition"
+      "text": "Three Ways to Get MongoDB"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>MongoDB Atlas (Cloud)</strong> — Free tier, zero install, runs in the browser. Best for learning.",
+        "<strong>Local Install</strong> — Full control, works offline. Good for active development.",
+        "<strong>Docker</strong> — Run MongoDB in a container. Best for CI/CD and reproducible environments."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Option 1: MongoDB Atlas (Recommended for Beginners)"
     },
     {
       "type": "paragraph",
-      "text": "MongoDB Community Edition is free and runs on Windows, macOS, and Linux. For development, MongoDB Atlas offers a free cloud cluster."
+      "text": "MongoDB Atlas is the cloud-hosted version of MongoDB. The <strong>M0 free tier</strong> gives you 512 MB of storage and a fully managed 3-node replica set at no cost. No credit card required."
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Go to mongodb.com/cloud/atlas and sign up",
+        "Create a free M0 cluster (choose any cloud provider and region)",
+        "Add your IP address to the IP Access List",
+        "Create a database user with a username and password",
+        "Click 'Connect' and copy your connection string"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Option 2: Install Locally"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# macOS (Homebrew)\nbrew tap mongodb/brew\nbrew install mongodb-community\nbrew services start mongodb-community\n\n# Windows: download installer from mongodb.com/try/download"
+      "filename": "install.sh",
+      "code": "# macOS (Homebrew)\nbrew tap mongodb/brew\nbrew install mongodb-community@7.0\nbrew services start mongodb-community@7.0\n\n# Ubuntu / Debian Linux\nwget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -\necho \"deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse\" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list\nsudo apt-get update && sudo apt-get install -y mongodb-org\nsudo systemctl start mongod\nsudo systemctl enable mongod  # auto-start on boot\n\n# Windows: Download the .msi installer from\n# https://www.mongodb.com/try/download/community"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Option 3: Docker (Quickest for Dev)"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Connect with mongosh\nmongosh\n# or connect to a URI\nmongosh \"mongodb://localhost:27017\""
+      "filename": "docker.sh",
+      "code": "# Start MongoDB in Docker with persistent data\ndocker run -d \\\n  --name mongodb \\\n  -p 27017:27017 \\\n  -e MONGO_INITDB_ROOT_USERNAME=admin \\\n  -e MONGO_INITDB_ROOT_PASSWORD=password \\\n  -v mongodb_data:/data/db \\\n  mongo:7.0\n\n# Verify it's running\ndocker ps\n\n# Stop and remove\ndocker stop mongodb && docker rm mongodb"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using mongosh (the MongoDB Shell)"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>mongosh</strong> is the official MongoDB Shell — a modern, Node.js-based REPL that supports full JavaScript including async/await. Install it separately from the MongoDB server."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "mongosh.sh",
+      "code": "# Install mongosh\nnpm install -g mongosh          # via npm\nbrew install mongosh             # macOS\n\n# Connect to local MongoDB\nmongosh\n# or explicitly\nmongosh \"mongodb://localhost:27017\"\n\n# Connect to Atlas\nmongosh \"mongodb+srv://username:password@cluster.mongodb.net/mydb\"\n\n# Connect to Docker MongoDB\nmongosh \"mongodb://admin:password@localhost:27017\" --authenticationDatabase admin"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "mongosh-basics.js",
+      "code": "// Inside mongosh — these are JavaScript commands\n\n// List all databases\nshow dbs\n\n// Switch to (or create) a database\nuse myapp\n\n// Show current database\ndb\n\n// List collections in current database\nshow collections\n\n// Quick test insert\ndb.test.insertOne({ hello: 'world' })\n\n// Find it back\ndb.test.findOne()"
     },
     {
       "type": "tip",
-      "text": "Use MongoDB Atlas Free Tier for zero-install cloud development."
+      "text": "mongosh is a full JavaScript environment — you can use variables, loops, and async/await. Try: const result = await db.users.findOne(); console.log(result.name)"
+    },
+    {
+      "type": "warning",
+      "text": "On a fresh local install, MongoDB has NO authentication enabled. Never deploy to production without enabling authentication. See the Security lesson for how to secure MongoDB."
+    },
+    {
+      "type": "playground",
+      "lang": "javascript",
+      "title": "Simulate mongosh Commands",
+      "starterCode": "// This simulates what you'd run in mongosh\n// In a real terminal, these would run against an actual MongoDB server\n\n// Simulated database state\nconst db = {\n  users: [],\n  products: []\n};\n\n// Simulate insertOne\nfunction insertOne(collection, doc) {\n  const newDoc = { _id: Math.random().toString(36).slice(2), ...doc };\n  db[collection].push(newDoc);\n  return { acknowledged: true, insertedId: newDoc._id };\n}\n\n// Simulate findOne\nfunction findOne(collection, filter = {}) {\n  return db[collection].find(doc =>\n    Object.entries(filter).every(([k, v]) => doc[k] === v)\n  ) || null;\n}\n\n// Try it out\nconsole.log(insertOne('users', { name: 'Alice', email: 'alice@example.com' }));\nconsole.log(insertOne('users', { name: 'Bob', email: 'bob@example.com' }));\nconsole.log('Find Alice:', findOne('users', { name: 'Alice' }));\nconsole.log('All users:', db.users);"
     },
     {
       "type": "quiz",
@@ -48,13 +130,39 @@
           "question": "What is mongosh?",
           "type": "multiple-choice",
           "options": [
-            "A MongoDB GUI",
-            "The MongoDB shell for running commands",
-            "A backup tool",
-            "A schema validator"
+            "A MongoDB GUI application",
+            "The official MongoDB interactive shell",
+            "A MongoDB backup tool",
+            "A schema validation library"
           ],
           "correctAnswer": 1,
-          "explanation": "mongosh is the MongoDB Shell — an interactive JavaScript environment for MongoDB."
+          "explanation": "mongosh is the MongoDB Shell — a Node.js-based interactive JavaScript REPL for running MongoDB commands."
+        },
+        {
+          "id": "q2",
+          "question": "What is the default port MongoDB listens on?",
+          "type": "multiple-choice",
+          "options": [
+            "3000",
+            "5432",
+            "27017",
+            "8080"
+          ],
+          "correctAnswer": 2,
+          "explanation": "MongoDB listens on port 27017 by default. This is the standard MongoDB port used by all drivers and tools."
+        },
+        {
+          "id": "q3",
+          "question": "Which command in mongosh switches to a database called 'myapp'?",
+          "type": "multiple-choice",
+          "options": [
+            "connect myapp",
+            "switch myapp",
+            "db.use('myapp')",
+            "use myapp"
+          ],
+          "correctAnswer": 3,
+          "explanation": "The 'use <database>' command in mongosh switches to that database (and creates it lazily on first insert)."
         }
       ]
     }
@@ -62,23 +170,39 @@
   "faq": [
     {
       "q": "How do I connect to Atlas from mongosh?",
-      "a": "Use mongosh with the connection string from the Atlas Connect dialog, e.g. mongosh \"mongodb+srv://user:pass@cluster.mongodb.net/mydb\""
+      "a": "Use mongosh with the connection string from the Atlas Connect dialog, e.g. mongosh \"mongodb+srv://user:pass@cluster.mongodb.net/mydb\". You can find this string in your Atlas cluster's 'Connect' dialog under 'Connect with the MongoDB Shell'."
+    },
+    {
+      "q": "What is the difference between mongod and mongosh?",
+      "a": "mongod is the MongoDB database server process — it manages data files and listens for connections. mongosh is the client shell you use to send commands to mongod. You need mongod running before you can connect with mongosh."
+    },
+    {
+      "q": "Should I use MongoDB Atlas or install locally?",
+      "a": "For learning and small projects, Atlas free tier (M0) is the easiest path — no installation, automatic backups, and free forever. For production, Atlas provides managed infrastructure. Install locally only when you need offline access or OS-level control over the database."
     }
   ],
   "sources": [
     {
-      "name": "Install MongoDB",
+      "name": "Install MongoDB Community",
       "url": "https://www.mongodb.com/docs/manual/installation/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "mongosh Documentation",
+      "url": "https://www.mongodb.com/docs/mongodb-shell/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "local development",
-      "CI pipelines"
+      "Local development environments",
+      "Docker-based CI/CD pipelines",
+      "MongoDB Atlas production clusters"
     ],
     "examples": [
-      "Running MongoDB in Docker for integration tests"
+      "Running MongoDB in Docker Compose for integration tests with a fresh database on each run",
+      "Using mongosh in CI pipelines to seed test data or run migrations",
+      "Connecting to Atlas M0 free cluster for a side project with zero ops overhead"
     ]
   }
 }

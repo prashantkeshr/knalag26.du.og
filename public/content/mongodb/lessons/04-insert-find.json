@@ -1,19 +1,35 @@
 {
   "id": "04-insert-find",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "crud-operations",
   "title": "Inserting and Finding Documents",
   "subtitle": "insertOne, insertMany, find, and projection",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "mongodb.data-model"
-  ],
-  "skillsTaught": [
-    "mongodb.crud-read"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.data-model"],
+  "skillsTaught": ["mongodb.crud-read"],
+  "whyItExists": {
+    "problem": "Every application needs to create and retrieve data. MongoDB's insert and find operations are the foundation of all database work. Understanding filters, projections, cursors, and query operators is essential for building any real application.",
+    "solution": "MongoDB provides insertOne, insertMany for writes, and find/findOne for reads. The find() method accepts a filter object and a projection object, giving you fine-grained control over which documents and which fields to return.",
+    "whenToUse": "insertOne for single-document writes, insertMany for batch imports. find() for listing and searching, findOne() for looking up a single document by ID or unique field.",
+    "whenNotToUse": "Don't use find() without a filter on large collections — it returns all documents and can overwhelm your application. Always add a filter or at least a .limit()."
+  },
+  "explainModes": {
+    "beginner": "insert is like adding a new row to a spreadsheet. find is like searching the spreadsheet. With MongoDB, you just pass a JSON object describing what you're looking for, like { name: 'Alice' } to find everyone named Alice.",
+    "simple": "insertOne() adds a single document. insertMany() adds multiple at once. find() searches for documents matching a filter. findOne() returns just the first match. Add a projection to control which fields come back.",
+    "standard": "MongoDB's read operations use filter objects for query predicates and projection objects for field selection. find() returns a cursor — a lazy iterator — which you call .toArray() or iterate with for-await-of. Query operators like $gt, $in, and $regex allow complex filtering.",
+    "technical": "find() sends a query to the MongoDB server which applies the filter, projection, sort, skip, and limit server-side before returning results. The cursor object in the driver is lazy — it only fetches documents when iterated. MongoDB uses index scan (IXSCAN) when suitable indexes exist, otherwise falls back to COLLSCAN.",
+    "deepDive": "MongoDB's query planner evaluates multiple query plans in parallel using a 'trial period' — it runs all candidate plans and picks the fastest (by number of keys examined or documents examined). The winning plan is cached in the plan cache keyed by the query shape. Projections are pushed down to the storage engine — with covered queries (all projected fields in an index), MongoDB never reads documents at all, only the index."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,13 +38,17 @@
     },
     {
       "type": "paragraph",
-      "text": "Use insertOne() to add one document and insertMany() to add multiple documents at once."
+      "text": "MongoDB provides two insert methods: <code>insertOne()</code> for a single document and <code>insertMany()</code> for multiple documents at once. Both return an acknowledgement with the inserted <code>_id</code>(s)."
     },
     {
       "type": "code",
       "lang": "javascript",
       "filename": "insert.js",
-      "code": "const db = client.db(\"shop\");\nconst products = db.collection(\"products\");\n\n// Insert one\nawait products.insertOne({ name: \"Laptop\", price: 999, inStock: true });\n\n// Insert many\nawait products.insertMany([\n  { name: \"Mouse\", price: 25 },\n  { name: \"Keyboard\", price: 75 }\n]);"
+      "code": "const { MongoClient, ObjectId } = require('mongodb');\n\nconst client = new MongoClient('mongodb://localhost:27017');\nawait client.connect();\n\nconst db = client.db('shop');\nconst products = db.collection('products');\n\n// Insert one document\nconst r1 = await products.insertOne({\n  name: 'Wireless Headphones',\n  price: 2499,\n  category: 'Electronics',\n  inStock: true,\n  tags: ['audio', 'wireless'],\n  createdAt: new Date()\n});\nconsole.log('Inserted:', r1.insertedId); // ObjectId\n\n// Insert many documents at once (more efficient than multiple insertOne calls)\nconst r2 = await products.insertMany([\n  { name: 'USB-C Hub',    price: 1299, category: 'Electronics', inStock: true  },\n  { name: 'Mouse Pad',    price:  299, category: 'Accessories', inStock: true  },\n  { name: 'Laptop Stand', price:  899, category: 'Accessories', inStock: false }\n]);\nconsole.log('Inserted:', r2.insertedCount, 'documents');\nconsole.log('IDs:', Object.values(r2.insertedIds));"
+    },
+    {
+      "type": "tip",
+      "text": "insertMany() is much faster than calling insertOne() in a loop — it sends all documents in a single network request. For bulk imports, use insertMany() with batches of 500–1000 documents."
     },
     {
       "type": "heading",
@@ -37,13 +57,64 @@
     },
     {
       "type": "paragraph",
-      "text": "find() returns a cursor. Use findOne() to get the first match."
+      "text": "<code>find()</code> returns a <strong>cursor</strong> — a lazy iterator over matching documents. Call <code>.toArray()</code> to get all results as an array, or iterate with <code>for await...of</code> for memory-efficient streaming. Use <code>findOne()</code> to get just the first matching document."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "find.js",
-      "code": "// Find all in-stock products\nconst cursor = products.find({ inStock: true });\nconst items = await cursor.toArray();\n\n// Projection: only return name and price\nconst names = await products.find({}, { projection: { name: 1, price: 1, _id: 0 } }).toArray();"
+      "filename": "find-basic.js",
+      "code": "// Find ALL products (careful on large collections!)\nconst all = await products.find({}).toArray();\n\n// Find with a filter — only in-stock products\nconst inStock = await products.find({ inStock: true }).toArray();\n\n// Find one document\nconst laptop = await products.findOne({ name: 'Wireless Headphones' });\n\n// Find by _id (must wrap string in ObjectId)\nconst { ObjectId } = require('mongodb');\nconst byId = await products.findOne({\n  _id: new ObjectId('6752ab3f1234567890abcdef')\n});\n\n// Iterate with cursor (memory-efficient for large result sets)\nconst cursor = products.find({ category: 'Electronics' });\nfor await (const doc of cursor) {\n  console.log(doc.name, doc.price);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Query Operators"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB provides comparison and logical operators to build complex queries. Prefix operators with <code>$</code>."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "query-operators.js",
+      "code": "// Comparison operators\nawait products.find({ price: { $gt: 500 } }).toArray();        // price > 500\nawait products.find({ price: { $gte: 500, $lte: 2000 } }).toArray(); // 500 <= price <= 2000\nawait products.find({ price: { $ne: 299 } }).toArray();        // price != 299\nawait products.find({ category: { $in: ['Electronics', 'Accessories'] } }).toArray(); // in list\nawait products.find({ category: { $nin: ['Clothing'] } }).toArray(); // not in list\n\n// Logical operators\nawait products.find({\n  $and: [\n    { price: { $lt: 1000 } },\n    { inStock: true }\n  ]\n}).toArray();\n\nawait products.find({\n  $or: [\n    { category: 'Electronics' },\n    { price: { $lt: 400 } }\n  ]\n}).toArray();\n\n// Field existence\nawait products.find({ tags: { $exists: true } }).toArray(); // has 'tags' field\n\n// Regex search\nawait products.find({ name: { $regex: /^wire/i } }).toArray(); // starts with 'wire'"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Projections — Controlling Returned Fields"
+    },
+    {
+      "type": "paragraph",
+      "text": "A <strong>projection</strong> is the second argument to <code>find()</code>. Use <code>1</code> to include a field and <code>0</code> to exclude it. You cannot mix inclusions and exclusions (except for <code>_id</code>)."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "projection.js",
+      "code": "// Include only name and price (exclude everything else)\nconst names = await products.find(\n  { inStock: true },\n  { projection: { name: 1, price: 1 } }  // _id is included by default\n).toArray();\n// Result: [{ _id: ObjectId(...), name: 'Headphones', price: 2499 }, ...]\n\n// Exclude _id\nconst withoutId = await products.find(\n  {},\n  { projection: { name: 1, price: 1, _id: 0 } }  // _id: 0 is the ONLY allowed exclusion with inclusions\n).toArray();\n\n// Exclude specific fields (return everything except these)\nconst withoutDates = await products.find(\n  {},\n  { projection: { createdAt: 0, updatedAt: 0 } }  // exclude only these fields\n).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sorting, Limiting, and Skipping"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "sort-limit.js",
+      "code": "// Sort by price ascending (1) or descending (-1)\nconst cheapest = await products\n  .find({ inStock: true })\n  .sort({ price: 1 })\n  .toArray();\n\n// Limit results\nconst top5 = await products\n  .find({})\n  .sort({ price: -1 })\n  .limit(5)\n  .toArray();\n\n// Pagination with skip + limit\nconst page = 2;\nconst pageSize = 10;\nconst results = await products\n  .find({})\n  .sort({ _id: 1 })\n  .skip((page - 1) * pageSize)\n  .limit(pageSize)\n  .toArray();\n\n// Count matching documents\nconst count = await products.countDocuments({ category: 'Electronics' });"
+    },
+    {
+      "type": "warning",
+      "text": "Avoid large skip() values for pagination — MongoDB must scan and discard all skipped documents. For large datasets, use cursor-based pagination instead: query documents where _id > lastSeenId (much more efficient)."
+    },
+    {
+      "type": "playground",
+      "lang": "javascript",
+      "title": "Query a Product Catalog",
+      "starterCode": "// Simulate a MongoDB products collection\nconst products = [\n  { _id: 1, name: 'Wireless Headphones', price: 2499, category: 'Electronics', inStock: true },\n  { _id: 2, name: 'USB-C Hub', price: 1299, category: 'Electronics', inStock: true },\n  { _id: 3, name: 'Mouse Pad', price: 299, category: 'Accessories', inStock: true },\n  { _id: 4, name: 'Laptop Stand', price: 899, category: 'Accessories', inStock: false },\n  { _id: 5, name: 'Mechanical Keyboard', price: 3499, category: 'Electronics', inStock: true },\n];\n\n// Simulate find() with filter\nfunction find(collection, filter = {}) {\n  return collection.filter(doc =>\n    Object.entries(filter).every(([key, value]) => {\n      if (typeof value === 'object' && value !== null) {\n        if ('$gt' in value) return doc[key] > value.$gt;\n        if ('$gte' in value) return doc[key] >= value.$gte;\n        if ('$lt' in value) return doc[key] < value.$lt;\n        if ('$in' in value) return value.$in.includes(doc[key]);\n      }\n      return doc[key] === value;\n    })\n  );\n}\n\n// Try different queries:\nconsole.log('In-stock items:', find(products, { inStock: true }).map(p => p.name));\nconsole.log('Electronics:', find(products, { category: 'Electronics' }).map(p => p.name));\nconsole.log('Price > 1000:', find(products, { price: { $gt: 1000 } }).map(p => p.name));\nconsole.log('Multiple categories:', find(products, { category: { $in: ['Electronics', 'Accessories'] } }).map(p => p.name));"
     },
     {
       "type": "quiz",
@@ -54,12 +125,38 @@
           "type": "multiple-choice",
           "options": [
             "Filters which documents to return",
-            "Selects which fields to include or exclude",
+            "Selects which fields to include or exclude in results",
             "Sorts the results",
-            "Limits the query"
+            "Limits the number of results"
           ],
           "correctAnswer": 1,
-          "explanation": "Projections control which fields appear in the query result."
+          "explanation": "Projections control which fields appear in the query result — use 1 to include and 0 to exclude. The filter (first argument) controls which documents are returned."
+        },
+        {
+          "id": "q2",
+          "question": "Which operator finds documents where price is between 500 and 1000?",
+          "type": "multiple-choice",
+          "options": [
+            "{ price: { $between: [500, 1000] } }",
+            "{ price: { $gte: 500, $lte: 1000 } }",
+            "{ price: 500..1000 }",
+            "{ $range: { price: [500, 1000] } }"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MongoDB uses $gte (greater than or equal) and $lte (less than or equal) operators. There is no $between operator."
+        },
+        {
+          "id": "q3",
+          "question": "What does find() return?",
+          "type": "multiple-choice",
+          "options": [
+            "An array of documents immediately",
+            "A cursor (lazy iterator)",
+            "A Promise that resolves to null",
+            "A single document"
+          ],
+          "correctAnswer": 1,
+          "explanation": "find() returns a Cursor — a lazy iterator. Call .toArray() to fetch all results, or iterate with for-await-of for memory-efficient streaming of large result sets."
         }
       ]
     }
@@ -67,23 +164,39 @@
   "faq": [
     {
       "q": "How do I find documents by _id?",
-      "a": "Use findOne({ _id: new ObjectId(\"507f1f77bcf86cd799439011\") }) — you must wrap the string in ObjectId()."
+      "a": "Use findOne({ _id: new ObjectId('507f1f77bcf86cd799439011') }) — you must wrap the hex string in ObjectId(). Without the wrapper, MongoDB will compare the string to the ObjectId, which never matches."
+    },
+    {
+      "q": "What is the difference between find() and findOne()?",
+      "a": "find() returns a cursor over all matching documents. findOne() returns just the first matching document (or null if none found). Use findOne() when you expect exactly one result, like a user by email."
+    },
+    {
+      "q": "How do I count documents without returning them?",
+      "a": "Use collection.countDocuments(filter) for an accurate count with a filter, or collection.estimatedDocumentCount() for a fast approximate total count of the whole collection."
     }
   ],
   "sources": [
     {
       "name": "Query Documents",
       "url": "https://www.mongodb.com/docs/manual/tutorial/query-documents/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Query and Projection Operators",
+      "url": "https://www.mongodb.com/docs/manual/reference/operator/query/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "product listings",
-      "user lookups"
+      "Product listings in e-commerce",
+      "User profile lookups in social apps",
+      "Search APIs returning filtered results"
     ],
     "examples": [
-      "Building a search API with MongoDB find and projection"
+      "Building a product search API: find({ $text: { $search: query }, inStock: true }).sort({ score: -1 }).limit(20)",
+      "User authentication: findOne({ email: input.email }) — then verify password hash",
+      "Paginated admin dashboard: find({}).sort({ createdAt: -1 }).skip(offset).limit(pageSize)"
     ]
   }
 }

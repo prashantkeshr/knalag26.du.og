@@ -1,45 +1,113 @@
 {
   "id": "05-update",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "crud-operations",
   "title": "Updating Documents",
   "subtitle": "updateOne, updateMany, upsert, and update operators",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "mongodb.crud-read"
-  ],
-  "skillsTaught": [
-    "mongodb.crud-update"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["mongodb.crud-read"],
+  "skillsTaught": ["mongodb.crud-update"],
+  "whyItExists": {
+    "problem": "Updating a database record often means changing just one or two fields — not replacing the entire document. Sending the whole document back wastes bandwidth and risks overwriting concurrent changes.",
+    "solution": "MongoDB's update operators ($set, $inc, $push, $pull, etc.) perform surgical updates on specific fields. You describe what to change, not the full replacement document. This is atomic at the document level.",
+    "whenToUse": "Use $set to update specific fields, $inc to increment counters, $push/$pull to modify arrays, $unset to remove fields. Use updateMany() for batch updates and upsert for create-or-update patterns.",
+    "whenNotToUse": "If you need to completely replace a document (not just some fields), use replaceOne() instead of updateOne() with $set. Never update the _id field — it is immutable after insertion."
+  },
+  "explainModes": {
+    "beginner": "Updating in MongoDB is like editing one cell in a spreadsheet without touching the rest of the row. You say 'change just the price to 899' and MongoDB changes only that field, leaving everything else untouched.",
+    "simple": "MongoDB update operators modify specific fields: $set changes a field's value, $inc increments a number, $push adds to an array, $pull removes from an array. updateOne() changes one document, updateMany() changes all matches.",
+    "standard": "MongoDB updates use an operator-based syntax where you describe the mutation, not the replacement. Operations are atomic at the document level — no partial updates. The upsert option inserts the document if no match is found.",
+    "technical": "MongoDB update operations are atomic at the single-document level. For multi-document atomicity, use transactions. The updateOne() and updateMany() methods accept a filter, an update document with operators, and options like upsert, arrayFilters, and hint. findOneAndUpdate() atomically updates and returns either the before or after document.",
+    "deepDive": "MongoDB's update operators are translated into internal mutation operations on the WiredTiger document. The oplog records each update as an idempotent operation using $set syntax, enabling replication. The $set operator creates a field if it doesn't exist. Update operators can be combined in a single update document — { $set: { field: v }, $inc: { counter: 1 } } — and they all execute atomically."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Update Operators"
+      "text": "Update Methods"
     },
     {
       "type": "paragraph",
-      "text": "MongoDB update operators like $set, $inc, and $push modify specific fields without replacing the whole document."
+      "text": "MongoDB provides four update methods: <code>updateOne()</code> modifies the first matching document, <code>updateMany()</code> modifies all matches, <code>replaceOne()</code> replaces the entire document (keeping the _id), and <code>findOneAndUpdate()</code> returns the document before or after updating it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Common Update Operators"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "update.js",
-      "code": "// Set a field\nawait products.updateOne(\n  { name: \"Laptop\" },\n  { $set: { price: 899 } }\n);\n\n// Increment a counter\nawait products.updateOne(\n  { _id: id },\n  { $inc: { views: 1 } }\n);\n\n// Upsert: insert if not found\nawait products.updateOne(\n  { sku: \"ABC123\" },\n  { $set: { name: \"Widget\", price: 10 } },\n  { upsert: true }\n);"
+      "filename": "update-operators.js",
+      "code": "const products = db.collection('products');\n\n// $set — set one or more field values\nawait products.updateOne(\n  { name: 'Wireless Headphones' },   // filter\n  { $set: { price: 2199, inStock: true, updatedAt: new Date() } }\n);\n\n// $unset — remove a field\nawait products.updateOne(\n  { name: 'USB-C Hub' },\n  { $unset: { oldField: '' } }  // value doesn't matter\n);\n\n// $inc — increment (or decrement) a numeric field atomically\nawait products.updateOne(\n  { _id: productId },\n  { $inc: { views: 1, stock: -1 } }  // increment views, decrement stock\n);\n\n// $mul — multiply a numeric field\nawait products.updateMany(\n  { category: 'Electronics' },\n  { $mul: { price: 0.9 } }  // apply 10% discount to all electronics\n);\n\n// $min / $max — only update if new value is less/greater than current\nawait products.updateOne(\n  { _id: productId },\n  { $max: { highestPrice: 2999 } }  // only sets if 2999 > current highestPrice\n);"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Array Update Operators"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "array-updates.js",
+      "code": "// $push — add element to array\nawait users.updateOne(\n  { email: 'alice@example.com' },\n  { $push: { tags: 'premium' } }\n);\n\n// $addToSet — add to array only if not already present (like a set)\nawait users.updateOne(\n  { email: 'alice@example.com' },\n  { $addToSet: { roles: 'editor' } }  // won't add duplicates\n);\n\n// $pull — remove all elements matching a condition\nawait users.updateOne(\n  { email: 'alice@example.com' },\n  { $pull: { tags: 'trial' } }  // remove 'trial' from tags array\n);\n\n// $pop — remove first (-1) or last (1) element\nawait users.updateOne(\n  { email: 'alice@example.com' },\n  { $pop: { recentActivity: 1 } }  // remove last activity log entry\n);\n\n// $push with $each — add multiple elements at once\nawait users.updateOne(\n  { email: 'alice@example.com' },\n  { $push: { tags: { $each: ['vip', 'newsletter'], $slice: -10 } } }\n  // $slice keeps only last 10 tags (auto-trims the array)\n);"
     },
     {
       "type": "tip",
-      "text": "$set only modifies the specified fields; using {} without an operator replaces the entire document."
+      "text": "Use $addToSet instead of $push when you want array elements to remain unique. $push always appends, even if the value already exists."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Upsert — Create or Update"
+    },
+    {
+      "type": "paragraph",
+      "text": "An <strong>upsert</strong> (update + insert) inserts the document if no match is found, or updates it if a match exists. Set <code>{ upsert: true }</code> as the third argument."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "upsert.js",
+      "code": "// Upsert: creates a pageView record if it doesn't exist,\n// or increments the counter if it does\nconst result = await pageViews.updateOne(\n  { url: '/home', date: todayString },      // filter\n  { $inc: { views: 1 }, $setOnInsert: { createdAt: new Date() } },\n  { upsert: true }                          // create if not found\n);\n\nif (result.upsertedCount > 0) {\n  console.log('Created new record:', result.upsertedId);\n} else {\n  console.log('Updated existing record');\n}\n\n// $setOnInsert only sets fields when a new document is inserted (not on update)\nawait users.updateOne(\n  { email: 'newuser@example.com' },\n  {\n    $set: { lastSeen: new Date() },              // always update lastSeen\n    $setOnInsert: { createdAt: new Date(), role: 'user' }  // only on insert\n  },\n  { upsert: true }\n);"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "findOneAndUpdate — Atomic Read-Modify"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "find-and-update.js",
+      "code": "// Get the document AFTER the update (returnDocument: 'after')\nconst updated = await products.findOneAndUpdate(\n  { _id: productId },\n  { $inc: { stock: -1 } },\n  { returnDocument: 'after' }  // 'before' returns the original\n);\nconsole.log('New stock level:', updated.stock);\n\n// Use case: claim a task from a queue atomically\n// No race condition — the update is atomic\nconst task = await tasks.findOneAndUpdate(\n  { status: 'pending' },\n  { $set: { status: 'processing', worker: workerId, startedAt: new Date() } },\n  { sort: { priority: -1 }, returnDocument: 'after' }  // process highest priority first\n);"
+    },
+    {
+      "type": "warning",
+      "text": "Using updateOne() without an operator (e.g., updateOne(filter, { name: 'Alice' })) will REPLACE the entire document, losing all other fields. Always use operators like $set inside the update document."
+    },
+    {
+      "type": "playground",
+      "lang": "javascript",
+      "title": "Practice Update Operators",
+      "starterCode": "// Simulate MongoDB update operators\nlet product = {\n  _id: 1,\n  name: 'Wireless Headphones',\n  price: 2499,\n  stock: 10,\n  views: 0,\n  tags: ['audio', 'wireless'],\n  discount: null\n};\n\nfunction applyUpdate(doc, update) {\n  const result = { ...doc };\n  if (update.$set) Object.assign(result, update.$set);\n  if (update.$inc) {\n    for (const [key, val] of Object.entries(update.$inc)) {\n      result[key] = (result[key] || 0) + val;\n    }\n  }\n  if (update.$push) {\n    for (const [key, val] of Object.entries(update.$push)) {\n      result[key] = [...(result[key] || []), val];\n    }\n  }\n  if (update.$pull) {\n    for (const [key, val] of Object.entries(update.$pull)) {\n      result[key] = (result[key] || []).filter(item => item !== val);\n    }\n  }\n  return result;\n}\n\n// Apply some updates\nproduct = applyUpdate(product, { $set: { price: 2199 } });\nconsole.log('After $set price:', product.price);\n\nproduct = applyUpdate(product, { $inc: { views: 1, stock: -1 } });\nconsole.log('After $inc — views:', product.views, 'stock:', product.stock);\n\nproduct = applyUpdate(product, { $push: { tags: 'premium' } });\nconsole.log('After $push:', product.tags);\n\nproduct = applyUpdate(product, { $pull: { tags: 'wireless' } });\nconsole.log('After $pull:', product.tags);"
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Which operator adds 1 to a numeric field?",
+          "question": "Which update operator increments a numeric field by a given amount?",
           "type": "multiple-choice",
           "options": [
             "$set",
@@ -48,7 +116,33 @@
             "$add"
           ],
           "correctAnswer": 2,
-          "explanation": "$inc increments a numeric field by the given amount."
+          "explanation": "$inc increments (or decrements with a negative value) a numeric field. It's atomic, so it's safe for concurrent counters."
+        },
+        {
+          "id": "q2",
+          "question": "What does the upsert option do in updateOne()?",
+          "type": "multiple-choice",
+          "options": [
+            "Updates all matching documents",
+            "Inserts the document if no match is found",
+            "Skips the update if the document already exists",
+            "Returns the document before update"
+          ],
+          "correctAnswer": 1,
+          "explanation": "With { upsert: true }, MongoDB inserts a new document if the filter matches nothing, or updates the existing document if it finds a match."
+        },
+        {
+          "id": "q3",
+          "question": "What is the difference between $push and $addToSet?",
+          "type": "multiple-choice",
+          "options": [
+            "$push is faster, $addToSet uses an index",
+            "$push always appends; $addToSet only adds if the value isn't already in the array",
+            "$push adds to the front, $addToSet adds to the back",
+            "They are identical"
+          ],
+          "correctAnswer": 1,
+          "explanation": "$addToSet prevents duplicates — it only adds the element if it doesn't already exist in the array. $push always appends regardless."
         }
       ]
     }
@@ -56,23 +150,40 @@
   "faq": [
     {
       "q": "How do I update all documents in a collection?",
-      "a": "Use updateMany({}, { $set: { field: value } }) — the empty filter {} matches all documents."
+      "a": "Use updateMany({}, { $set: { field: value } }) — the empty filter {} matches all documents. Be careful — this modifies every document in the collection."
+    },
+    {
+      "q": "What is the difference between updateOne() and replaceOne()?",
+      "a": "updateOne() with operators ($set, $inc, etc.) modifies specific fields. replaceOne() replaces the ENTIRE document body (but preserves the _id). Use replaceOne() only when you intentionally want to swap out the whole document."
+    },
+    {
+      "q": "How do I return the updated document after an update?",
+      "a": "Use findOneAndUpdate() with the option { returnDocument: 'after' }. This atomically updates the document and returns its new state. With returnDocument: 'before', you get the state before the update."
     }
   ],
   "sources": [
     {
       "name": "Update Operators",
       "url": "https://www.mongodb.com/docs/manual/reference/operator/update/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "db.collection.updateOne()",
+      "url": "https://www.mongodb.com/docs/manual/reference/method/db.collection.updateOne/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "inventory management",
-      "user preferences"
+      "Inventory management (decrementing stock counts)",
+      "User preference updates",
+      "Page view and click counters",
+      "Leaderboard score updates"
     ],
     "examples": [
-      "Incrementing page view counters"
+      "E-commerce: { $inc: { stock: -1 } } when an order is placed",
+      "Analytics: { $inc: { 'events.click': 1 } } atomically counting user clicks",
+      "Task queue: findOneAndUpdate claims next pending task atomically without race conditions"
     ]
   }
 }

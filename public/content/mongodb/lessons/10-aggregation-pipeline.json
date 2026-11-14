@@ -1,19 +1,35 @@
 {
   "id": "10-aggregation-pipeline",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "advanced-queries",
   "title": "Aggregation Pipeline",
-  "subtitle": "$match, $group, $project, $sort, and $limit",
+  "subtitle": "$match, $group, $project, $sort, $lookup, and $unwind",
   "difficulty": "intermediate",
-  "estimatedMinutes": 18,
+  "estimatedMinutes": 25,
   "status": "published",
-  "prerequisites": [
-    "mongodb.indexes"
-  ],
-  "skillsTaught": [
-    "mongodb.aggregation"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.indexes"],
+  "skillsTaught": ["mongodb.aggregation"],
+  "whyItExists": {
+    "problem": "find() can filter and project, but it can't group documents, compute totals, reshape data, or join collections. Building a sales dashboard, cohort report, or leaderboard requires transforming data, which find() cannot do.",
+    "solution": "The MongoDB Aggregation Pipeline processes documents through a sequence of stages, each transforming the data. It's like a Unix pipe — the output of one stage feeds into the next. Stages include $match (filter), $group (aggregate), $project (reshape), $sort, $limit, $lookup (join), and many more.",
+    "whenToUse": "Use aggregation for analytics dashboards, reports, leaderboards, faceted search, real-time metrics, and any query that requires grouping, summing, averaging, joining, or reshaping data.",
+    "whenNotToUse": "Don't use aggregation for simple CRUD operations — find() is simpler and faster. For very complex analytics on billions of records, consider a dedicated OLAP system (ClickHouse, BigQuery) rather than MongoDB aggregation."
+  },
+  "explainModes": {
+    "beginner": "The aggregation pipeline is like an assembly line. Documents go in one end, pass through several stations (stages), and come out transformed at the other end. Each stage does one thing: filter, sort, group, reshape. You chain them together to build complex reports.",
+    "simple": "MongoDB aggregation processes documents through stages: $match filters, $group calculates totals/averages per group, $sort orders results, $project selects/renames fields, $lookup joins another collection. Chain them to build any report.",
+    "standard": "The aggregation pipeline is an array of stage objects. Each stage is a document with one stage name as its key. Documents flow from one stage to the next — the output of stage N is the input of stage N+1. Place $match and $sort early so MongoDB can use indexes to minimize the data processed by later stages.",
+    "technical": "MongoDB's aggregation engine is optimized differently from find(). Stages are fused where possible: a $match followed by $sort followed by $skip/$limit becomes a single plan node. The $group stage builds a hash table in memory — if it exceeds the allowDiskUse threshold, it spills to disk. $lookup performs a hash join (O(N) in the smaller side). The pipeline runs entirely on the server, sending only the final result to the client.",
+    "deepDive": "MongoDB's aggregation framework was designed to replace MapReduce. Each stage operator maps to an internal execution stage in the query execution engine. The $group stage uses a hash aggregation with 100MB memory limit by default (bypassed with allowDiskUse: true). $bucket and $bucketAuto implement histogram bucketing. $facet runs multiple pipelines on the same input documents in parallel. $graphLookup implements recursive graph traversal (like WITH RECURSIVE in SQL)."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,29 +38,88 @@
     },
     {
       "type": "paragraph",
-      "text": "The aggregation pipeline processes documents through a series of stages. Each stage transforms the documents."
+      "text": "MongoDB's aggregation pipeline processes documents through a series of <strong>stages</strong>. Each stage transforms the documents passing through it. The result of one stage becomes the input of the next — like a Unix pipe (<code>cat | grep | sort | uniq -c</code>)."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "agg.js",
-      "code": "// Sales by category\ndb.orders.aggregate([\n  { $match: { status: \"completed\" } },\n  { $group: {\n      _id: \"$category\",\n      total: { $sum: \"$amount\" },\n      count: { $count: {} }\n    }\n  },\n  { $sort: { total: -1 } },\n  { $limit: 10 }\n])"
+      "filename": "basic-pipeline.js",
+      "code": "// Basic structure: an array of stage objects\nconst results = await db.collection('orders').aggregate([\n  // Stage 1: Filter (like WHERE in SQL)\n  { $match: { status: 'completed' } },\n\n  // Stage 2: Group and compute (like GROUP BY + SUM in SQL)\n  {\n    $group: {\n      _id: '$category',              // group key\n      totalRevenue: { $sum: '$amount' },\n      orderCount:   { $count: {} },\n      avgOrder:     { $avg: '$amount' }\n    }\n  },\n\n  // Stage 3: Sort results\n  { $sort: { totalRevenue: -1 } },\n\n  // Stage 4: Take top 10\n  { $limit: 10 },\n\n  // Stage 5: Rename/reshape fields\n  {\n    $project: {\n      _id: 0,\n      category: '$_id',\n      totalRevenue: { $round: ['$totalRevenue', 2] },\n      orderCount: 1,\n      avgOrder: { $round: ['$avgOrder', 2] }\n    }\n  }\n]).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Core Stages Reference"
     },
     {
       "type": "definition",
-      "term": "Stage",
-      "definition": "A single transformation in an aggregation pipeline, like $match (filter) or $group (aggregate)."
+      "term": "$match",
+      "definition": "Filters documents. Identical syntax to find(). Place $match early in the pipeline to use indexes and reduce documents flowing to later stages."
+    },
+    {
+      "type": "definition",
+      "term": "$group",
+      "definition": "Groups documents by a key and computes aggregates. Accumulators: $sum, $avg, $min, $max, $count, $first, $last, $push (array of values), $addToSet (unique array)."
+    },
+    {
+      "type": "definition",
+      "term": "$project",
+      "definition": "Reshapes documents: include/exclude fields (like projection in find), rename fields, compute new fields with expressions, and transform values."
+    },
+    {
+      "type": "definition",
+      "term": "$unwind",
+      "definition": "Deconstructs an array field — produces one document per array element. Used to process arrays element-by-element, or after $lookup to convert the results array to a single embedded document."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "grouping-accumulators.js",
+      "code": "// $group accumulators — the most important ones\nawait db.collection('sales').aggregate([\n  { $match: { year: 2026 } },\n  {\n    $group: {\n      _id: '$region',\n      total:    { $sum: '$amount' },        // sum of all amounts\n      count:    { $count: {} },              // number of documents\n      average:  { $avg: '$amount' },         // average\n      max:      { $max: '$amount' },         // highest single sale\n      min:      { $min: '$amount' },         // lowest single sale\n      products: { $addToSet: '$productId' }, // unique product IDs (array)\n      allAmts:  { $push: '$amount' }         // array of ALL amounts\n    }\n  }\n]).toArray();\n\n// Group by multiple fields — use an object as _id\nawait db.collection('sales').aggregate([\n  {\n    $group: {\n      _id: { year: { $year: '$date' }, region: '$region' },\n      total: { $sum: '$amount' }\n    }\n  },\n  { $sort: { '_id.year': -1, total: -1 } }\n]).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "$project — Reshaping Documents"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "project-stage.js",
+      "code": "await db.collection('users').aggregate([\n  {\n    $project: {\n      // Include fields\n      name: 1,\n      email: 1,\n\n      // Exclude fields (can mix with inclusions ONLY for _id)\n      _id: 0,\n      password: 0,\n\n      // Rename a field\n      userId: '$_id',\n\n      // Compute a new field\n      fullName: { $concat: ['$firstName', ' ', '$lastName'] },\n\n      // Conditional expression\n      status: {\n        $cond: {\n          if: { $gt: ['$age', 18] },\n          then: 'adult',\n          else: 'minor'\n        }\n      },\n\n      // Date extraction\n      joinYear: { $year: '$createdAt' },\n\n      // String operations\n      emailDomain: {\n        $arrayElemAt: [{ $split: ['$email', '@'] }, 1]\n      }\n    }\n  }\n]).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "$unwind — Working with Arrays"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "unwind.js",
+      "code": "// Source document:\n// { _id: 1, product: 'A', tags: ['sale', 'new', 'featured'] }\n\n// After $unwind: { tags: '$tags' } — produces 3 documents:\n// { _id: 1, product: 'A', tags: 'sale' }\n// { _id: 1, product: 'A', tags: 'new' }\n// { _id: 1, product: 'A', tags: 'featured' }\n\n// Count products per tag:\nawait products.aggregate([\n  { $unwind: '$tags' },\n  {\n    $group: {\n      _id: '$tags',\n      count: { $count: {} }\n    }\n  },\n  { $sort: { count: -1 } }\n]).toArray();\n\n// preserveNullAndEmptyArrays — keep docs with no/empty array\nawait products.aggregate([\n  {\n    $unwind: {\n      path: '$tags',\n      preserveNullAndEmptyArrays: true  // keep products with no tags\n    }\n  }\n]).toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Real-World Example: Sales Dashboard"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "sales-dashboard.js",
+      "code": "// Build a sales report: monthly revenue by category\nconst report = await db.collection('orders').aggregate([\n  // Filter: only completed orders in 2026\n  {\n    $match: {\n      status: 'completed',\n      placedAt: {\n        $gte: new Date('2026-01-01'),\n        $lt: new Date('2027-01-01')\n      }\n    }\n  },\n\n  // Join with products to get category\n  {\n    $lookup: {\n      from: 'products',\n      localField: 'productId',\n      foreignField: '_id',\n      as: 'product'\n    }\n  },\n  { $unwind: '$product' },\n\n  // Group by month + category\n  {\n    $group: {\n      _id: {\n        month: { $month: '$placedAt' },\n        category: '$product.category'\n      },\n      revenue:    { $sum: '$amount' },\n      orderCount: { $count: {} }\n    }\n  },\n\n  // Sort chronologically\n  { $sort: { '_id.month': 1, revenue: -1 } },\n\n  // Final shape\n  {\n    $project: {\n      _id: 0,\n      month: '$_id.month',\n      category: '$_id.category',\n      revenue: { $round: ['$revenue', 2] },\n      orderCount: 1\n    }\n  }\n]).toArray();\n\nconsole.table(report);"
     },
     {
       "type": "tip",
-      "text": "Put $match and $sort early in the pipeline so MongoDB can use indexes."
+      "text": "Always put $match and $sort as early in the pipeline as possible. Placing $match first lets MongoDB use an index and reduces the number of documents processed by all subsequent stages. A $match after a $group cannot use any indexes."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Which stage filters documents in an aggregation pipeline?",
+          "question": "Which aggregation stage filters documents (like WHERE in SQL)?",
           "type": "multiple-choice",
           "options": [
             "$project",
@@ -53,7 +128,33 @@
             "$unwind"
           ],
           "correctAnswer": 2,
-          "explanation": "$match filters documents, equivalent to a WHERE clause in SQL."
+          "explanation": "$match filters documents using the same syntax as find(). It's equivalent to WHERE in SQL. Place it early in the pipeline to reduce documents and use indexes."
+        },
+        {
+          "id": "q2",
+          "question": "What does $unwind do to an array field?",
+          "type": "multiple-choice",
+          "options": [
+            "Sorts the array elements",
+            "Removes duplicate elements from the array",
+            "Produces one document per array element",
+            "Flattens nested arrays into a single-level array"
+          ],
+          "correctAnswer": 2,
+          "explanation": "$unwind deconstructs an array field — a document with { tags: ['a', 'b', 'c'] } becomes three documents, one with tags: 'a', one with tags: 'b', and one with tags: 'c'."
+        },
+        {
+          "id": "q3",
+          "question": "Which $group accumulator adds values to an array, keeping only unique values?",
+          "type": "multiple-choice",
+          "options": [
+            "$push",
+            "$addToSet",
+            "$union",
+            "$collect"
+          ],
+          "correctAnswer": 1,
+          "explanation": "$addToSet accumulates values into an array but excludes duplicates — it's like a set. $push includes all values including duplicates."
         }
       ]
     }
@@ -61,23 +162,40 @@
   "faq": [
     {
       "q": "Can aggregation replace find()?",
-      "a": "Yes. db.collection.aggregate([{ $match: query }]) is equivalent to find(query), but aggregation is more powerful for transformations."
+      "a": "Yes — db.collection.aggregate([{ $match: query }]) is equivalent to find(query). But aggregation has more overhead, so use find() for simple queries. Use aggregation when you need grouping, joining, reshaping, or multi-stage transformations."
+    },
+    {
+      "q": "What is allowDiskUse in aggregation?",
+      "a": "By default, $group and $sort stages are limited to 100MB of RAM. If your aggregation exceeds this, it throws an error. Pass { allowDiskUse: true } as the second argument to aggregate() to allow spilling to disk: db.collection.aggregate([...], { allowDiskUse: true })."
+    },
+    {
+      "q": "How do I debug a complex aggregation pipeline?",
+      "a": "Build the pipeline incrementally — start with just $match, verify the results, then add $group, verify again. MongoDB Compass has a visual aggregation pipeline builder that shows the output of each stage interactively."
     }
   ],
   "sources": [
     {
       "name": "Aggregation Pipeline",
       "url": "https://www.mongodb.com/docs/manual/core/aggregation-pipeline/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Aggregation Operators",
+      "url": "https://www.mongodb.com/docs/manual/reference/operator/aggregation/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "analytics dashboards",
-      "reporting"
+      "Analytics dashboards and reporting",
+      "Sales leaderboards and revenue reports",
+      "User cohort analysis",
+      "Faceted search result counts"
     ],
     "examples": [
-      "Building a sales leaderboard with $group and $sort"
+      "E-commerce: monthly revenue by product category using $match → $group → $sort",
+      "Social app: top 10 most active users by post count using $group → $sort → $limit",
+      "Search: faceted filter counts (how many products per price range) using $bucket"
     ]
   }
 }

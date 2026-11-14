@@ -1,54 +1,151 @@
 {
   "id": "11-text-search",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "advanced-queries",
   "title": "Text Search",
-  "subtitle": "Full-text indexes, $text, and $search with Atlas",
+  "subtitle": "Full-text indexes, $text operator, and Atlas Search",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "mongodb.aggregation"
-  ],
-  "skillsTaught": [
-    "mongodb.text-search"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.aggregation"],
+  "skillsTaught": ["mongodb.text-search"],
+  "whyItExists": {
+    "problem": "Regular indexes and find() can match exact values but can't search for words inside text fields. A query like find({ title: 'intro' }) won't match 'Introduction to MongoDB'. You need a full-text search engine for language-aware word matching.",
+    "solution": "MongoDB text indexes tokenize string fields into individual words, apply stemming (finds 'running' when you search 'run'), and support phrase search and negation. For advanced needs, MongoDB Atlas Search (powered by Lucene) adds fuzzy matching, autocomplete, and relevance scoring.",
+    "whenToUse": "Use $text for simple keyword search across string fields in a MongoDB collection. Use Atlas Search for fuzzy matching, autocomplete, faceted search, and when you need Elasticsearch-quality search without a separate service.",
+    "whenNotToUse": "MongoDB $text search is limited — no fuzzy matching, no autocomplete, only one text index per collection. For production search with typo tolerance and autocomplete, use Atlas Search or a dedicated search engine like Elasticsearch/Typesense."
+  },
+  "explainModes": {
+    "beginner": "A text index is like a search engine for your database. When you create one on a 'title' field, MongoDB breaks every title into words ('introduction', 'to', 'mongodb') and indexes each word. Then $text: { $search: 'mongodb' } finds every document with 'mongodb' as a word.",
+    "simple": "Create a text index on string fields with createIndex({ title: 'text', body: 'text' }). Then search with $text: { $search: 'your keywords' }. MongoDB does language-aware word matching and ranks results by relevance score.",
+    "standard": "MongoDB text indexes perform word tokenization, stemming (run matches running/ran), and stop-word removal. Text search uses $text in the query document. Relevance score is available via { $meta: 'textScore' } in projection. Only one text index is allowed per collection.",
+    "technical": "Text indexes store inverted indexes mapping each stemmed word to the documents containing it. The scoring algorithm weights words by inverse document frequency (IDF) and field weight. Text indexes support multiple languages via the 'language' option. The $text operator supports phrase search ('exact phrase' in quotes), negation (-word), and language override.",
+    "deepDive": "MongoDB's text search is built on an inverted index structure. Each entry maps a stemmed token to a set of (docId, score) pairs. The score is calculated as term frequency × inverse document frequency (TF-IDF). Atlas Search replaces this with a full Apache Lucene index, supporting BM25 scoring, custom analyzers, phonetic matching, and near-real-time indexing. Atlas Search indexes are updated asynchronously (eventual consistency), while native $text indexes are synchronous."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Full-Text Search"
+      "text": "Full-Text Search in MongoDB"
     },
     {
       "type": "paragraph",
-      "text": "MongoDB text indexes let you search string fields for words or phrases using the $text operator."
+      "text": "MongoDB's <strong>text indexes</strong> enable full-text search across string fields. Unlike regular indexes that match exact values, text indexes tokenize text into words, apply stemming (run → running/ran), and remove stop words. The <code>$text</code> operator searches across all text-indexed fields simultaneously."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Creating a Text Index"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "text.js",
-      "code": "// Create a text index\nawait articles.createIndex({ title: \"text\", body: \"text\" });\n\n// Search for documents containing \"mongodb\"\nconst results = await articles.find(\n  { $text: { $search: \"mongodb aggregation\" } },\n  { projection: { score: { $meta: \"textScore\" }, title: 1 } }\n).sort({ score: { $meta: \"textScore\" } }).toArray();"
+      "filename": "text-index.js",
+      "code": "// Create a text index on one field\nawait articles.createIndex({ title: 'text' });\n\n// Create a text index on multiple fields\nawait articles.createIndex({\n  title: 'text',\n  body: 'text',\n  tags: 'text'\n});\n// Now $text searches across all three fields simultaneously\n\n// Weighted text index — title matches count more than body\nawait articles.createIndex(\n  { title: 'text', body: 'text' },\n  { weights: { title: 10, body: 1 }, name: 'article_text_index' }\n);\n// A word match in title scores 10x higher than in body\n\n// Language-specific index (uses correct stemming and stop words)\nawait articles.createIndex(\n  { title: 'text', body: 'text' },\n  { default_language: 'english' }  // default is English\n);\n\n// Note: a collection can have ONLY ONE text index"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Searching with $text"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "text-search.js",
+      "code": "// Basic search — finds documents containing 'mongodb' OR 'database'\nconst results = await articles.find(\n  { $text: { $search: 'mongodb database' } }\n).toArray();\n\n// Phrase search — exact phrase in double quotes\nconst phraseResults = await articles.find(\n  { $text: { $search: '\"aggregation pipeline\"' } }  // exact phrase\n).toArray();\n\n// Negation — find documents with 'mongodb' but NOT 'sql'\nconst noSQL = await articles.find(\n  { $text: { $search: 'mongodb -sql' } }  // minus prefix excludes a term\n).toArray();\n\n// Get relevance score and sort by it\nconst ranked = await articles.find(\n  { $text: { $search: 'mongodb aggregation pipeline' } },\n  { projection: { score: { $meta: 'textScore' }, title: 1, _id: 0 } }\n).sort({ score: { $meta: 'textScore' } })  // sort by relevance\n  .toArray();\n\nconsole.log('Top results:');\nranked.forEach(r => console.log(r.title, '— score:', r.score.toFixed(2)));"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "text-with-filter.js",
+      "code": "// Combine $text with other filters\nconst recentResults = await articles.find({\n  $text: { $search: 'nodejs express' },   // text search\n  status: 'published',                     // regular filter\n  publishedAt: { $gte: new Date('2025-01-01') }  // date filter\n}, {\n  projection: { title: 1, score: { $meta: 'textScore' }, publishedAt: 1 }\n}).sort({ score: { $meta: 'textScore' } })\n  .limit(10)\n  .toArray();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Atlas Search — Advanced Full-Text Search"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB Atlas Search (powered by Apache Lucene) goes far beyond the native $text operator. It supports <strong>fuzzy matching</strong> (typo tolerance), <strong>autocomplete</strong>, <strong>faceted search</strong>, and custom analyzers — without running a separate Elasticsearch service."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "atlas-search.js",
+      "code": "// Atlas Search — uses $search aggregation stage (not $text)\n// Requires: MongoDB Atlas cluster with an Atlas Search index defined\n\n// Basic Atlas Search\nconst results = await articles.aggregate([\n  {\n    $search: {\n      index: 'default',  // name of your Atlas Search index\n      text: {\n        query: 'mongodb aggregation',\n        path: ['title', 'body'],  // fields to search\n        fuzzy: { maxEdits: 1 }   // tolerate 1 typo!\n      }\n    }\n  },\n  {\n    $project: {\n      title: 1,\n      score: { $meta: 'searchScore' }\n    }\n  },\n  { $sort: { score: -1 } },\n  { $limit: 10 }\n]).toArray();\n\n// Autocomplete (as you type) — requires autocomplete field mapping in Atlas Search index\nconst suggestions = await articles.aggregate([\n  {\n    $search: {\n      autocomplete: {\n        query: 'mong',           // partial input\n        path: 'title',\n        fuzzy: { maxEdits: 1 }  // tolerate typos in autocomplete too\n      }\n    }\n  },\n  { $limit: 5 },\n  { $project: { title: 1, _id: 0 } }\n]).toArray();\n\nconsole.log('Suggestions:', suggestions.map(s => s.title));"
+    },
+    {
+      "type": "comparison",
+      "title": "MongoDB $text vs Atlas Search",
+      "a": {
+        "name": "MongoDB $text",
+        "description": "Built-in full-text search using native text indexes",
+        "strengths": ["No extra setup — works in any MongoDB", "Simple $text query syntax", "Synchronous index updates"],
+        "weaknesses": ["No fuzzy/typo matching", "No autocomplete", "Only one text index per collection", "Limited relevance scoring"],
+        "useWhen": "Simple keyword search on a small collection where exact word matching is enough"
+      },
+      "b": {
+        "name": "Atlas Search",
+        "description": "Lucene-powered full-text search built into MongoDB Atlas",
+        "strengths": ["Fuzzy matching (typo tolerance)", "Autocomplete as-you-type", "Faceted search counts", "Advanced analyzers", "BM25 relevance scoring"],
+        "weaknesses": ["Requires MongoDB Atlas (not Community)", "Index configured separately in Atlas UI", "Eventual consistency (async index update)"],
+        "useWhen": "Production search features: typo tolerance, autocomplete, or when search quality matters"
+      }
     },
     {
       "type": "tip",
-      "text": "For advanced search (fuzzy, autocomplete, filters), use MongoDB Atlas Search powered by Lucene."
+      "text": "For production search with autocomplete or typo tolerance, skip native $text and use Atlas Search directly. It provides Elasticsearch-quality search without running a separate service, as long as you're on MongoDB Atlas."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What must you create before using $text queries?",
+          "question": "What must you create before using $text queries in MongoDB?",
           "type": "multiple-choice",
           "options": [
-            "A compound index",
-            "A text index",
-            "A unique index",
-            "A TTL index"
+            "A compound index on all string fields",
+            "A text index on the fields to search",
+            "A unique index on the text field",
+            "A TTL index on the document date"
           ],
           "correctAnswer": 1,
-          "explanation": "$text requires a text index on the fields you want to search."
+          "explanation": "$text requires a text index (createIndex({ field: 'text' })) on the fields you want to search. Without it, the query throws an error."
+        },
+        {
+          "id": "q2",
+          "question": "How do you exclude a term from text search results?",
+          "type": "multiple-choice",
+          "options": [
+            "$text: { $search: 'NOT term' }",
+            "$text: { $search: 'keyword -excluded' }",
+            "$text: { $search: 'keyword', $exclude: 'term' }",
+            "{ $not: { $text: { $search: 'term' } } }"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Prefix a term with - (minus) to exclude it: $text: { $search: 'mongodb -sql' } finds documents with 'mongodb' but not 'sql'."
+        },
+        {
+          "id": "q3",
+          "question": "How many text indexes can a MongoDB collection have?",
+          "type": "multiple-choice",
+          "options": [
+            "One per field",
+            "No limit",
+            "Exactly one (but it can cover multiple fields)",
+            "Up to 10"
+          ],
+          "correctAnswer": 2,
+          "explanation": "A collection can have only ONE text index, but that index can cover multiple fields: createIndex({ title: 'text', body: 'text' }) creates a single multi-field text index."
         }
       ]
     }
@@ -56,23 +153,39 @@
   "faq": [
     {
       "q": "Can I have multiple text indexes per collection?",
-      "a": "No. A collection can have only one text index, but it can cover multiple fields."
+      "a": "No. A collection can have only one text index, but it can cover multiple fields. createIndex({ title: 'text', body: 'text', tags: 'text' }) creates a single text index across all three fields."
+    },
+    {
+      "q": "Does $text search support partial word matching (like LIKE '%term%' in SQL)?",
+      "a": "No. MongoDB $text search only matches whole words (after stemming). 'ongo' won't match 'mongodb'. For prefix matching and autocomplete, use Atlas Search with the autocomplete field mapping, or use a regex query: { field: /ongo/i } (but regex queries are slow without an index)."
+    },
+    {
+      "q": "What is a textScore and how do I use it?",
+      "a": "textScore is a relevance score computed by MongoDB based on how many times the search terms appear in the document and their frequency across all documents (TF-IDF). Access it in projection with { score: { $meta: 'textScore' } } and sort by it with .sort({ score: { $meta: 'textScore' } }) to get the most relevant results first."
     }
   ],
   "sources": [
     {
       "name": "Text Indexes",
       "url": "https://www.mongodb.com/docs/manual/core/index-text/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Atlas Search Overview",
+      "url": "https://www.mongodb.com/docs/atlas/atlas-search/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "site search",
-      "article search"
+      "Article and documentation search",
+      "Product search in e-commerce",
+      "Knowledge base and FAQ search"
     ],
     "examples": [
-      "Building a documentation search with Atlas Search"
+      "Blog platform: text index on title+body, $text search with textScore sorting for relevant article results",
+      "E-commerce: Atlas Search for product name search with fuzzy matching so 'headphne' still finds 'Headphone'",
+      "Support portal: $text on knowledge base articles, combined with status: 'published' filter"
     ]
   }
 }

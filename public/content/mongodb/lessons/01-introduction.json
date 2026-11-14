@@ -1,17 +1,35 @@
 {
   "id": "01-introduction",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-basics",
   "title": "Introduction to MongoDB",
   "subtitle": "What MongoDB is, why NoSQL, and when to use it",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
   "prerequisites": [],
-  "skillsTaught": [
-    "mongodb.basics"
-  ],
+  "skillsTaught": ["mongodb.basics", "mongodb.concepts"],
+  "whyItExists": {
+    "problem": "Relational databases require a fixed schema defined up front. When your data shape changes frequently—like user profiles with different attributes—you end up with many NULL columns, complex migrations, and rigid structure that slows development.",
+    "solution": "MongoDB stores data as flexible JSON-like documents. Fields can vary between documents in the same collection. No schema migrations needed when you add new fields.",
+    "whenToUse": "Use MongoDB for hierarchical data, catalogs with varying attributes, event logs, real-time analytics, content management, and applications where the data model evolves rapidly.",
+    "whenNotToUse": "Avoid MongoDB when you need complex multi-table transactions, strict relational integrity (foreign keys enforced by the database), or when your team is already expert in SQL and the data is naturally tabular."
+  },
+  "explainModes": {
+    "beginner": "MongoDB is a database where instead of rows in a spreadsheet, you store JSON objects. Each object can have different fields, so a user profile can have a 'phone' field while another doesn't, and MongoDB is fine with that.",
+    "simple": "MongoDB is a NoSQL document database. It stores data as BSON documents (like JSON) in collections (like tables). No fixed schema means flexible, evolving data structures.",
+    "standard": "MongoDB is a document-oriented database that stores BSON documents in schema-free collections. It supports horizontal scaling, rich queries, secondary indexes, and an aggregation pipeline. It trades some relational features for flexibility and performance at scale.",
+    "technical": "MongoDB uses a document model backed by BSON (Binary JSON) with 16MB document size limit. Data is stored in WiredTiger storage engine with collection-level locking in older versions and document-level locking since 3.x. It supports ACID transactions since 4.0 (multi-document), and provides replication via replica sets and sharding for horizontal scale-out.",
+    "deepDive": "MongoDB's WiredTiger storage engine uses a B-tree structure with snappy/zlib/zstd compression. BSON encoding allows O(1) field access by offset. The oplog (operations log) in replica sets records all mutations as idempotent operations, enabling both replication and change streams. Transactions use a multi-version concurrency control (MVCC) model with snapshot isolation at the session level."
+  },
   "content": [
     {
       "type": "heading",
@@ -20,27 +38,86 @@
     },
     {
       "type": "paragraph",
-      "text": "MongoDB is a document-oriented NoSQL database that stores data as flexible JSON-like documents called BSON. Unlike relational databases, collections do not enforce a fixed schema."
+      "text": "MongoDB is a <strong>document-oriented NoSQL database</strong> that stores data as flexible JSON-like documents called BSON. Unlike relational databases, MongoDB collections do not enforce a fixed schema — each document can have different fields and data types."
+    },
+    {
+      "type": "paragraph",
+      "text": "Founded in 2009, MongoDB is now one of the most popular databases in the world, used by companies like Adobe, eBay, LinkedIn, and Uber. It excels at storing hierarchical, unstructured, or semi-structured data that doesn't fit neatly into rows and columns."
+    },
+    {
+      "type": "comparison",
+      "title": "MongoDB vs Relational Database (SQL)",
+      "a": {
+        "name": "MongoDB (NoSQL)",
+        "description": "Document-oriented, schema-flexible database",
+        "strengths": ["Flexible schema — fields vary per document", "Scales horizontally (sharding)", "Native JSON support — no ORM needed", "Great for hierarchical/nested data"],
+        "weaknesses": ["No enforced relational integrity", "Joins are manual ($lookup)", "Not ideal for complex multi-table transactions"],
+        "useWhen": "Data varies in shape, you need to scale out, or you are building a catalog, CMS, or real-time feed"
+      },
+      "b": {
+        "name": "SQL (Relational)",
+        "description": "Table-based, schema-enforced database",
+        "strengths": ["Enforced foreign keys and constraints", "Powerful JOIN queries", "ACID transactions across tables", "Mature tooling and expertise"],
+        "weaknesses": ["Rigid schema — migrations required for changes", "Scales vertically (bigger server)", "Impedance mismatch with objects"],
+        "useWhen": "Data is naturally tabular, you need strict consistency, or complex multi-table reporting"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Core Concepts"
     },
     {
       "type": "definition",
       "term": "Document",
-      "definition": "A JSON-like record stored in MongoDB. Equivalent to a row in SQL but with no fixed columns."
+      "definition": "A JSON-like record stored in MongoDB. Equivalent to a row in SQL but with no fixed columns. Documents are stored as BSON (Binary JSON) internally."
     },
     {
       "type": "definition",
       "term": "Collection",
-      "definition": "A group of documents, like a SQL table but schema-free."
+      "definition": "A group of documents, like a SQL table but schema-free. All documents in a collection are related by convention, not enforced by the database."
+    },
+    {
+      "type": "definition",
+      "term": "Database",
+      "definition": "A container for collections. One MongoDB server can host many databases, each completely isolated."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "example.js",
-      "code": "// A MongoDB document\n{\n  _id: ObjectId(\"507f1f77bcf86cd799439011\"),\n  name: \"Alice\",\n  age: 30,\n  tags: [\"admin\", \"user\"]\n}"
+      "filename": "document-example.js",
+      "code": "// A MongoDB document — equivalent to a SQL row\n// but with nested objects and arrays natively supported\n{\n  _id: ObjectId(\"507f1f77bcf86cd799439011\"),  // auto-generated unique ID\n  name: \"Alice\",\n  age: 30,\n  email: \"alice@example.com\",\n  tags: [\"admin\", \"user\"],        // arrays natively supported\n  address: {                      // nested objects (embedded documents)\n    city: \"Mumbai\",\n    state: \"MH\",\n    zip: \"400001\"\n  },\n  createdAt: ISODate(\"2026-01-15T10:00:00Z\")\n}\n\n// Another document in the SAME collection — different fields!\n{\n  _id: ObjectId(\"507f1f77bcf86cd799439012\"),\n  name: \"Bob\",\n  age: 25,\n  // No email, no address — that's perfectly valid in MongoDB\n  preferences: { theme: \"dark\", language: \"en\" }\n}"
     },
     {
       "type": "tip",
-      "text": "MongoDB auto-creates a collection when you first insert into it."
+      "text": "MongoDB auto-creates a collection when you first insert into it. You don't need to define the schema before writing data — perfect for rapid prototyping."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SQL vs MongoDB Terminology"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "SQL <strong>Table</strong> → MongoDB <strong>Collection</strong>",
+        "SQL <strong>Row</strong> → MongoDB <strong>Document</strong>",
+        "SQL <strong>Column</strong> → MongoDB <strong>Field</strong>",
+        "SQL <strong>Primary Key</strong> → MongoDB <strong>_id</strong>",
+        "SQL <strong>Foreign Key</strong> → MongoDB <strong>Reference (by _id)</strong>",
+        "SQL <strong>JOIN</strong> → MongoDB <strong>$lookup</strong> (aggregation stage)"
+      ]
+    },
+    {
+      "type": "info",
+      "text": "MongoDB stores documents in BSON (Binary JSON), which extends JSON with additional types like Date, ObjectId, Binary, Decimal128, and regular expressions. This makes MongoDB more precise than plain JSON for data storage."
+    },
+    {
+      "type": "playground",
+      "lang": "javascript",
+      "title": "Explore Document Structure",
+      "starterCode": "// Try building a MongoDB-style document for a blog post\n// What fields would you include?\nconst blogPost = {\n  _id: 'post-001',       // custom _id (string)\n  title: 'Getting Started with MongoDB',\n  author: {\n    name: 'Alice',\n    email: 'alice@example.com'\n  },\n  tags: ['mongodb', 'nosql', 'tutorial'],\n  published: true,\n  views: 0,\n  createdAt: new Date()\n};\n\nconsole.log('Blog post document:');\nconsole.log(JSON.stringify(blogPost, null, 2));\nconsole.log('\\nFields:', Object.keys(blogPost));"
     },
     {
       "type": "quiz",
@@ -56,7 +133,33 @@
             "A database index"
           ],
           "correctAnswer": 1,
-          "explanation": "MongoDB documents are flexible JSON-like records; they do not require a fixed schema."
+          "explanation": "MongoDB documents are flexible JSON-like records stored as BSON. They do not require a fixed schema — different documents in the same collection can have different fields."
+        },
+        {
+          "id": "q2",
+          "question": "What is the MongoDB equivalent of a SQL table?",
+          "type": "multiple-choice",
+          "options": [
+            "Database",
+            "Document",
+            "Collection",
+            "Field"
+          ],
+          "correctAnswer": 2,
+          "explanation": "A Collection in MongoDB is equivalent to a SQL table — it holds a group of related documents."
+        },
+        {
+          "id": "q3",
+          "question": "Which of the following is a valid reason to choose MongoDB over a relational database?",
+          "type": "multiple-choice",
+          "options": [
+            "You need enforced foreign key constraints",
+            "Your data has a highly variable schema that changes often",
+            "You need complex multi-table JOINs",
+            "Your team only knows SQL"
+          ],
+          "correctAnswer": 1,
+          "explanation": "MongoDB shines when your data schema changes frequently or varies per record. For enforced foreign keys and complex joins, SQL is the better choice."
         }
       ]
     }
@@ -64,24 +167,40 @@
   "faq": [
     {
       "q": "When should I use MongoDB over SQL?",
-      "a": "MongoDB excels when your data is hierarchical or when the schema changes frequently. SQL is better for complex joins and strict consistency requirements."
+      "a": "MongoDB excels when your data is hierarchical or when the schema changes frequently. Use it for product catalogs, user profiles, event logs, and content management. Use SQL for complex joins, enforced relational integrity, and strict ACID transactions across multiple tables."
+    },
+    {
+      "q": "Is MongoDB truly schema-less?",
+      "a": "MongoDB is schema-flexible by default, but you can enforce a schema using JSON Schema validation rules on a collection. In practice, most teams define an implicit schema through their application code or use Mongoose to enforce it at the ODM layer."
+    },
+    {
+      "q": "Does MongoDB support transactions?",
+      "a": "Yes. Since MongoDB 4.0, multi-document ACID transactions are supported. Single-document operations have always been atomic. For most use cases, single-document atomicity is sufficient."
     }
   ],
   "sources": [
     {
-      "name": "MongoDB Overview",
+      "name": "MongoDB Introduction",
       "url": "https://www.mongodb.com/docs/manual/introduction/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "MongoDB vs SQL",
+      "url": "https://www.mongodb.com/nosql-explained/nosql-vs-sql",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "e-commerce product catalogs",
-      "content management systems"
+      "E-commerce product catalogs (eBay, Alibaba)",
+      "Content management systems (Adobe Experience Manager)",
+      "Real-time analytics and event logging",
+      "Mobile app backends (user profiles, activity feeds)"
     ],
     "examples": [
-      "Storing user profiles with varying attributes",
-      "Logging app events with different schemas per event type"
+      "Storing user profiles with varying attributes — one user has 'bio', another has 'company', no schema change needed",
+      "Logging app events with different schemas per event type (page_view, purchase, error)",
+      "Building a product catalog where electronics have 'specs.RAM' and clothing has 'specs.size'"
     ]
   }
 }

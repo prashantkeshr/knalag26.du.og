@@ -1,19 +1,35 @@
 {
   "id": "10-rag-basics",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / OpenAI Embeddings / ChromaDB",
   "technology": "llms",
   "module": "rag-systems",
   "title": "RAG: Retrieval-Augmented Generation",
   "subtitle": "Combining LLMs with external knowledge",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "llms.tools"
-  ],
-  "skillsTaught": [
-    "llms.rag"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.tools"],
+  "skillsTaught": ["llms.rag"],
+  "whyItExists": {
+    "problem": "LLMs have a training knowledge cutoff and no access to your private documents, internal databases, or real-time data. Asking an LLM about your company's refund policy or last quarter's sales numbers will produce hallucinated answers.",
+    "solution": "RAG (Retrieval-Augmented Generation) retrieves relevant document chunks at query time and injects them into the prompt. The LLM answers from your documents, not its training data.",
+    "whenToUse": "Any Q&A over private documents, internal knowledge bases, real-time data, or anything beyond the model's training cutoff. Customer support bots, documentation Q&A, enterprise search.",
+    "whenNotToUse": "If your data fits in the context window, just paste it in directly (simpler). RAG adds infrastructure complexity — only use it when documents are too large for the context window or change frequently."
+  },
+  "explainModes": {
+    "beginner": "Imagine you gave an AI a library card. When you ask a question, it first searches the library for relevant pages, then reads those pages and answers your question. Without the library card, it can only guess from memory.",
+    "simple": "RAG works in two phases: (1) Index — split your documents into chunks and store them as vector embeddings; (2) Query — embed the user's question, find the most similar chunks, inject them into the prompt, and ask the LLM to answer from that context.",
+    "standard": "RAG pipeline: Chunk documents (500-1000 tokens) → embed with an embedding model → store in a vector database → at query time, embed the query, do k-nearest-neighbor search → fetch top-k chunks → build a context-augmented prompt → generate with grounding instruction.",
+    "technical": "Chunking strategy critically affects RAG quality: semantic chunking (by paragraph/section) outperforms naive fixed-size chunking. Embedding models encode semantic meaning into 768-3072 dimensional vectors. ANN search (HNSW or IVF) in the vector store returns approximate nearest neighbors in O(log n). The LLM prompt includes a 'use only the context below' instruction to prevent hallucination.",
+    "deepDive": "Advanced RAG: contextual retrieval (prepend document context to each chunk before embedding), HyDE (embed a hypothetical answer to find better chunks), multi-query expansion (generate 3 paraphrased queries and union results), and reranking (a cross-encoder re-scores top-20 chunks to select top-5). Evaluation metrics: faithfulness (is the answer supported by retrieved docs?), relevance (did we retrieve the right docs?)."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,18 +38,70 @@
     },
     {
       "type": "paragraph",
-      "text": "RAG grounds LLM responses in real, up-to-date documents. Instead of relying on training data, the model retrieves relevant chunks and answers from them."
+      "text": "RAG <strong>grounds LLM responses in real, up-to-date documents</strong>. Instead of relying on training data, the model retrieves relevant chunks from your document store and answers from them — dramatically reducing hallucination for domain-specific queries."
     },
     {
       "type": "definition",
       "term": "RAG Pipeline",
-      "definition": "Retrieve relevant document chunks → inject them into the prompt → ask the LLM to answer using only the provided context."
+      "definition": "Index phase: Chunk documents → embed chunks → store in vector DB. Query phase: Embed user question → retrieve top-k similar chunks → inject into prompt → LLM answers from context."
+    },
+    {
+      "type": "definition",
+      "term": "Chunk",
+      "definition": "A fixed-size or semantically-bounded piece of a document (typically 300-1000 tokens). Documents are split into chunks before embedding so retrieval returns focused, relevant snippets rather than entire documents."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Phase 1: Indexing Documents"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "rag.py",
-      "code": "# Simplified RAG pipeline\nquery = \"What is our refund policy?\"\n\n# 1. Embed the query\nquery_embedding = embed(query)\n\n# 2. Find similar chunks in vector store\nchunks = vector_store.search(query_embedding, top_k=5)\n\n# 3. Build context-augmented prompt\ncontext = \"\\n\\n\".join(c.text for c in chunks)\n\nprompt = f\"\"\"Answer the question using only the context below.\n\nContext:\n{context}\n\nQuestion: {query}\nAnswer:\"\"\"\n\n# 4. Generate\nresponse = client.messages.create(model=\"claude-opus-4-5\", ...)\nprint(response.content[0].text)"
+      "filename": "rag_index.py",
+      "code": "# pip install anthropic openai chromadb tiktoken\nimport chromadb\nfrom openai import OpenAI\nimport tiktoken\n\nclient = OpenAI()\nvector_client = chromadb.Client()\ncollection = vector_client.create_collection(\"company_docs\")\n\ndef chunk_text(text: str, max_tokens: int = 500) -> list[str]:\n    \"\"\"Split text into chunks of max_tokens.\"\"\"\n    enc = tiktoken.encoding_for_model(\"gpt-4\")\n    words = text.split()\n    chunks, current, current_tokens = [], [], 0\n    for word in words:\n        word_tokens = len(enc.encode(word + \" \"))\n        if current_tokens + word_tokens > max_tokens:\n            chunks.append(\" \".join(current))\n            current, current_tokens = [word], word_tokens\n        else:\n            current.append(word)\n            current_tokens += word_tokens\n    if current:\n        chunks.append(\" \".join(current))\n    return chunks\n\ndef embed(texts: list[str]) -> list[list[float]]:\n    response = client.embeddings.create(\n        input=texts, model=\"text-embedding-3-small\"\n    )\n    return [d.embedding for d in response.data]\n\n# Index documents\ndocs = [\n    \"Our refund policy: Customers can return items within 30 days for a full refund.\",\n    \"Shipping: Standard delivery takes 5-7 business days. Express is 2 business days.\",\n    \"Warranty: All electronics carry a 1-year manufacturer warranty.\"\n]\n\nchunked = [(chunk, f\"doc_{i}_{j}\")\n           for i, doc in enumerate(docs)\n           for j, chunk in enumerate(chunk_text(doc))]\n\ntexts, ids = zip(*chunked)\ncollection.add(\n    documents=list(texts),\n    embeddings=embed(list(texts)),\n    ids=list(ids)\n)\nprint(f\"Indexed {len(ids)} chunks\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Phase 2: Querying with RAG"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rag_query.py",
+      "code": "import anthropic\nfrom openai import OpenAI\n\nclient = OpenAI()\nanthro = anthropic.Anthropic()\n\ndef rag_query(question: str, top_k: int = 3) -> str:\n    # 1. Embed the question\n    q_embedding = client.embeddings.create(\n        input=question, model=\"text-embedding-3-small\"\n    ).data[0].embedding\n\n    # 2. Retrieve top-k most similar chunks\n    results = collection.query(\n        query_embeddings=[q_embedding],\n        n_results=top_k\n    )\n    retrieved_chunks = results[\"documents\"][0]\n\n    # 3. Build context-augmented prompt\n    context = \"\\n\\n\".join(f\"[{i+1}] {chunk}\" for i, chunk in enumerate(retrieved_chunks))\n\n    # 4. Generate grounded answer\n    response = anthro.messages.create(\n        model=\"claude-haiku-5-5\",\n        max_tokens=512,\n        system=\"\"\"You are a helpful assistant. Answer questions using ONLY the provided context.\nIf the context does not contain the answer, say 'I don't have information about that.'\nDo not use your training knowledge.\"\"\",\n        messages=[{\"role\": \"user\", \"content\": f\"Context:\\n{context}\\n\\nQuestion: {question}\"}]\n    )\n    return response.content[0].text\n\nprint(rag_query(\"What is the return policy?\"))\n# Returns answer grounded in the indexed documents"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "RAG vs Fine-Tuning"
+    },
+    {
+      "type": "comparison",
+      "title": "RAG vs Fine-Tuning for Domain Knowledge",
+      "a": {
+        "name": "RAG",
+        "description": "Retrieves relevant docs at query time and injects into prompt",
+        "strengths": ["No model training required", "Knowledge can be updated instantly", "Sources are traceable", "Works for private/confidential docs"],
+        "weaknesses": ["Retrieval quality affects answer quality", "Adds latency for embedding + search", "Requires vector database infrastructure"],
+        "useWhen": "Private knowledge bases, frequently updated data, need citations, most enterprise Q&A use cases"
+      },
+      "b": {
+        "name": "Fine-Tuning",
+        "description": "Trains the model weights on domain-specific data",
+        "strengths": ["No retrieval step — knowledge is baked in", "Better for style/format consistency", "No context window cost for injected docs"],
+        "weaknesses": ["Expensive to train and update", "Knowledge is static until retrained", "Risk of forgetting other knowledge (catastrophic forgetting)"],
+        "useWhen": "Style/tone consistency, specific output format requirements, NOT for injecting new factual knowledge"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Always instruct the LLM to use <strong>only the provided context</strong> and to say 'I don't know' if the answer isn't there. Without this, models will fall back to training knowledge and hallucinate."
+    },
+    {
+      "type": "warning",
+      "text": "<strong>Chunk size matters enormously.</strong> Too small (100 tokens): context is fragmented and lacks meaning. Too large (2000 tokens): the retrieved chunk buries the relevant information. Sweet spot: 300-800 tokens with 10-20% overlap."
     },
     {
       "type": "quiz",
@@ -44,12 +112,38 @@
           "type": "multiple-choice",
           "options": [
             "Reducing API latency",
-            "Grounding LLM answers in specific documents instead of relying on training knowledge",
+            "Grounding LLM answers in specific documents instead of relying on training knowledge alone",
             "Reducing token usage",
-            "Improving model temperature"
+            "Improving the model's mathematical reasoning"
           ],
           "correctAnswer": 1,
-          "explanation": "RAG provides relevant document context to the LLM so answers are grounded in your data, not just training knowledge."
+          "explanation": "RAG provides relevant document context to the LLM at query time, so answers are grounded in your actual data rather than potentially outdated or incorrect training knowledge."
+        },
+        {
+          "id": "q2",
+          "question": "What is a chunk in the context of RAG?",
+          "type": "multiple-choice",
+          "options": [
+            "An API request batch",
+            "A fixed-size or semantically-bounded piece of a document used for embedding and retrieval",
+            "A vector database index partition",
+            "A tokenized sentence"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Documents are split into chunks (300-1000 tokens) before embedding. This allows retrieval to return focused, relevant passages rather than entire documents."
+        },
+        {
+          "id": "q3",
+          "question": "When should you use fine-tuning instead of RAG?",
+          "type": "multiple-choice",
+          "options": [
+            "When you have more than 100 documents",
+            "When you need consistent output style/format rather than injecting factual knowledge",
+            "When your documents are confidential",
+            "When you need real-time data access"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Fine-tuning is best for ingraining style and format. For factual knowledge, RAG is better — it's updatable, traceable, and doesn't risk catastrophic forgetting."
         }
       ]
     }
@@ -57,24 +151,39 @@
   "faq": [
     {
       "q": "What is a chunk?",
-      "a": "A chunk is a fixed-size piece of a document (e.g., 500 tokens). Documents are split into chunks before embedding so retrieval returns focused snippets."
+      "a": "A fixed-size piece of a document (e.g., 500 tokens). Documents are split into chunks before embedding. Retrieval returns focused snippets rather than whole documents. Use 10-20% overlap between adjacent chunks to avoid splitting context mid-sentence."
+    },
+    {
+      "q": "What embedding model should I use?",
+      "a": "For English: text-embedding-3-small (OpenAI) is fast and cheap (1536 dims). For multilingual: multilingual-e5-large or Cohere embed v3. For code: code-search-* variants. Always use the same model for indexing and querying."
+    },
+    {
+      "q": "How do I evaluate RAG quality?",
+      "a": "Two key metrics: (1) Retrieval recall — are the right chunks retrieved? Measure by checking if the gold-standard answer chunks are in top-k results. (2) Faithfulness — is the LLM answer supported by retrieved chunks? Frameworks like RAGAS automate this."
     }
   ],
   "sources": [
     {
-      "name": "RAG Overview",
-      "url": "https://docs.anthropic.com/en/docs/build-with-claude/contextual-retrieval",
-      "verified": "2026-11-04"
+      "name": "Anthropic Contextual Retrieval",
+      "url": "https://www.anthropic.com/news/contextual-retrieval",
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "RAGAS Evaluation Framework",
+      "url": "https://docs.ragas.io/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "document Q&A",
-      "customer support bots",
-      "internal knowledge bases"
+      "Customer support bots answering from product documentation",
+      "Internal knowledge base Q&A for HR policies and company wikis",
+      "Legal contract analysis over private document sets",
+      "Codebase Q&A tools for large repositories"
     ],
     "examples": [
-      "Building a Q&A bot over company policy documents"
+      "A SaaS company's support bot that retrieves from 500 help articles and cites the specific article in its answer",
+      "A law firm's contract review tool that retrieves relevant clauses from past contracts to compare with new ones"
     ]
   }
 }

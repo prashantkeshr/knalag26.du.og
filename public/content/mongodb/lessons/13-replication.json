@@ -1,38 +1,110 @@
 {
   "id": "13-replication",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-production",
   "title": "Replication",
-  "subtitle": "Replica sets, elections, and read preferences",
+  "subtitle": "Replica sets, elections, read preferences, and write concerns",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "mongodb.geospatial"
-  ],
-  "skillsTaught": [
-    "mongodb.replication"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.geospatial"],
+  "skillsTaught": ["mongodb.replication"],
+  "whyItExists": {
+    "problem": "A single MongoDB server is a single point of failure. If it goes down — hardware failure, OS crash, power outage — your application is down and data may be lost. This is unacceptable for production services.",
+    "solution": "A replica set is a group of MongoDB servers that maintain the same data. If the primary fails, secondaries automatically elect a new primary in seconds. Data is replicated asynchronously, providing both high availability and data redundancy.",
+    "whenToUse": "Always use a replica set in production. MongoDB Atlas automatically provisions 3-node replica sets. Even for small projects, the M0 Atlas free tier is a 3-node replica set.",
+    "whenNotToUse": "Single-node deployments are fine for local development and testing. Never use a single node in production — a replica set costs very little on Atlas and provides automatic failover with no code changes in your application."
+  },
+  "explainModes": {
+    "beginner": "A replica set is like having 3 copies of your database. One copy (the primary) handles all writes, and the other two (secondaries) automatically copy every change. If the primary crashes, one of the secondaries becomes the new primary — usually in under 10 seconds — and your app keeps working.",
+    "simple": "A replica set has one primary (accepts writes) and 1+ secondaries (copy from primary). If primary fails, secondaries elect a new primary automatically. Write concern controls durability. Read preference controls which members serve reads.",
+    "standard": "MongoDB replica sets use a leader-follower replication model. The primary processes writes and records them in the oplog (operations log). Secondaries tail the oplog and replay operations. Elections use a Raft-like consensus algorithm. Write concern (w: 1 vs w: majority) controls how many nodes must acknowledge a write before it's considered successful.",
+    "technical": "The oplog is a capped collection in the local database that records all write operations as idempotent BSON documents. Secondaries replicate by tailing the primary's oplog and applying operations. Elections require a majority of voting members — a 3-node set can tolerate 1 failure. PSA (Primary-Secondary-Arbiter) topologies use an arbiter for elections without storing data, reducing cost but reducing data redundancy.",
+    "deepDive": "MongoDB elections use an extended Raft protocol. Each member has a priority (default 1) that influences election preference. Elections are triggered when the primary heartbeat is missed for more than electionTimeoutMillis (default 10s). The oplog's retention window is controlled by the oplogMinRetentionHours setting. Change streams (db.collection.watch()) are built on top of the oplog and require a replica set. The write concern 'majority' ensures writes survive primary failure — a write acknowledged by majority cannot be rolled back even if the primary crashes immediately after."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Replica Sets"
+      "text": "What is a Replica Set?"
     },
     {
       "type": "paragraph",
-      "text": "A replica set is a group of MongoDB servers that maintain the same data. One is the primary (accepts writes); the others are secondaries (replicate from primary)."
+      "text": "A <strong>replica set</strong> is a group of MongoDB servers that maintain the same dataset. One member is the <strong>primary</strong> (receives all write operations), and one or more are <strong>secondaries</strong> (replicate from the primary asynchronously). If the primary becomes unavailable, the secondaries automatically elect a new primary."
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "",
-      "code": "Replica Set members:\n  Primary   ← receives all writes\n  Secondary ← replicates primary, can serve reads\n  Secondary ← replicates primary, can serve reads\n\nIf the primary fails, secondaries elect a new primary automatically."
+      "filename": "replica-set-topology.txt",
+      "code": "Typical 3-node Replica Set:\n\n┌─────────────────────────────────────────────┐\n│               Replica Set                   │\n│                                             │\n│  ┌──────────┐    ┌──────────┐  ┌──────────┐│\n│  │ Primary  │───>│Secondary │  │Secondary ││\n│  │ (writes) │    │ (reads)  │  │ (reads)  ││\n│  └──────────┘    └──────────┘  └──────────┘│\n│       │               │              │     │\n│       └───── oplog replication ──────┘     │\n└─────────────────────────────────────────────┘\n\nIf Primary fails:\n  → Secondaries detect failure (after ~10s)\n  → Election: remaining nodes vote for new primary\n  → New primary elected automatically\n  → App reconnects via connection string (no code change)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connecting to a Replica Set"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "rs-connection.js",
+      "code": "// Connection string lists all replica set members\n// The driver automatically handles failover when primary changes\nconst uri = 'mongodb://host1:27017,host2:27017,host3:27017/?replicaSet=myReplicaSet';\n\n// MongoDB Atlas provides this automatically:\nconst atlasUri = 'mongodb+srv://user:pass@cluster0.mongodb.net/mydb?retryWrites=true&w=majority';\n// 'mongodb+srv://' — SRV record resolves to all 3 replica set members\n// retryWrites=true  — automatically retry writes on network blips\n// w=majority        — wait for majority acknowledgement (data safety)\n\nconst client = new MongoClient(atlasUri);\nawait client.connect();\n// The driver is now replica-set-aware — it knows all members\n// and will automatically reconnect to the new primary if failover occurs"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Write Concern — Data Durability"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Write concern</strong> controls how many replica set members must acknowledge a write before the driver considers it successful. Higher write concern = more durability, slightly more latency."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "write-concern.js",
+      "code": "// w: 1 (default) — acknowledged by primary only\n// Fast but: if primary crashes before replicating, write may be lost\nawait db.collection('logs').insertOne(\n  { event: 'page_view', url: '/home' },\n  { writeConcern: { w: 1 } }  // OK for non-critical data\n);\n\n// w: 'majority' — acknowledged by majority of voting members\n// Slightly slower but: write survives primary failure\nawait db.collection('orders').insertOne(\n  { userId: id, items: cart, total: 2499 },\n  { writeConcern: { w: 'majority' } }  // critical data — use majority!\n);\n\n// w: 0 — fire and forget (not acknowledged)\n// Fastest but no guarantees — only for truly throwaway data\nawait analytics.insertOne(\n  { event: 'ad_impression' },\n  { writeConcern: { w: 0 } }  // we don't care if a few are lost\n);\n\n// Set at collection level (applies to all operations)\nconst orders = db.collection('orders').withOptions({\n  writeConcern: { w: 'majority', j: true }  // j: true = also wait for journal flush\n});"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Read Preference — Where Reads Go"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Read preference</strong> controls which replica set member serves read operations. Reads from secondaries are eventually consistent — they may lag slightly behind the primary."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "read-preference.js",
+      "code": "// primaryPreferred — read from primary, fallback to secondary if unavailable\nconst db = client.db('myapp', {\n  readPreference: 'primaryPreferred'\n});\n\n// secondary — always read from a secondary (never primary)\n// Good for analytics/reporting that can tolerate slight staleness\nconst analyticsDb = client.db('myapp', {\n  readPreference: 'secondary'\n});\n\n// nearest — read from the replica set member with lowest network latency\n// Good for globally distributed apps with read replicas in different regions\nconst nearestDb = client.db('myapp', {\n  readPreference: 'nearest'\n});\n\n// Per-operation read preference override:\nconst recentOrders = await db.collection('orders').find(\n  { status: 'pending' },\n  { readPreference: 'primary' }  // must read from primary for strong consistency\n).toArray();\n\n// Read preferences:\n// primary — always from primary (default)\n// primaryPreferred — primary if available, secondary if not\n// secondary — always from secondary (may be slightly stale)\n// secondaryPreferred — secondary if available, primary if not\n// nearest — lowest latency member"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Change Streams — Real-Time Data"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Change streams</strong> allow applications to subscribe to real-time changes in a collection, database, or entire deployment. Built on the oplog, they enable event-driven architectures without polling."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "change-streams.js",
+      "code": "// Watch for changes to the orders collection\nconst changeStream = db.collection('orders').watch();\n\n// Process each change event\nfor await (const change of changeStream) {\n  console.log('Change type:', change.operationType); // insert, update, delete\n  console.log('Document ID:', change.documentKey._id);\n\n  if (change.operationType === 'insert') {\n    const newOrder = change.fullDocument;\n    await sendConfirmationEmail(newOrder.userId, newOrder);\n  }\n\n  if (change.operationType === 'update') {\n    const { updatedFields } = change.updateDescription;\n    if (updatedFields.status === 'shipped') {\n      await sendShippingNotification(change.documentKey._id);\n    }\n  }\n}\n\n// Resume after restart using resumeToken\nconst token = loadResumeToken();  // load from storage\nconst resumedStream = db.collection('orders').watch([], {\n  resumeAfter: token  // picks up exactly where it left off\n});"
     },
     {
       "type": "tip",
-      "text": "Always deploy replica sets in production — they provide automatic failover and data redundancy."
+      "text": "Always use w: 'majority' for financial transactions, user account operations, and any critical writes. The slight latency increase (a few milliseconds) is worth the guarantee that the write survives primary failure."
     },
     {
       "type": "quiz",
@@ -42,13 +114,39 @@
           "question": "What happens when the primary in a replica set goes down?",
           "type": "multiple-choice",
           "options": [
-            "All writes fail permanently",
-            "Secondaries elect a new primary",
+            "All writes fail permanently until manual intervention",
+            "Secondaries elect a new primary automatically",
             "The replica set stops accepting reads",
-            "Data is lost"
+            "All data written since last backup is lost"
           ],
           "correctAnswer": 1,
-          "explanation": "MongoDB replica sets automatically elect a new primary when the current primary becomes unavailable."
+          "explanation": "MongoDB replica sets automatically elect a new primary when the current primary becomes unavailable. The election completes in seconds, and your application reconnects automatically via the driver."
+        },
+        {
+          "id": "q2",
+          "question": "What write concern ensures a write survives primary failure?",
+          "type": "multiple-choice",
+          "options": [
+            "w: 0",
+            "w: 1",
+            "w: 'majority'",
+            "w: 'all'"
+          ],
+          "correctAnswer": 2,
+          "explanation": "w: 'majority' waits for a majority of voting replica set members to acknowledge the write. A write acknowledged by majority cannot be rolled back even if the primary crashes immediately afterward."
+        },
+        {
+          "id": "q3",
+          "question": "How many members should a replica set have for a typical production setup?",
+          "type": "multiple-choice",
+          "options": [
+            "2 members (primary + secondary)",
+            "3 members (odd number for elections)",
+            "4 members for maximum redundancy",
+            "Any even number"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Always use an odd number (3, 5, 7) to avoid split-brain during elections. A 3-member replica set can tolerate 1 failure while still having a majority (2 of 3) for elections. 2 members cannot achieve majority after one failure."
         }
       ]
     }
@@ -56,23 +154,39 @@
   "faq": [
     {
       "q": "How many members should a replica set have?",
-      "a": "Always use an odd number (3, 5, 7) to avoid split-brain during elections. Three members is the standard."
+      "a": "Always use an odd number (3, 5, 7) to avoid split-brain during elections. A 3-node replica set is the standard — it tolerates 1 failure. For higher availability, use 5 nodes. Never use 2 nodes — if one goes down, the remaining node can't achieve a majority and won't elect a primary."
+    },
+    {
+      "q": "What is the oplog?",
+      "a": "The oplog (operations log) is a special capped collection in the 'local' database that records all write operations as idempotent BSON documents. Secondaries replicate by tailing the primary's oplog. Change streams are also built on the oplog. The oplog has a configurable retention window."
+    },
+    {
+      "q": "Can I read from a secondary in MongoDB?",
+      "a": "Yes, with read preference set to 'secondary' or 'secondaryPreferred'. However, secondary reads may be slightly stale (seconds behind the primary). Use secondary reads for reporting, analytics, or backup dumps — not for data that must be strongly consistent."
     }
   ],
   "sources": [
     {
       "name": "Replica Sets",
       "url": "https://www.mongodb.com/docs/manual/replication/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Write Concern",
+      "url": "https://www.mongodb.com/docs/manual/reference/write-concern/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "production databases",
-      "high-availability systems"
+      "Production databases requiring high availability",
+      "Systems that cannot tolerate downtime (SaaS, e-commerce)",
+      "Real-time event streaming via change streams"
     ],
     "examples": [
-      "3-member replica set on Atlas"
+      "MongoDB Atlas automatically provisions 3-member replica sets — no manual setup needed",
+      "Order service uses w: 'majority' for all payment writes to prevent data loss on failover",
+      "Change stream on 'orders' collection triggers fulfillment workflow on every new insert"
     ]
   }
 }

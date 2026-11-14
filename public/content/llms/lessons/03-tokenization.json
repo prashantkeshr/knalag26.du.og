@@ -1,54 +1,144 @@
 {
   "id": "03-tokenization",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "tiktoken / Claude token counter / GPT-4",
   "technology": "llms",
   "module": "llm-fundamentals",
   "title": "Tokenization",
   "subtitle": "How text becomes tokens, BPE, and counting tokens",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "llms.architecture"
-  ],
-  "skillsTaught": [
-    "llms.tokenization"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.architecture"],
+  "skillsTaught": ["llms.tokenization"],
+  "whyItExists": {
+    "problem": "LLMs don't work with raw characters or whole words. They need a consistent, compact, vocabulary-limited representation. Character-based models have too many steps; word-based models struggle with rare words and typos.",
+    "solution": "Byte-Pair Encoding (BPE) builds a vocabulary of ~100K sub-word units. Common words become single tokens; rare words split into sub-word parts. This handles any input gracefully.",
+    "whenToUse": "Token counting matters everywhere: cost estimation, context budget management, chunking documents for RAG, and knowing why some languages are cheaper/more expensive than English.",
+    "whenNotToUse": "You don't need to manually tokenize unless you're building a tokenization library or training your own model. Use provider APIs and tiktoken for counting."
+  },
+  "explainModes": {
+    "beginner": "Think of tokens as puzzle pieces that make up text. 'Hello' might be one piece, but 'tokenization' might be three pieces: 'token', 'iz', 'ation'. LLMs only understand these pieces, not letters or full words.",
+    "simple": "LLMs convert text into numbers (tokens) using a lookup table of about 100,000 common text chunks. 'Hello world' might be 2 tokens; a rare technical word might be 5. This affects both cost and what the model can process at once.",
+    "standard": "Tokenizers use Byte-Pair Encoding (BPE) to build a vocabulary by iteratively merging the most frequent character pairs. The result is sub-word tokens: common words are single tokens, rare words split into multiple. Models process token IDs, not text.",
+    "technical": "GPT-4 uses cl100k_base tokenizer (100K vocab). Claude uses its own tokenizer. BPE merges: start with individual bytes, iteratively merge the most frequent pair until vocabulary size is reached. Sentence boundaries are not respected — tokens can span spaces ('Ġhello' in some tokenizers).",
+    "deepDive": "Unicode handling matters: a CJK character (Chinese/Japanese/Korean) is typically 1-2 tokens, while an ASCII word is 1 token. Emojis are 1-3 tokens. Code is token-heavy because identifiers and operators appear less frequently in training data than prose. tiktoken uses regex pre-tokenization to split on whitespace/punctuation before BPE."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Tokenizers"
+      "text": "What Are Tokens?"
     },
     {
       "type": "paragraph",
-      "text": "LLMs do not operate on characters or words. They use subword tokenization (BPE or similar) which breaks text into variable-length chunks."
+      "text": "LLMs do not operate on characters or words. They use <strong>sub-word tokenization</strong> (Byte-Pair Encoding, or BPE) which breaks text into variable-length chunks from a fixed vocabulary. English averages <strong>~0.75 words per token</strong>, so 1000 words ≈ 1333 tokens. API pricing is charged per token."
+    },
+    {
+      "type": "definition",
+      "term": "BPE (Byte-Pair Encoding)",
+      "definition": "A tokenization algorithm that builds a vocabulary by iteratively merging the most frequent character pairs. 'tokenization' → ['token', 'ization'] or ['token', 'iz', 'ation'] depending on the vocabulary."
+    },
+    {
+      "type": "definition",
+      "term": "Vocabulary",
+      "definition": "The fixed set of all possible tokens a model knows. GPT-4 uses ~100,257 tokens. Each token is an integer ID; the model never sees raw text — only these integers."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "tokenize.py",
-      "code": "import tiktoken  # OpenAI tokenizer\n\nenc = tiktoken.encoding_for_model(\"gpt-4\")\ntokens = enc.encode(\"Hello, world!\")\nprint(tokens)      # [9906, 11, 1917, 0]\nprint(len(tokens)) # 4\n\n# Anthropic token count via API\nimport anthropic\nclient = anthropic.Anthropic()\ncount = client.messages.count_tokens(\n    model=\"claude-opus-4-5\",\n    messages=[{\"role\":\"user\",\"content\":\"Hello, world!\"}]\n)\nprint(count.input_tokens)"
+      "filename": "tokenize_demo.py",
+      "code": "import tiktoken  # pip install tiktoken\n\nenc = tiktoken.encoding_for_model(\"gpt-4\")  # cl100k_base\n\n# Count tokens for a string\ntext = \"Hello, world!\"\ntokens = enc.encode(text)\nprint(f\"Tokens: {tokens}\")       # [9906, 11, 1917, 0]\nprint(f\"Count:  {len(tokens)}\")  # 4\n\n# See the actual text pieces\nfor token_id in tokens:\n    print(f\"  {token_id:6d} -> '{enc.decode([token_id])}'\")\n\n# Token-heavy example: code vs prose\ncode = 'def fibonacci(n): return n if n <= 1 else fibonacci(n-1) + fibonacci(n-2)'\nprint(f\"\\nCode: {len(enc.encode(code))} tokens for {len(code)} chars\")\nprose = \"The quick brown fox jumps over the lazy dog near the river\"\nprint(f\"Prose: {len(enc.encode(prose))} tokens for {len(prose)} chars\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Counting Tokens via the Anthropic API"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "count_tokens.py",
+      "code": "import anthropic\n\nclient = anthropic.Anthropic()\n\n# Count tokens BEFORE making a full API call (saves money on large prompts)\ncount_response = client.messages.count_tokens(\n    model=\"claude-opus-4-5\",\n    system=\"You are a helpful assistant that answers concisely.\",\n    messages=[\n        {\"role\": \"user\", \"content\": \"Explain the difference between TCP and UDP in simple terms.\"}\n    ]\n)\nprint(f\"Input tokens: {count_response.input_tokens}\")  # e.g., 35\n\n# After a real call, usage is included in the response\nresponse = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=200,\n    messages=[{\"role\": \"user\", \"content\": \"What is 2+2?\"}]\n)\nprint(f\"In: {response.usage.input_tokens}, Out: {response.usage.output_tokens}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Token Counts by Language and Content Type"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "English prose: ~0.75 words/token (most efficient)",
+        "Python/JS code: ~1 token per 3-4 characters (more expensive)",
+        "Chinese/Japanese: 1-2 chars per token (more expensive than English)",
+        "Emojis: 1-3 tokens each",
+        "Numbers: each digit is often its own token (123 = 3 tokens)",
+        "Whitespace and newlines: each takes tokens — compact prompts cost less"
+      ]
     },
     {
       "type": "tip",
-      "text": "Code uses more tokens per character than English. A Python function of 100 characters may use 50-80 tokens."
+      "text": "Code uses more tokens per character than English. A Python function of 100 characters may use 50-80 tokens. When building RAG systems, account for this when setting chunk sizes."
+    },
+    {
+      "type": "warning",
+      "text": "Tokenizers differ between providers: Claude, GPT-4, and Llama use different tokenizers. Never assume token counts transfer between providers. Always use the provider's own tokenizer or counting API."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cost_estimator.py",
+      "code": "import tiktoken\n\ndef estimate_cost_gpt4(text: str, is_input: bool = True) -> float:\n    \"\"\"Rough cost estimate for GPT-4o at Nov 2026 pricing.\"\"\"\n    enc = tiktoken.encoding_for_model(\"gpt-4\")\n    n_tokens = len(enc.encode(text))\n    # GPT-4o: $5/1M input tokens, $15/1M output tokens\n    price_per_million = 5.0 if is_input else 15.0\n    cost = (n_tokens / 1_000_000) * price_per_million\n    return cost, n_tokens\n\nsystem_prompt = \"You are a JSON-only API. Respond with valid JSON.\"\nuser_msg = \"Extract the name and email from: John Smith <john@acme.com>\"\n\ncost, tokens = estimate_cost_gpt4(system_prompt + user_msg)\nprint(f\"Input: {tokens} tokens, estimated cost: ${cost:.5f}\")"
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Why does tokenization matter for LLM costs?",
+          "question": "Why does tokenization matter for LLM API costs?",
           "type": "multiple-choice",
           "options": [
-            "LLMs charge per second of compute",
+            "LLMs charge per second of compute time",
             "API pricing is based on input and output token count",
-            "Tokens affect latency only",
+            "Tokens affect response quality only",
             "More tokens make models less accurate"
           ],
           "correctAnswer": 1,
-          "explanation": "LLM API pricing is based on tokens in and out. Understanding tokenization helps estimate and control costs."
+          "explanation": "LLM API pricing is based on tokens in and out. Understanding tokenization helps estimate and control costs — especially important at scale."
+        },
+        {
+          "id": "q2",
+          "question": "Which type of content uses the MOST tokens per character?",
+          "type": "multiple-choice",
+          "options": [
+            "English prose",
+            "Python source code",
+            "Spanish text",
+            "Markdown headers"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Code is token-heavy because programming syntax (operators, punctuation, identifiers) appears less frequently in training data than prose, so they don't merge into large tokens."
+        },
+        {
+          "id": "q3",
+          "question": "What algorithm do most modern LLM tokenizers use?",
+          "type": "multiple-choice",
+          "options": [
+            "Word-level tokenization (split on spaces)",
+            "Character-level tokenization (one token per character)",
+            "Byte-Pair Encoding (BPE) — iterative sub-word merging",
+            "Sentence-piece tokenization (split on punctuation)"
+          ],
+          "correctAnswer": 2,
+          "explanation": "BPE builds a vocabulary by iteratively merging the most frequent character pairs, resulting in sub-word tokens that handle rare words gracefully."
         }
       ]
     }
@@ -56,23 +146,38 @@
   "faq": [
     {
       "q": "Does tokenization differ between models?",
-      "a": "Yes. Claude, GPT-4, and Llama use different tokenizers. Never assume token counts transfer between providers."
+      "a": "Yes. Claude, GPT-4, and Llama use different tokenizers. Never assume token counts transfer between providers. Always use the provider's own counting API (e.g., Anthropic's count_tokens endpoint)."
+    },
+    {
+      "q": "How do I estimate the cost of a large batch job?",
+      "a": "Use tiktoken to count tokens for a sample of your data, multiply by your dataset size, then multiply by the model's per-token price. The count_tokens API endpoint also works without incurring generation costs."
+    },
+    {
+      "q": "What is the max tokens parameter for?",
+      "a": "max_tokens sets the maximum number of tokens the model is ALLOWED to generate in its response. It does not control input length. Setting it too low truncates responses mid-sentence."
     }
   ],
   "sources": [
     {
-      "name": "tiktoken",
+      "name": "tiktoken (OpenAI tokenizer)",
       "url": "https://github.com/openai/tiktoken",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Anthropic Token Counting API",
+      "url": "https://docs.anthropic.com/en/docs/build-with-claude/token-counting",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "cost estimation",
-      "context management"
+      "Cost estimation for LLM batch processing pipelines",
+      "Context budget management in long-running chat applications",
+      "Chunk size optimisation for RAG document splitting"
     ],
     "examples": [
-      "Estimating cost of processing 1 million customer support messages"
+      "Estimating cost of processing 1 million customer support messages before committing to an LLM provider",
+      "Dynamically trimming conversation history when it approaches the context window limit"
     ]
   }
 }

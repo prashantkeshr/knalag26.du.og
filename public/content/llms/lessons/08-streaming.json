@@ -1,19 +1,35 @@
 {
   "id": "08-streaming",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Anthropic SDK 0.40+ / SSE",
   "technology": "llms",
   "module": "llm-apis",
   "title": "Streaming Responses",
   "subtitle": "Server-sent events, real-time display, and latency",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "llms.api"
-  ],
-  "skillsTaught": [
-    "llms.streaming"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.api"],
+  "skillsTaught": ["llms.streaming"],
+  "whyItExists": {
+    "problem": "LLMs generate tokens one at a time. Without streaming, the API buffers the entire response before returning — users wait 10-30 seconds staring at a blank screen for long generations.",
+    "solution": "Streaming (Server-Sent Events / SSE) sends each token to the client as soon as it is generated. Users see output immediately and can read while the model generates the rest.",
+    "whenToUse": "Any user-facing chat UI, any response over ~200 tokens. Users tolerate 'watching it write' much better than waiting.",
+    "whenNotToUse": "Batch processing where you need the complete output before continuing. JSON extraction where partial JSON is unusable."
+  },
+  "explainModes": {
+    "beginner": "Without streaming, you wait 15 seconds then get all the text at once. With streaming, text appears word by word immediately — just like watching someone type. It feels much faster even if the total time is the same.",
+    "simple": "Streaming uses Server-Sent Events (SSE): the server sends a continuous stream of data chunks to the client. Each chunk contains one or a few tokens. Your app displays each chunk as it arrives, creating the 'typing' effect.",
+    "standard": "Streaming uses HTTP chunked transfer encoding with the SSE protocol. The server sends event: content_block_delta events with delta.text payloads. The client accumulates these to build the full response. The connection stays open until the model finishes.",
+    "technical": "The Anthropic SDK's stream() method returns an async context manager that yields MessageStreamEvent objects. The final message (stream.get_final_message()) includes complete usage stats. For React/Next.js, the Vercel AI SDK wraps LLM streaming into a ReadableStream compatible with the web Response API.",
+    "deepDive": "SSE events over HTTP/2 multiplexing allow streaming alongside other requests on the same connection. For LLM proxies (like LiteLLM), all provider streaming is normalized to OpenAI's format: data: {choices:[{delta:{content:'...'}}]} events. Time-to-first-token (TTFT) is the key latency metric for streaming UX — it's the prefill time before generation starts."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,35 +38,96 @@
     },
     {
       "type": "paragraph",
-      "text": "By default, the API waits until the full response is generated before returning. Streaming sends tokens as they are generated, dramatically improving perceived latency."
+      "text": "By default, the API waits until the full response is generated before returning. Streaming sends tokens <strong>as they are generated</strong>, dramatically improving perceived latency. Users start reading immediately instead of waiting for the full response."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "stream.py",
-      "code": "import anthropic\nclient = anthropic.Anthropic()\n\nwith client.messages.stream(\n    model=\"claude-opus-4-5\",\n    max_tokens=1024,\n    messages=[{\"role\": \"user\", \"content\": \"Tell me a short story.\"}]\n) as stream:\n    for text in stream.text_stream:\n        print(text, end=\"\", flush=True)\n\nfinal = stream.get_final_message()\nprint(f\"\\n\\nTotal tokens: {final.usage.input_tokens + final.usage.output_tokens}\")"
+      "filename": "stream_basic.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Streaming with the Anthropic SDK\nwith client.messages.stream(\n    model=\"claude-sonnet-5-5\",\n    max_tokens=1024,\n    messages=[{\"role\": \"user\", \"content\": \"Tell me a short story about a robot learning to paint.\"}]\n) as stream:\n    for text in stream.text_stream:\n        print(text, end=\"\", flush=True)  # Prints each token as it arrives\n\n# Get final message with usage stats\nfinal = stream.get_final_message()\nprint(f\"\\n\\nTokens: in={final.usage.input_tokens}, out={final.usage.output_tokens}\")"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Streaming in JavaScript / Node.js"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "stream.js",
-      "code": "// Node.js streaming\nconst stream = client.messages.stream({\n  model: \"claude-opus-4-5\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Hello!\" }]\n});\nfor await (const event of stream) {\n  if (event.type === \"content_block_delta\")\n    process.stdout.write(event.delta.text);\n}"
+      "filename": "stream_node.js",
+      "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic(); // reads ANTHROPIC_API_KEY\n\nasync function streamResponse(prompt) {\n  const stream = client.messages.stream({\n    model: \"claude-sonnet-5-5\",\n    max_tokens: 1024,\n    messages: [{ role: \"user\", content: prompt }],\n  });\n\n  // Stream text as it arrives\n  for await (const event of stream) {\n    if (\n      event.type === \"content_block_delta\" &&\n      event.delta.type === \"text_delta\"\n    ) {\n      process.stdout.write(event.delta.text);\n    }\n  }\n\n  const finalMsg = await stream.finalMessage();\n  console.log(`\\n\\nStop reason: ${finalMsg.stop_reason}`);\n  console.log(`Tokens: ${finalMsg.usage.input_tokens} in, ${finalMsg.usage.output_tokens} out`);\n}\n\nawStreamResponse(\"Explain async/await in JavaScript.\");"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Streaming to a Next.js / Web API Response"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "stream_nextjs.js",
+      "code": "// app/api/chat/route.ts (Next.js App Router)\nimport Anthropic from \"@anthropic-ai/sdk\";\nimport { AnthropicStream, StreamingTextResponse } from \"ai\"; // Vercel AI SDK\n\nexport const runtime = \"edge\";\n\nexport async function POST(req: Request) {\n  const { messages } = await req.json();\n  const client = new Anthropic();\n\n  const response = await client.messages.create({\n    model: \"claude-sonnet-5-5\",\n    max_tokens: 1024,\n    messages,\n    stream: true,\n  });\n\n  // Vercel AI SDK converts Anthropic SSE to a web ReadableStream\n  const stream = AnthropicStream(response);\n  return new StreamingTextResponse(stream);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Handling Streaming Events"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "stream_events.py",
+      "code": "import anthropic\nclient = anthropic.Anthropic()\n\n# Full event-level control (not just text)\nwith client.messages.stream(\n    model=\"claude-haiku-5-5\",\n    max_tokens=512,\n    tools=[{\"name\": \"search\", \"description\": \"Search the web\",\n            \"input_schema\": {\"type\": \"object\", \"properties\": {\"query\": {\"type\": \"string\"}},\n                            \"required\": [\"query\"]}}],\n    messages=[{\"role\": \"user\", \"content\": \"Search for the latest news on AI.\"}]\n) as stream:\n    for event in stream:\n        if event.type == \"content_block_start\":\n            print(f\"Block started: {event.content_block.type}\")\n        elif event.type == \"content_block_delta\":\n            if hasattr(event.delta, \"text\"):\n                print(event.delta.text, end=\"\", flush=True)\n            elif hasattr(event.delta, \"partial_json\"):\n                print(event.delta.partial_json, end=\"\")\n        elif event.type == \"message_stop\":\n            print(\"\\n--- Stream complete ---\")"
+    },
+    {
+      "type": "tip",
+      "text": "For user-facing chat UIs, always use streaming. The perceived latency improvement is dramatic — users rate streamed responses as 'faster' even when total generation time is identical."
+    },
+    {
+      "type": "warning",
+      "text": "Don't try to parse JSON from a streaming response mid-stream. Buffer the full text and parse after <code>stream.get_final_message()</code>. Partial JSON will throw parse errors."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the main benefit of streaming LLM responses?",
+          "question": "What is the primary benefit of streaming LLM responses?",
           "type": "multiple-choice",
           "options": [
-            "Lower cost",
-            "The user sees output immediately as tokens arrive",
-            "Higher accuracy",
+            "Lower token cost",
+            "Users see output immediately as tokens arrive, improving perceived performance",
+            "Higher accuracy in responses",
             "Smaller context window usage"
           ],
           "correctAnswer": 1,
-          "explanation": "Streaming makes the app feel instant because the user reads output as it is generated rather than waiting for the full response."
+          "explanation": "Streaming makes the app feel instant because the user reads output as it's generated rather than waiting 10-30 seconds for the full response."
+        },
+        {
+          "id": "q2",
+          "question": "Which protocol do LLM APIs use for streaming?",
+          "type": "multiple-choice",
+          "options": [
+            "WebSockets (bidirectional)",
+            "GraphQL subscriptions",
+            "Server-Sent Events (SSE) over HTTP",
+            "Long-polling HTTP requests"
+          ],
+          "correctAnswer": 2,
+          "explanation": "LLM streaming uses SSE (Server-Sent Events) — a unidirectional, text-based HTTP streaming protocol. The server sends event: data: lines over a persistent HTTP connection."
+        },
+        {
+          "id": "q3",
+          "question": "When should you NOT use streaming?",
+          "type": "multiple-choice",
+          "options": [
+            "Chat UIs with long responses",
+            "Batch processing where you need complete JSON before proceeding",
+            "Any response over 200 tokens",
+            "React web applications"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Streaming sends partial text. If your code needs to parse the full JSON output, process it in a database, or chain it to another step, wait for the complete response — partial JSON will throw errors."
         }
       ]
     }
@@ -58,23 +135,39 @@
   "faq": [
     {
       "q": "Can I cancel a streaming request mid-way?",
-      "a": "Yes. Close the stream object (break out of the for loop, or call stream.close()) to cancel the request and stop further token generation."
+      "a": "Yes. Break out of the for loop or call stream.close() to cancel. The API stops generating and you're only charged for tokens generated up to that point."
+    },
+    {
+      "q": "What is time-to-first-token (TTFT)?",
+      "a": "The delay between sending the request and receiving the first token. This is the 'prefill' time — the model processes your input before starting generation. For long prompts, TTFT can be 2-5 seconds even with streaming."
+    },
+    {
+      "q": "How do I stream to multiple clients simultaneously?",
+      "a": "Make separate API calls per client. You can't broadcast one LLM stream to multiple subscribers directly — but you can store the full response as it streams and use a pub/sub system (Redis, SSE broadcast) to fan it out."
     }
   ],
   "sources": [
     {
-      "name": "Streaming",
+      "name": "Anthropic Streaming Reference",
       "url": "https://docs.anthropic.com/en/api/messages-streaming",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Vercel AI SDK",
+      "url": "https://sdk.vercel.ai/docs",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "chat UIs",
-      "real-time summarisation"
+      "Chat interfaces (ChatGPT-style word-by-word display)",
+      "Real-time document summarisation pipelines",
+      "Live coding assistants in IDEs",
+      "AI writing tools with live preview"
     ],
     "examples": [
-      "Streaming a long document summary to a web UI"
+      "A customer support chat widget that streams Claude's response word-by-word so agents see the draft in real time",
+      "A Next.js AI assistant using the Vercel AI SDK for edge-streamed responses"
     ]
   }
 }

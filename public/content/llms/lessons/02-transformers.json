@@ -1,19 +1,35 @@
 {
   "id": "02-transformers",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Transformer (Vaswani et al. 2017) / GPT family",
   "technology": "llms",
   "module": "llm-fundamentals",
   "title": "How Transformers Work",
   "subtitle": "Attention, embeddings, and the transformer architecture",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "llms.basics"
-  ],
-  "skillsTaught": [
-    "llms.architecture"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.basics"],
+  "skillsTaught": ["llms.architecture"],
+  "whyItExists": {
+    "problem": "Before transformers, RNNs/LSTMs processed text sequentially and forgot long-range dependencies. They were slow to train and couldn't scale to billions of parameters.",
+    "solution": "Transformers process all tokens in parallel using self-attention, capturing long-range dependencies in a single pass and enabling massive parallelism on GPUs.",
+    "whenToUse": "Understanding this helps you reason about context limits, why more context = more cost, and why attention patterns matter for performance.",
+    "whenNotToUse": "You don't need to implement transformers from scratch as an application developer — but understanding the concepts guides better use of LLM APIs."
+  },
+  "explainModes": {
+    "beginner": "Imagine you're reading a sentence and every word looks at every other word to understand its meaning. 'Bank' means something different next to 'river' vs 'money'. Transformers do this in parallel for all words at once — that's attention.",
+    "simple": "Transformers use attention to let each word focus on relevant other words in the same sentence. This lets the model understand context without reading sequentially, so it can process long documents much faster than older architectures.",
+    "standard": "The transformer has two key components: multi-head self-attention (each token attends to all other tokens, learning which are relevant) and position-wise feed-forward layers. The decoder-only GPT variant generates text autoregressively with causal (masked) attention.",
+    "technical": "Attention computes Q, K, V projections of the input. Scaled dot-product attention = softmax(QK^T / sqrt(d_k)) * V. Multi-head attention runs h parallel attention heads and concatenates results. Residual connections + layer norm prevent gradient vanishing.",
+    "deepDive": "GPT-style LLMs are decoder-only transformers with causal masking preventing future token leakage. Each transformer block: LayerNorm → Multi-Head Causal Attention → Residual → LayerNorm → MLP (2-layer FFN, usually 4× hidden dim) → Residual. Modern variants (GPT-4, Claude) add rotary position embeddings (RoPE), grouped-query attention (GQA), and sliding window attention for long contexts."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,27 +38,70 @@
     },
     {
       "type": "paragraph",
-      "text": "Transformers use self-attention to process all tokens in parallel and weigh their relevance to each other."
+      "text": "Transformers, introduced in the 2017 paper <em>Attention Is All You Need</em>, replaced recurrent networks as the dominant architecture for language. They use <strong>self-attention</strong> to process all tokens in parallel and weigh their relevance to each other — enabling massive scale and parallelism."
     },
     {
       "type": "definition",
-      "term": "Attention",
-      "definition": "A mechanism that lets each token look at all other tokens and decide which are most relevant for predicting the next token."
+      "term": "Self-Attention",
+      "definition": "A mechanism that lets each token look at all other tokens and compute how relevant each is for predicting the next token. The word 'bank' attends heavily to 'river' (not 'money') in 'The bank of the river'. This is calculated as Q·K^T (query vs key dot products)."
     },
     {
       "type": "definition",
       "term": "Embedding",
-      "definition": "A dense vector representation of a token or text. Similar meanings have similar vectors."
+      "definition": "A dense vector (list of floats) representing a token or piece of text. Similar meanings have geometrically similar vectors. The embedding for 'king' - 'man' + 'woman' ≈ 'queen' in many models."
+    },
+    {
+      "type": "definition",
+      "term": "Context Window",
+      "definition": "The maximum number of tokens the transformer can attend to at once. Because attention is O(n²) in token count, longer contexts use exponentially more compute — which is why longer prompts cost more."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Encoder vs Decoder vs Encoder-Decoder"
+    },
+    {
+      "type": "comparison",
+      "title": "GPT (Decoder-only) vs BERT (Encoder-only)",
+      "a": {
+        "name": "GPT-style (Decoder-only)",
+        "description": "Generates text left-to-right with causal masking. Each token only sees past tokens.",
+        "strengths": ["Generates text naturally", "Powers all major chat LLMs (GPT, Claude, Gemini)", "Scales efficiently with RLHF"],
+        "weaknesses": ["Cannot look ahead during generation", "Slower inference for classification vs encoders"],
+        "useWhen": "Any generative task: chat, summarisation, code generation, creative writing"
+      },
+      "b": {
+        "name": "BERT-style (Encoder-only)",
+        "description": "Bidirectional — sees all tokens at once. Great for understanding tasks.",
+        "strengths": ["Full bidirectional context", "Fast inference for classification", "Great embeddings"],
+        "weaknesses": ["Cannot generate text", "Needs task-specific fine-tuning"],
+        "useWhen": "Text classification, NER, semantic search embeddings, sentence similarity"
+      }
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "embed.py",
-      "code": "# Embeddings via API\nimport anthropic\nclient = anthropic.Anthropic()\n\n# Most providers offer an embeddings endpoint\n# for semantic similarity and vector search\nfrom openai import OpenAI\noai = OpenAI()\n\nresponse = oai.embeddings.create(\n    input=\"Machine learning is transforming industries\",\n    model=\"text-embedding-3-small\"\n)\nvector = response.data[0].embedding  # list of 1536 floats"
+      "filename": "embeddings.py",
+      "code": "# Get text embeddings via API (OpenAI example)\nfrom openai import OpenAI\n\nclient = OpenAI()  # reads OPENAI_API_KEY\n\nresponse = client.embeddings.create(\n    input=\"Machine learning is transforming industries\",\n    model=\"text-embedding-3-small\"  # 1536-dimensional vector\n)\nvector = response.data[0].embedding\nprint(f\"Dimensions: {len(vector)}\")  # 1536\nprint(f\"First 5 values: {vector[:5]}\")\n\n# Compute cosine similarity between two texts\nimport numpy as np\n\ndef cosine_similarity(a, b):\n    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))\n\nv1 = client.embeddings.create(input=\"dog\", model=\"text-embedding-3-small\").data[0].embedding\nv2 = client.embeddings.create(input=\"cat\", model=\"text-embedding-3-small\").data[0].embedding\nv3 = client.embeddings.create(input=\"automobile\", model=\"text-embedding-3-small\").data[0].embedding\n\nprint(cosine_similarity(v1, v2))  # ~0.85 (similar)\nprint(cosine_similarity(v1, v3))  # ~0.65 (less similar)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Context Length Matters for Cost"
+    },
+    {
+      "type": "paragraph",
+      "text": "Attention computation is <strong>O(n²)</strong> in the number of tokens. Doubling the context roughly <em>quadruples</em> the attention cost. Modern techniques like sliding window attention, flash attention, and grouped-query attention mitigate this, but long contexts still cost more and are slower to process."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "token_cost.py",
+      "code": "# Rough cost comparison for Anthropic Claude models (Nov 2026 pricing)\nPRICES = {\n    \"claude-haiku-5-5\":  {\"in\": 0.25,  \"out\": 1.25},   # $ per 1M tokens\n    \"claude-sonnet-5-5\": {\"in\": 3.00,  \"out\": 15.00},\n    \"claude-opus-5-5\":   {\"in\": 15.00, \"out\": 75.00},\n}\n\ndef estimate_cost(model, input_tokens, output_tokens):\n    p = PRICES[model]\n    cost = (input_tokens / 1_000_000) * p[\"in\"] + (output_tokens / 1_000_000) * p[\"out\"]\n    return f\"${cost:.4f}\"\n\n# Summarise a 10-page document (~4000 input tokens, ~400 output tokens)\nprint(estimate_cost(\"claude-haiku-5-5\",  4000, 400))  # $0.0015 — pennies\nprint(estimate_cost(\"claude-sonnet-5-5\", 4000, 400))  # $0.0180\nprint(estimate_cost(\"claude-opus-5-5\",   4000, 400))  # $0.0900"
     },
     {
       "type": "tip",
-      "text": "You do not need to understand transformer internals to build great LLM applications, but it helps to understand why models have context limits and why longer contexts cost more."
+      "text": "You do not need to understand transformer internals to build great LLM applications, but it helps to understand WHY context limits exist and why longer contexts cost more."
     },
     {
       "type": "quiz",
@@ -52,13 +111,39 @@
           "question": "What does self-attention allow a transformer to do?",
           "type": "multiple-choice",
           "options": [
-            "Process tokens one at a time",
-            "Weight every token against every other token in the sequence",
-            "Memorise training data",
-            "Run faster than recurrent networks"
+            "Process tokens one at a time like an RNN",
+            "Weight every token against every other token in the sequence simultaneously",
+            "Memorise the entire training corpus",
+            "Run faster by skipping unimportant words"
           ],
           "correctAnswer": 1,
-          "explanation": "Self-attention computes how relevant each token is to every other token in the input sequence."
+          "explanation": "Self-attention computes how relevant each token is to every other token in the input sequence, all in parallel — unlike RNNs which process sequentially."
+        },
+        {
+          "id": "q2",
+          "question": "Why does processing a 100K token context cost significantly more than a 10K token context?",
+          "type": "multiple-choice",
+          "options": [
+            "Longer contexts require more API calls",
+            "Attention computation is O(n²) in token count",
+            "The model needs more fine-tuning for long documents",
+            "Longer contexts increase temperature automatically"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Attention is quadratic: computing attention for n tokens requires n² comparisons. 10x more tokens = 100x more attention cost."
+        },
+        {
+          "id": "q3",
+          "question": "Which architecture would you use to build a semantic search engine over a document corpus?",
+          "type": "multiple-choice",
+          "options": [
+            "GPT-style decoder-only (for generation)",
+            "BERT-style encoder-only (for dense embeddings)",
+            "T5 encoder-decoder (for translation)",
+            "RNN (for sequential processing)"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Encoder-only models like BERT produce high-quality dense embeddings for similarity search. Decoder models are for generation, not efficient embedding."
         }
       ]
     }
@@ -66,23 +151,38 @@
   "faq": [
     {
       "q": "What is the difference between GPT and BERT?",
-      "a": "GPT is a decoder-only model (generates text left-to-right). BERT is encoder-only (understands full context). GPT-style models power most chat LLMs."
+      "a": "GPT is a decoder-only model (generates text left-to-right with causal masking). BERT is encoder-only (bidirectional, sees all context). GPT-style models power all major chat LLMs."
+    },
+    {
+      "q": "What is flash attention?",
+      "a": "Flash Attention is an I/O-aware algorithm that computes attention without materialising the full n×n attention matrix in memory, dramatically reducing memory use and enabling longer contexts on the same hardware."
+    },
+    {
+      "q": "Do I need to understand transformers to use LLM APIs?",
+      "a": "No — but it helps. Knowing that attention is quadratic explains why long prompts cost more. Knowing about embeddings helps you understand semantic search and RAG. The API abstracts all the internals."
     }
   ],
   "sources": [
     {
-      "name": "Attention Is All You Need",
+      "name": "Attention Is All You Need (original paper)",
       "url": "https://arxiv.org/abs/1706.03762",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "The Illustrated Transformer",
+      "url": "https://jalammar.github.io/illustrated-transformer/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "semantic search",
-      "text classification"
+      "Semantic search over support tickets or documentation",
+      "Text classification pipelines (spam, sentiment, intent)",
+      "Recommendation engines using text embeddings"
     ],
     "examples": [
-      "Using embeddings to find similar support tickets"
+      "GitHub Copilot embeds code context using transformer encoders to find relevant completions",
+      "Semantic duplicate detection: embedding all support tickets to cluster similar issues"
     ]
   }
 }

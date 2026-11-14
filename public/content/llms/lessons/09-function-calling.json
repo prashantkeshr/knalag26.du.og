@@ -1,38 +1,89 @@
 {
   "id": "09-function-calling",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Claude 3.x / OpenAI Function Calling",
   "technology": "llms",
   "module": "llm-apis",
   "title": "Tool Use & Function Calling",
   "subtitle": "Defining tools and parsing structured outputs",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "llms.streaming"
-  ],
-  "skillsTaught": [
-    "llms.tools"
-  ],
+  "author": "KERNAL Team",
+  "reviewer": "KERNAL Team",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["llms.streaming"],
+  "skillsTaught": ["llms.tools"],
+  "whyItExists": {
+    "problem": "LLMs are text-in, text-out. They can't retrieve live data, run code, or interact with external systems on their own. Pure text responses can't reliably produce machine-parseable structured output.",
+    "solution": "Tool use (function calling) gives LLMs a structured way to request actions from your code. The model returns a typed JSON tool call; your code executes it and returns the result. This bridges LLMs to real-world systems.",
+    "whenToUse": "Whenever the LLM needs data it doesn't have (weather, database queries, API calls), needs to perform actions (send email, write file), or when you need guaranteed structured JSON output.",
+    "whenNotToUse": "Simple Q&A that the model can answer from training data. Adding tools increases latency and cost — only add tools the model will actually use."
+  },
+  "explainModes": {
+    "beginner": "Think of tools as buttons the AI can press. You tell it 'you can press the weather button (give it a city name)' and 'you can press the database button (give it a SQL query)'. The AI decides when to press them and your code does the actual work.",
+    "simple": "You define a list of functions your code can run (search database, send email, etc.) and describe them to the LLM. When the model needs data it doesn't have, it returns a structured tool call instead of text. Your code runs the function, returns the result, and the model continues.",
+    "standard": "Tool use is a two-turn pattern: (1) Send messages + tool definitions → model returns tool_use content blocks; (2) Execute the tools in your code, add tool_result blocks, re-send → model generates final text answer. The model decides whether to use tools based on the tool descriptions.",
+    "technical": "Anthropic's tool use uses JSON Schema for input validation. The model returns content blocks with type='tool_use', name, id, and input (typed JSON). Your code maps names to functions, executes them, then sends back tool_result blocks with the tool_use_id. The model then reasons over results and returns stop_reason='end_turn'.",
+    "deepDive": "Tools enable structured output extraction by defining an output schema as a 'fake' tool. Set tool_choice={'type':'tool','name':'extract'} to force the model to always call a specific tool — this is the most reliable way to get guaranteed JSON output. Parallel tool calls (multiple tool_use blocks in one response) allow the model to batch independent calls."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Tool Use"
+      "text": "How Tool Use Works"
     },
     {
       "type": "paragraph",
-      "text": "Tools (function calling) let the LLM request data or actions from your code. The model returns a structured tool call; you execute it and return the result."
+      "text": "Tools (function calling) let the LLM <strong>request data or actions from your code</strong>. The model returns a structured tool call; you execute it and return the result. This gives LLMs access to real-time data, databases, APIs, and any capability your code can provide."
+    },
+    {
+      "type": "definition",
+      "term": "Tool Definition",
+      "definition": "A JSON Schema description of a function: its name, description (what it does, when to use it), and input_schema (the typed parameters). The model decides whether and when to call tools based entirely on these descriptions."
+    },
+    {
+      "type": "definition",
+      "term": "Tool Result",
+      "definition": "The output your code returns after executing a tool call. Sent back as a tool_result message with the matching tool_use_id. The model reads the result and decides what to do next."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "tools.py",
-      "code": "import anthropic\nclient = anthropic.Anthropic()\n\ntools = [{\n    \"name\": \"get_weather\",\n    \"description\": \"Get current weather for a city\",\n    \"input_schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n            \"city\": {\"type\": \"string\", \"description\": \"City name\"},\n            \"units\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}\n        },\n        \"required\": [\"city\"]\n    }\n}]\n\nresponse = client.messages.create(\n    model=\"claude-opus-4-5\",\n    max_tokens=512,\n    tools=tools,\n    messages=[{\"role\": \"user\", \"content\": \"What is the weather in Paris?\"}]\n)\n\n# Check if model wants to call a tool\nif response.stop_reason == \"tool_use\":\n    tool_call = next(b for b in response.content if b.type == \"tool_use\")\n    print(f\"Tool: {tool_call.name}, Input: {tool_call.input}\")"
+      "filename": "tool_use_basic.py",
+      "code": "import anthropic, json\nclient = anthropic.Anthropic()\n\n# Step 1: Define tools\ntools = [\n    {\n        \"name\": \"get_weather\",\n        \"description\": \"Get the current weather for a city. Use when the user asks about weather.\",\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"city\": {\"type\": \"string\", \"description\": \"City name, e.g. 'Paris'\"},\n                \"units\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"], \"default\": \"celsius\"}\n            },\n            \"required\": [\"city\"]\n        }\n    }\n]\n\n# Step 2: First call — model may request a tool\nresponse = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=1024,\n    tools=tools,\n    messages=[{\"role\": \"user\", \"content\": \"What's the weather in Paris right now?\"}]\n)\n\nprint(f\"Stop reason: {response.stop_reason}\")  # tool_use\n\nif response.stop_reason == \"tool_use\":\n    tool_call = next(b for b in response.content if b.type == \"tool_use\")\n    print(f\"Model wants to call: {tool_call.name}\")\n    print(f\"With input: {tool_call.input}\")\n    # {\"city\": \"Paris\", \"units\": \"celsius\"}"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tool_use_complete.py",
+      "code": "import anthropic, json\nclient = anthropic.Anthropic()\n\ndef get_weather(city: str, units: str = \"celsius\") -> dict:\n    \"\"\"Your actual implementation — calls a real weather API.\"\"\"\n    # Stub for demo\n    return {\"city\": city, \"temperature\": 18, \"units\": units, \"condition\": \"Partly cloudy\"}\n\ntools = [{\"name\": \"get_weather\", \"description\": \"Get current weather\",\n          \"input_schema\": {\"type\": \"object\",\n                           \"properties\": {\"city\": {\"type\": \"string\"}, \"units\": {\"type\": \"string\", \"enum\": [\"celsius\",\"fahrenheit\"]}},\n                           \"required\": [\"city\"]}}]\n\nmessages = [{\"role\": \"user\", \"content\": \"What is the weather in Tokyo and in London?\"}]\n\n# Agentic loop\nwhile True:\n    response = client.messages.create(\n        model=\"claude-haiku-5-5\", max_tokens=1024, tools=tools, messages=messages\n    )\n\n    if response.stop_reason == \"end_turn\":\n        print(response.content[0].text)\n        break\n\n    # Collect all tool calls (may be multiple)\n    tool_results = []\n    for block in response.content:\n        if block.type == \"tool_use\":\n            result = get_weather(**block.input)\n            tool_results.append({\n                \"type\": \"tool_result\",\n                \"tool_use_id\": block.id,\n                \"content\": json.dumps(result)\n            })\n\n    # Add assistant response + tool results, continue\n    messages.append({\"role\": \"assistant\", \"content\": response.content})\n    messages.append({\"role\": \"user\", \"content\": tool_results})"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Forced Structured Output with tool_choice"
+    },
+    {
+      "type": "paragraph",
+      "text": "The most reliable way to get <strong>guaranteed JSON output</strong> is to define an extraction tool and force the model to always call it using <code>tool_choice</code>. This avoids the model outputting markdown, explanations, or malformed JSON."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "structured_output.py",
+      "code": "import anthropic, json\nclient = anthropic.Anthropic()\n\n# Define an extraction schema as a 'fake' tool\nextract_tool = {\n    \"name\": \"extract_contact\",\n    \"description\": \"Extract contact information from text\",\n    \"input_schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n            \"name\": {\"type\": \"string\"},\n            \"email\": {\"type\": \"string\"},\n            \"company\": {\"type\": \"string\"},\n            \"phone\": {\"type\": [\"string\", \"null\"]}\n        },\n        \"required\": [\"name\", \"email\", \"company\"]\n    }\n}\n\ntext = \"Reach out to Aisha Patel at aisha@technova.io — she heads engineering at TechNova.\"\n\nresponse = client.messages.create(\n    model=\"claude-haiku-5-5\",\n    max_tokens=512,\n    tools=[extract_tool],\n    tool_choice={\"type\": \"tool\", \"name\": \"extract_contact\"},  # force this tool\n    messages=[{\"role\": \"user\", \"content\": f\"Extract contact info from: {text}\"}]\n)\n\ntool_block = next(b for b in response.content if b.type == \"tool_use\")\ncontact = tool_block.input  # Guaranteed well-typed dict\nprint(json.dumps(contact, indent=2))"
     },
     {
       "type": "tip",
-      "text": "Define clear, specific tool descriptions. The model decides whether and when to call tools based on them."
+      "text": "Write <strong>clear, specific tool descriptions</strong>. The model decides whether and when to call tools based entirely on them. 'Get weather for a city' is better than 'weather tool'."
+    },
+    {
+      "type": "warning",
+      "text": "Never give the LLM tools with dangerous side effects (delete database, send real emails) unless you have a human-in-the-loop confirmation step. Always validate tool inputs before executing them."
     },
     {
       "type": "quiz",
@@ -42,13 +93,39 @@
           "question": "Who executes the tool when an LLM requests a function call?",
           "type": "multiple-choice",
           "options": [
-            "The LLM itself",
-            "Your application code",
-            "The API server",
-            "A sandboxed subprocess"
+            "The LLM itself — it has built-in execution",
+            "Your application code — the LLM only returns a structured call request",
+            "The API server sandboxes and runs it",
+            "A separate subprocess spawned by the SDK"
           ],
           "correctAnswer": 1,
-          "explanation": "The LLM returns a structured tool call request. Your code runs the actual function and returns the result."
+          "explanation": "The LLM returns a tool_use block with name and input. Your code maps the name to a real function, runs it, and sends the result back. The LLM never executes code."
+        },
+        {
+          "id": "q2",
+          "question": "What is the most reliable way to get guaranteed JSON output from an LLM?",
+          "type": "multiple-choice",
+          "options": [
+            "Ask nicely and set temperature=0",
+            "Define an extraction tool and use tool_choice to force the model to always call it",
+            "Instruct the model in the system prompt to only output JSON",
+            "Use a larger model"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Forced tool use (tool_choice) guarantees the model outputs a structured JSON tool call that matches your schema. This is more reliable than prompting for JSON, which the model may format inconsistently."
+        },
+        {
+          "id": "q3",
+          "question": "What does stop_reason='tool_use' mean in an Anthropic response?",
+          "type": "multiple-choice",
+          "options": [
+            "The model stopped because it used a tool and is done",
+            "The model wants your code to execute one or more tools and return the results",
+            "The model ran out of tools to use",
+            "An error occurred in tool execution"
+          ],
+          "correctAnswer": 1,
+          "explanation": "stop_reason='tool_use' means the model generated tool_use content blocks and is waiting for your code to execute the tools and send back tool_result messages so it can continue."
         }
       ]
     }
@@ -56,23 +133,39 @@
   "faq": [
     {
       "q": "Can I give a model multiple tools?",
-      "a": "Yes. Pass an array of tool definitions. The model will choose the most appropriate one, or none if it can answer without a tool."
+      "a": "Yes. Pass an array of tool definitions. The model selects the most appropriate one(s), or none if it can answer without a tool. It may also call multiple tools in parallel (one per content block)."
+    },
+    {
+      "q": "What is the difference between tool_choice 'auto' and 'tool'?",
+      "a": "'auto' (default) lets the model decide whether to use tools. {'type': 'tool', 'name': 'X'} forces a specific tool — use this for guaranteed structured output extraction."
+    },
+    {
+      "q": "Can tools call other tools?",
+      "a": "Not directly — the model calls tools, your code executes them. But in an agentic loop, the model can call tool A, see the result, then call tool B based on that result — effectively chaining tools."
     }
   ],
   "sources": [
     {
-      "name": "Tool Use",
+      "name": "Anthropic Tool Use Guide",
       "url": "https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "OpenAI Function Calling",
+      "url": "https://platform.openai.com/docs/guides/function-calling",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "AI assistants",
-      "data retrieval agents"
+      "AI assistants that query live databases or APIs",
+      "Structured data extraction pipelines",
+      "LLM-powered automation that sends emails or creates calendar events",
+      "Code generation assistants that execute test runners"
     ],
     "examples": [
-      "LLM assistant that searches a product database via tool calls"
+      "A travel assistant that calls flight search and hotel booking APIs based on user intent",
+      "A data extraction service that forces JSON output via tool_choice for downstream database ingestion"
     ]
   }
 }

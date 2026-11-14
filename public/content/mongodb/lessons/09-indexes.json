@@ -1,19 +1,35 @@
 {
   "id": "09-indexes",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "data-modeling",
   "title": "Indexes in MongoDB",
   "subtitle": "Single-field, compound, and special indexes",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "mongodb.relations"
-  ],
-  "skillsTaught": [
-    "mongodb.indexes"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.relations"],
+  "skillsTaught": ["mongodb.indexes"],
+  "whyItExists": {
+    "problem": "Without indexes, MongoDB scans every document in a collection to find matches — a COLLSCAN. On a 10-million-document collection, a query that takes 50ms with an index can take 30 seconds without one. As data grows, unindexed queries become unusable.",
+    "solution": "Indexes are B-tree data structures that store a sorted subset of field values and pointers to documents. MongoDB can use them to jump directly to matching documents instead of scanning everything. The right indexes turn slow queries into fast ones.",
+    "whenToUse": "Create indexes on fields you filter, sort, or use in $lookup joins. Use compound indexes for multi-field queries. Use unique indexes for natural keys like email. Use TTL indexes for auto-expiry. Use text indexes for full-text search.",
+    "whenNotToUse": "Every index slows writes (the index must be updated on every insert/update/delete) and uses storage. Don't create indexes you don't need. Don't index low-cardinality fields (like a boolean) — the selectivity is too low to help. Use explain() to verify an index is actually being used."
+  },
+  "explainModes": {
+    "beginner": "An index is like the index at the back of a book. Instead of reading every page to find a topic, you look up the word in the index and jump straight to the right page. MongoDB indexes do the same — instead of scanning all 1 million documents, MongoDB jumps straight to the ones you need.",
+    "simple": "An index is a sorted data structure that lets MongoDB find documents without scanning the whole collection. createIndex({ email: 1 }) creates an ascending index on the email field. The 1 means ascending, -1 means descending.",
+    "standard": "MongoDB uses B-tree indexes. A single-field index covers queries filtering on that one field. A compound index covers queries filtering on multiple indexed fields — the order of fields in the compound index matters (the ESR rule: Equality first, Sort second, Range last). Use explain() to verify query plans.",
+    "technical": "MongoDB's query planner uses an ixscan + fetch strategy for indexed queries: scan the index B-tree to find matching keys, then fetch documents by their record IDs. Covered queries avoid the fetch step entirely — when all queried fields are in the index. Compound index field order determines which prefixes are usable: { a: 1, b: 1, c: 1 } covers queries on (a), (a,b), or (a,b,c) but not (b) alone.",
+    "deepDive": "MongoDB's WiredTiger storage engine maintains indexes as separate B+ trees alongside collection data. Each index entry contains the indexed field value(s) plus the document's RecordId. The query planner runs multiple candidate plans in a 'trial period' (up to 101 documents), caches the winner per query shape in the plan cache, and invalidates it on collection rebuild or significant data change. Covered queries bypass the document fetch entirely — only the index pages are read, reducing I/O dramatically for read-heavy workloads."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,33 +38,111 @@
     },
     {
       "type": "paragraph",
-      "text": "Without an index, MongoDB scans every document (COLLSCAN). An index lets MongoDB jump directly to matching documents (IXSCAN)."
+      "text": "Without an index, MongoDB performs a <strong>COLLSCAN</strong> (collection scan) — reading every document to find matches. With an index, MongoDB does an <strong>IXSCAN</strong> (index scan) — jumping directly to matching documents. The difference between these two for large collections can be the difference between milliseconds and minutes."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "indexes.js",
-      "code": "// Create a single-field index\nawait products.createIndex({ name: 1 });\n\n// Compound index\nawait products.createIndex({ category: 1, price: -1 });\n\n// Unique index\nawait users.createIndex({ email: 1 }, { unique: true });\n\n// Explain a query\nconst plan = await products.find({ name: \"Laptop\" }).explain();\nconsole.log(plan.queryPlanner.winningPlan.stage);"
+      "filename": "without-vs-with-index.js",
+      "code": "// Before index: COLLSCAN — reads every document\nconst user = await users.findOne({ email: 'alice@example.com' });\n// On 1M documents: ~300ms\n\n// Create the index\nawait users.createIndex({ email: 1 });\n\n// After index: IXSCAN — jumps directly to 'alice'\nconst user2 = await users.findOne({ email: 'alice@example.com' });\n// On 1M documents: ~1ms\n\n// Verify with explain()\nconst plan = await users.find({ email: 'alice@example.com' }).explain('executionStats');\nconsole.log(plan.queryPlanner.winningPlan.stage);              // FETCH (good)\nconsole.log(plan.queryPlanner.winningPlan.inputStage.stage);   // IXSCAN (good)\nconsole.log(plan.executionStats.totalDocsExamined);            // 1 (excellent!)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Creating Indexes"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "create-indexes.js",
+      "code": "// Single-field index (1 = ascending, -1 = descending)\nawait users.createIndex({ email: 1 });\nawait orders.createIndex({ placedAt: -1 });  // descending — for newest-first queries\n\n// Unique index — rejects duplicate values\nawait users.createIndex({ email: 1 }, { unique: true });\n\n// Compound index — covers multi-field queries\n// Use ESR rule: Equality, Sort, Range\nawait products.createIndex({ category: 1, price: -1 });\n// Covers: find({ category: 'Electronics' }).sort({ price: -1 })\n\n// Sparse index — only indexes documents where the field exists\nawait users.createIndex({ phone: 1 }, { sparse: true });\n// Documents without 'phone' are excluded from this index\n\n// TTL index — auto-delete after N seconds\nawait sessions.createIndex({ createdAt: 1 }, { expireAfterSeconds: 86400 });\n\n// Partial index — index only documents matching a filter\nawait orders.createIndex(\n  { customerId: 1, placedAt: -1 },\n  { partialFilterExpression: { status: 'active' } }  // only index active orders\n);\n// Smaller and faster than a full index on these fields"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The ESR Rule for Compound Indexes"
+    },
+    {
+      "type": "paragraph",
+      "text": "When building compound indexes, follow the <strong>ESR rule</strong>: put <strong>E</strong>quality fields first, <strong>S</strong>ort fields second, <strong>R</strong>ange fields last. This ordering makes compound indexes most efficient."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "esr-rule.js",
+      "code": "// Query: find active Electronics products, sorted by price, filtered to price < 5000\nconst q = products.find(\n  { status: 'active', category: 'Electronics', price: { $lt: 5000 } }\n).sort({ price: 1 });\n\n// BAD index order:\nawait products.createIndex({ price: 1, status: 1, category: 1 });\n// Range field first — MongoDB can't use the index efficiently for status/category\n\n// GOOD index order (ESR):\n// Equality: status=active, category=Electronics (exact matches first)\n// Sort: price (sort field next)\n// Range: price < 5000 (range field last)\nawait products.createIndex({ status: 1, category: 1, price: 1 });\n// Now MongoDB scans the minimum index range needed\n\n// A compound index (a, b, c) also covers queries on:\n//   (a), (a, b), (a, b, c)\n// But NOT (b), (c), (b, c) — the prefix rule applies"
     },
     {
       "type": "tip",
-      "text": "Create indexes for fields you filter, sort, or join on. Too many indexes slow writes."
+      "text": "A compound index (a, b, c) can serve queries that use any LEFT PREFIX: (a), (a,b), or (a,b,c). It cannot serve queries starting with b or c alone. Design your compound indexes to cover your most common query patterns."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Analyzing Queries with explain()"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "explain.js",
+      "code": "// Get the execution plan for a query\nconst result = await products\n  .find({ category: 'Electronics', price: { $lt: 2000 } })\n  .sort({ price: 1 })\n  .explain('executionStats');  // 'queryPlanner' for plan only\n\n// Key fields to check:\nconsole.log('Winning plan stage:', result.queryPlanner.winningPlan.stage);\n// IXSCAN = index scan (good)\n// COLLSCAN = collection scan (bad — add an index!)\n// FETCH = fetching documents after index lookup (normal)\n// COVERED = no document fetch needed (best!)\n\nconsole.log('Docs examined:', result.executionStats.totalDocsExamined);\nconsole.log('Keys examined:', result.executionStats.totalKeysExamined);\nconsole.log('Docs returned:', result.executionStats.nReturned);\n// Ideal: docsExamined == nReturned (no wasted work)\n// Red flag: docsExamined >> nReturned (index not selective enough)\n\nconsole.log('Time (ms):', result.executionStats.executionTimeMillis);\n\n// In mongosh (simpler):\ndb.products.find({ category: 'Electronics' }).explain('executionStats')"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Managing Indexes"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "manage-indexes.js",
+      "code": "// List all indexes on a collection\nconst indexes = await products.indexes();\nconsole.log(indexes);\n// Always includes: { v: 2, key: { _id: 1 }, name: '_id_' }\n\n// Drop a specific index by name\nawait products.dropIndex('category_1_price_-1');\n\n// Drop all indexes except _id\nawait products.dropIndexes();\n\n// Check index usage statistics (see which indexes are actually used)\nconst stats = await db.command({\n  aggregate: 'products',\n  pipeline: [{ $indexStats: {} }],\n  cursor: {}\n});\n// Shows accesses.ops for each index — if 0, the index is unused"
+    },
+    {
+      "type": "warning",
+      "text": "Every index slows write operations (insert, update, delete) because all indexes must be updated for every write. A collection with 10 indexes takes ~10x more time to insert into than the same collection with 0 indexes. Only create indexes you actually query against."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is a COLLSCAN?",
+          "question": "What does COLLSCAN mean in an explain() output?",
           "type": "multiple-choice",
           "options": [
-            "A collection scan — reads every document",
-            "A compressed scan",
-            "A cached scan",
-            "A covered scan"
+            "A fast collection scan using the cache",
+            "MongoDB scanned every document in the collection (no index used)",
+            "A compressed scan of the collection",
+            "A covered query using the collection's index"
           ],
-          "correctAnswer": 0,
-          "explanation": "COLLSCAN means MongoDB scanned the whole collection because no suitable index existed."
+          "correctAnswer": 1,
+          "explanation": "COLLSCAN means MongoDB read every document in the collection to find matches. This is slow for large collections and signals you need an index on the filtered fields."
+        },
+        {
+          "id": "q2",
+          "question": "In the ESR rule for compound indexes, what does the 'S' stand for?",
+          "type": "multiple-choice",
+          "options": [
+            "String fields",
+            "Sort fields",
+            "Sparse indexes",
+            "Single-field indexes"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ESR = Equality first, Sort second, Range last. Sort fields go in the middle of the compound index to allow MongoDB to satisfy the sort from the index without an extra in-memory sort step."
+        },
+        {
+          "id": "q3",
+          "question": "A compound index on { a: 1, b: 1, c: 1 } can efficiently serve which query?",
+          "type": "multiple-choice",
+          "options": [
+            "find({ b: 5 })",
+            "find({ c: 10 })",
+            "find({ a: 1, b: 5 })",
+            "find({ b: 5, c: 10 })"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Compound indexes follow the left-prefix rule — they serve queries using any left prefix. { a: 1, b: 1, c: 1 } covers queries on (a), (a,b), or (a,b,c). Queries starting with b or c alone cannot use this index."
         }
       ]
     }
@@ -56,23 +150,39 @@
   "faq": [
     {
       "q": "How many indexes should a collection have?",
-      "a": "Create only the indexes your queries actually need. Each index costs write performance and storage. Use explain() to verify index usage."
+      "a": "Create only the indexes your queries actually need. Use explain() to verify index usage, and use $indexStats to find unused indexes. A good rule: 5–10 indexes per collection is typical; more than 15 starts to hurt write performance noticeably."
+    },
+    {
+      "q": "Does MongoDB always use an index if one exists?",
+      "a": "No. MongoDB's query planner chooses the fastest plan. If the index is not selective enough (e.g., a boolean field with 50% true), MongoDB may choose a COLLSCAN. Use explain() to see which plan was chosen and hint() to force a specific index."
+    },
+    {
+      "q": "What is a covered query?",
+      "a": "A covered query is one where all fields in the query filter AND the projection are in the index — MongoDB never reads the actual document. For example, createIndex({ email: 1, name: 1 }) covers find({ email: ... }, { name: 1, _id: 0 }). Covered queries are the fastest possible queries in MongoDB."
     }
   ],
   "sources": [
     {
-      "name": "Indexes",
+      "name": "MongoDB Indexes",
       "url": "https://www.mongodb.com/docs/manual/indexes/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Explain Results",
+      "url": "https://www.mongodb.com/docs/manual/reference/explain-results/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "query optimization",
-      "unique constraints"
+      "Query optimization on user/product/order collections",
+      "Unique constraints for email and username fields",
+      "TTL indexes for session and cache expiry"
     ],
     "examples": [
-      "Adding a compound index for a filtered+sorted product listing"
+      "{ email: 1 } unique index: findOne by email drops from 300ms to 1ms on 1M users",
+      "{ userId: 1, placedAt: -1 } compound index: paginated order history query uses IXSCAN instead of COLLSCAN",
+      "{ createdAt: 1 } TTL index: session documents auto-delete after 24 hours without a cleanup job"
     ]
   }
 }

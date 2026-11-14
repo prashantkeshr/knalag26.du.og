@@ -1,44 +1,119 @@
 {
   "id": "15-security",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "7.x",
   "technology": "mongodb",
   "module": "mongodb-production",
   "title": "MongoDB Security",
-  "subtitle": "Authentication, authorization, encryption, and auditing",
+  "subtitle": "Authentication, authorization, encryption, and security checklist",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "mongodb.sharding"
-  ],
-  "skillsTaught": [
-    "mongodb.security"
-  ],
+  "author": "KERNAL",
+  "reviewer": "KERNAL",
+  "createdAt": "2026-01-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["mongodb.sharding"],
+  "skillsTaught": ["mongodb.security"],
+  "whyItExists": {
+    "problem": "Thousands of MongoDB databases have been breached and held for ransom because they were deployed with no authentication and exposed to the internet. The MongoDB default configuration has NO authentication — it's designed for development, not production.",
+    "solution": "MongoDB provides a full security stack: authentication (who you are), authorization via RBAC (what you can do), TLS encryption in transit, field-level encryption for sensitive data, network access controls, and comprehensive auditing.",
+    "whenToUse": "Security must be configured before any production deployment. The minimum checklist: enable authentication, create a least-privilege app user, enable TLS, restrict network access with IP allowlists, and never expose port 27017 to the internet.",
+    "whenNotToUse": "On local development machines, you may choose to skip authentication for convenience. But even then, bind to localhost only (--bind_ip localhost) so the database can't be reached from other machines."
+  },
+  "explainModes": {
+    "beginner": "By default, MongoDB has no password. This is fine on your laptop but catastrophic on a public server. Security means: set a strong password (authentication), limit what each user can do (authorization), encrypt the connection (TLS), and don't let strangers reach port 27017 (firewall).",
+    "simple": "MongoDB security has four layers: authentication (users with passwords), authorization (roles: read-only vs readWrite vs admin), TLS (encrypted connection), and network access (firewall/VPN). Enable all four before going to production.",
+    "standard": "MongoDB uses SCRAM-SHA-256 for authentication. Authorization uses role-based access control (RBAC) — users are assigned built-in roles (read, readWrite, dbAdmin, userAdmin, clusterAdmin) or custom roles. TLS requires certificate configuration in mongod.conf. Atlas handles most of this automatically.",
+    "technical": "MongoDB authentication supports SCRAM-SHA-256 (default), X.509 certificates, LDAP, and Kerberos (Enterprise). The authorization model maps (user, database) to a set of roles. Each role grants a set of privilege actions on resources (database, collection, or cluster). Field-level encryption uses client-side encryption with separate key management — the server never sees plaintext for encrypted fields.",
+    "deepDive": "MongoDB's SCRAM-SHA-256 uses salted challenge-response — the wire protocol never transmits the password. X.509 mutual TLS authentication uses certificate CN as the username, enabling passwordless authentication for internal cluster members. Client-Side Field Level Encryption (CSFLE) uses envelope encryption: a data encryption key (DEK) encrypts each field, the DEK is encrypted by a Customer Master Key (CMK) stored in a KMS (AWS KMS, Azure Key Vault, GCP KMS). The server processes only ciphertext — a compromised database server cannot access encrypted fields."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Securing MongoDB"
+      "text": "Why MongoDB Security Matters"
     },
     {
       "type": "paragraph",
-      "text": "Default MongoDB installations have no authentication. In production, always enable authentication, TLS, and restrict network access."
+      "text": "MongoDB's default installation has <strong>no authentication enabled</strong>. This is intentional for local development but means a publicly exposed MongoDB server is completely open to anyone. Thousands of databases have been compromised because developers forgot to enable authentication before deploying."
+    },
+    {
+      "type": "warning",
+      "text": "Never deploy MongoDB to a public server without enabling authentication AND restricting network access. An unauthenticated MongoDB on a public IP can be found by port scanners within minutes and ransomed within hours."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Authentication — Who Are You?"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "security.js",
-      "code": "// Create an admin user\ndb.createUser({\n  user: \"admin\",\n  pwd: \"strongpassword\",\n  roles: [{ role: \"userAdminAnyDatabase\", db: \"admin\" }]\n});\n\n// Create an app user with least privilege\ndb.createUser({\n  user: \"appuser\",\n  pwd: \"apppass\",\n  roles: [{ role: \"readWrite\", db: \"myapp\" }]\n});"
+      "filename": "users.js",
+      "code": "// Connect to mongosh as admin first\n// (locally without auth enabled yet)\n\n// Step 1: Create the admin user FIRST (before enabling auth)\nuse admin\ndb.createUser({\n  user: 'admin',\n  pwd: 'UseAStrongPasswordHere!2026',\n  roles: [\n    { role: 'userAdminAnyDatabase', db: 'admin' },\n    { role: 'readWriteAnyDatabase', db: 'admin' },\n    { role: 'clusterAdmin', db: 'admin' }\n  ]\n});\n\n// Step 2: Create a least-privilege application user\nuse myapp\ndb.createUser({\n  user: 'appuser',\n  pwd: 'AnotherStrongPassword2026!',\n  roles: [\n    { role: 'readWrite', db: 'myapp' }  // only readWrite on myapp — nothing else!\n  ]\n});\n\n// Step 3: Create a read-only reporting user\ndb.createUser({\n  user: 'reporter',\n  pwd: 'ReportingPassword2026!',\n  roles: [\n    { role: 'read', db: 'myapp' }  // read-only — cannot insert/update/delete\n  ]\n});"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Enabling Authentication in mongod.conf"
     },
     {
       "type": "code",
       "lang": "text",
       "filename": "mongod.conf",
-      "code": "security:\n  authorization: enabled\nnet:\n  tls:\n    mode: requireTLS\n    certificateKeyFile: /etc/ssl/mongodb.pem"
+      "code": "# /etc/mongod.conf — MongoDB server configuration\n\nsecurity:\n  authorization: enabled      # Require authentication for all connections\n\nnet:\n  port: 27017\n  bindIp: 127.0.0.1           # ONLY accept local connections!\n  # bindIp: 127.0.0.1,10.0.0.5  # for specific IPs\n  # bindIp: 0.0.0.0           # NEVER do this in production without firewall!\n  tls:\n    mode: requireTLS           # Require TLS for all connections\n    certificateKeyFile: /etc/ssl/mongodb.pem\n    CAFile: /etc/ssl/ca.pem\n\nstorage:\n  dbPath: /var/lib/mongodb\n\noperationProfiling:\n  slowOpThresholdMs: 100       # Log queries slower than 100ms\n  mode: slowOp"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Role-Based Access Control (RBAC)"
+    },
+    {
+      "type": "paragraph",
+      "text": "MongoDB uses <strong>RBAC</strong> — each user is assigned roles that grant specific privileges. Follow the <strong>principle of least privilege</strong>: give each user only the permissions they actually need."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "rbac-roles.js",
+      "code": "// Built-in roles (from least to most privileged)\n\n// Database-level roles:\n// 'read'           — find() and aggregate on the specified database\n// 'readWrite'      — read + insert, update, delete, createCollection\n// 'dbAdmin'        — manage indexes, explain, rename collections\n// 'userAdmin'      — create/modify users (for the specified database only)\n\n// Cluster-level roles:\n// 'clusterMonitor' — read-only cluster stats\n// 'clusterAdmin'   — full cluster management (sharding, replication)\n\n// All-database roles (applied to 'admin' db):\n// 'readAnyDatabase', 'readWriteAnyDatabase', 'userAdminAnyDatabase'\n\n// Create a custom role with fine-grained permissions\nuse admin\ndb.createRole({\n  role: 'analyticsReader',\n  privileges: [\n    {\n      resource: { db: 'myapp', collection: 'orders' },\n      actions: ['find', 'aggregate']  // only these two actions\n    }\n  ],\n  roles: []  // no inherited roles\n});\n\n// Assign the custom role\ndb.grantRolesToUser('analyst_user', [\n  { role: 'analyticsReader', db: 'admin' }\n]);"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connecting Securely from Your App"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "secure-connection.js",
+      "code": "// Store credentials in environment variables — NEVER hardcode\nconst uri = process.env.MONGODB_URI;\n// MONGODB_URI=mongodb://appuser:password@host:27017/myapp?authSource=myapp\n\n// Connection options for production\nconst client = new MongoClient(uri, {\n  tls: true,\n  tlsCAFile: '/path/to/ca.pem',    // verify server certificate\n  serverSelectionTimeoutMS: 5000,  // fail fast if no server available\n  socketTimeoutMS: 45000,\n\n  // Connection pool settings for production\n  maxPoolSize: 50,       // max concurrent connections\n  minPoolSize: 5,        // keep 5 connections warm\n  maxIdleTimeMS: 30000,  // close idle connections after 30s\n});\n\n// Atlas connection string already includes TLS by default\nconst atlasUri = process.env.ATLAS_URI;\n// mongodb+srv://appuser:password@cluster.mongodb.net/myapp?w=majority"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Security Checklist for Production"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>Enable authentication</strong> — set security.authorization: enabled in mongod.conf",
+        "<strong>Create a strong admin password</strong> — use a password manager, never a dictionary word",
+        "<strong>Create least-privilege app users</strong> — app user gets readWrite on its database only, nothing else",
+        "<strong>Enable TLS</strong> — set net.tls.mode: requireTLS and provide a valid certificate",
+        "<strong>Restrict network access</strong> — bind MongoDB to internal IP only (not 0.0.0.0), use a firewall to block port 27017 from the internet",
+        "<strong>Never store credentials in code</strong> — use environment variables or a secrets manager (AWS Secrets Manager, HashiCorp Vault)",
+        "<strong>Enable audit logging</strong> (Enterprise/Atlas) — log all authentication attempts and admin operations",
+        "<strong>Keep MongoDB updated</strong> — security patches are released regularly, check for updates"
+      ]
     },
     {
       "type": "tip",
-      "text": "Never expose MongoDB port 27017 directly to the internet. Use a firewall and VPN."
+      "text": "MongoDB Atlas handles most of this automatically: TLS is always on, authentication is required, and you manage users through the Atlas UI or API. For self-hosted MongoDB, you must configure every item on the security checklist manually."
     },
     {
       "type": "quiz",
@@ -48,37 +123,79 @@
           "question": "What MongoDB config option enables authentication?",
           "type": "multiple-choice",
           "options": [
-            "net.auth",
-            "security.authorization",
-            "auth.enable",
-            "require.auth"
+            "net.auth: enabled",
+            "security.authorization: enabled",
+            "auth.require: true",
+            "db.auth: enabled"
           ],
           "correctAnswer": 1,
-          "explanation": "Set security.authorization: enabled in mongod.conf to require authentication."
+          "explanation": "Set security.authorization: enabled in mongod.conf (or mongod.yml) to require authentication for all connections. Without this, MongoDB accepts connections from anyone."
+        },
+        {
+          "id": "q2",
+          "question": "What is the principle of least privilege in MongoDB RBAC?",
+          "type": "multiple-choice",
+          "options": [
+            "All users get the same access level",
+            "Give each user only the minimum permissions they actually need",
+            "Admins can access only their own database",
+            "All roles must be created as custom roles"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Least privilege means each user gets only the permissions they need and nothing more. An app that only reads data should have the 'read' role, not 'readWrite'. An app that writes should not have admin privileges."
+        },
+        {
+          "id": "q3",
+          "question": "Where should MongoDB credentials be stored in a Node.js application?",
+          "type": "multiple-choice",
+          "options": [
+            "In the source code for easy access",
+            "In a config.json file in the project",
+            "In environment variables or a secrets manager",
+            "In the MongoDB database itself"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Credentials must NEVER be hardcoded in source code or committed to version control. Use environment variables (process.env.MONGODB_URI) or a secrets manager like AWS Secrets Manager, HashiCorp Vault, or Doppler."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "How do I encrypt data at rest?",
-      "a": "MongoDB Enterprise and Atlas provide Encrypted Storage Engine. For Community Edition, use Linux full-disk encryption (LUKS)."
+      "q": "How do I encrypt data at rest in MongoDB?",
+      "a": "MongoDB Enterprise and Atlas provide Encrypted Storage Engine (AES-256-CBC). For MongoDB Community Edition, use Linux full-disk encryption (LUKS/dm-crypt) or cloud provider disk encryption (AWS EBS encryption). For field-level encryption of specific sensitive fields, MongoDB 4.2+ provides Client-Side Field Level Encryption (CSFLE) in all editions."
+    },
+    {
+      "q": "My MongoDB is behind a VPN — do I still need authentication?",
+      "a": "Yes. Defense in depth means multiple security layers. If the VPN is ever breached or a machine inside the VPN is compromised, authentication is your last line of defense. Always enable authentication even on internal networks."
+    },
+    {
+      "q": "How do I rotate database passwords without downtime?",
+      "a": "Create the new user, update your app's connection string to use the new credentials (rolling deploy), then drop the old user. MongoDB Atlas provides a built-in secret rotation feature. For self-managed deployments, use an application-level credential rotation process with a brief period where both old and new credentials work."
     }
   ],
   "sources": [
     {
       "name": "Security Checklist",
       "url": "https://www.mongodb.com/docs/manual/administration/security-checklist/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Role-Based Access Control",
+      "url": "https://www.mongodb.com/docs/manual/core/authorization/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "production deployments",
-      "compliance requirements"
+      "Production deployments requiring compliance (GDPR, HIPAA, SOC 2)",
+      "Multi-tenant SaaS applications",
+      "Financial applications handling sensitive data"
     ],
     "examples": [
-      "Role-based access control for multi-tenant SaaS"
+      "Healthcare app: separate DB users for read-only analytics, read-write app service, and admin — TLS required, no public access",
+      "SaaS platform: custom RBAC roles per customer so each customer's service account can only access their own database",
+      "Fintech: Client-Side Field Level Encryption on card numbers — MongoDB server processes only ciphertext"
     ]
   }
 }
