@@ -1,19 +1,31 @@
 {
   "id": "07-metrics",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "model-evaluation",
   "title": "Evaluation Metrics",
   "subtitle": "Accuracy, precision, recall, F1, AUC-ROC, and MSE",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "ml.trees"
-  ],
-  "skillsTaught": [
-    "ml.metrics"
-  ],
+  "prerequisites": ["ml.trees"],
+  "skillsTaught": ["ml.metrics", "ml.precision-recall", "ml.roc"],
+  "whyItExists": {
+    "problem": "Accuracy alone is misleading on imbalanced datasets. A model that predicts 'no fraud' 100% of the time achieves 99% accuracy on a 1%-fraud dataset — but it misses every fraud case. Different business problems have different costs for different types of error.",
+    "solution": "A family of metrics — precision, recall, F1, AUC-ROC — capture different aspects of classifier performance and let you choose the trade-off that fits your use case.",
+    "whenToUse": "Always evaluate with multiple metrics. Choose the primary metric based on the cost of each error type in your domain.",
+    "whenNotToUse": "No metric is universally best. Accuracy is fine for balanced datasets with equal error costs. Use the metric that matches the business objective."
+  },
+  "explainModes": {
+    "beginner": "Accuracy tells you what fraction of predictions were right. But if only 1% of your data is fraud, a model saying 'never fraud' gets 99% accuracy. Better metrics like recall tell you: of all actual fraud cases, how many did you catch?",
+    "simple": "Precision = of everything you said was spam, how much was actually spam. Recall = of all the actual spam, how much did you catch. F1 is the harmonic mean — a single score balancing both. AUC-ROC measures overall discrimination ability.",
+    "standard": "Precision = TP/(TP+FP), Recall = TP/(TP+FN), F1 = 2*(P*R)/(P+R). The ROC curve plots TPR vs FPR at every threshold; AUC summarises it as a single number (0.5=random, 1.0=perfect).",
+    "technical": "Precision-recall trade-off is governed by the classification threshold. For severe imbalance, PR-AUC (Area Under Precision-Recall Curve) is more informative than ROC-AUC because ROC is insensitive to class prevalence.",
+    "deepDive": "The choice of metric embodies a utility function over the confusion matrix. F_beta weights recall beta times more than precision. Matthews Correlation Coefficient (MCC) is a single metric for imbalanced binary classification that is invariant to class swap."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,39 +34,116 @@
     },
     {
       "type": "paragraph",
-      "text": "Accuracy alone is misleading on imbalanced datasets. Use precision, recall, and F1 for classification; RMSE or MAE for regression."
+      "text": "<strong>Accuracy alone is misleading on imbalanced datasets.</strong> On a dataset where 99% of transactions are legitimate, a model predicting 'not fraud' always has 99% accuracy — but zero recall for fraud. Use precision, recall, and F1 for classification; RMSE or MAE for regression."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Classification Metrics: Precision, Recall, F1"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "metrics.py",
-      "code": "from sklearn.metrics import (\n    accuracy_score, precision_score, recall_score,\n    f1_score, roc_auc_score, confusion_matrix\n)\n\nacc = accuracy_score(y_test, preds)\nprec = precision_score(y_test, preds)\nrec = recall_score(y_test, preds)\nf1 = f1_score(y_test, preds)\nauc = roc_auc_score(y_test, probs)\n\nprint(f\"Accuracy: {acc:.3f}  Precision: {prec:.3f}\")\nprint(f\"Recall:   {rec:.3f}  F1: {f1:.3f}  AUC: {auc:.3f}\")\nprint(confusion_matrix(y_test, preds))"
+      "filename": "classification_metrics.py",
+      "code": "from sklearn.metrics import (\n    accuracy_score, precision_score, recall_score,\n    f1_score, roc_auc_score, classification_report,\n    confusion_matrix, ConfusionMatrixDisplay\n)\nimport matplotlib.pyplot as plt\n\n# Full report with all per-class metrics\nprint(classification_report(y_test, preds, target_names=['Not Fraud', 'Fraud']))\n\n# Individual metrics\nprint(f'Accuracy:  {accuracy_score(y_test, preds):.3f}')\nprint(f'Precision: {precision_score(y_test, preds):.3f}')  # TP / (TP+FP)\nprint(f'Recall:    {recall_score(y_test, preds):.3f}')     # TP / (TP+FN)\nprint(f'F1 Score:  {f1_score(y_test, preds):.3f}')         # harmonic mean of P & R\nprint(f'AUC-ROC:   {roc_auc_score(y_test, probs):.3f}')    # needs probabilities"
     },
     {
       "type": "definition",
       "term": "Precision",
-      "definition": "Of all predicted positives, how many were actually positive."
+      "definition": "Of all positive predictions the model made (TP + FP), what fraction were actually positive (TP)? High precision means few false alarms. Precision = TP / (TP + FP)."
     },
     {
       "type": "definition",
-      "term": "Recall",
-      "definition": "Of all actual positives, how many did the model find."
+      "term": "Recall (Sensitivity, TPR)",
+      "definition": "Of all actual positives (TP + FN), what fraction did the model find (TP)? High recall means few missed cases. Recall = TP / (TP + FN)."
+    },
+    {
+      "type": "definition",
+      "term": "F1 Score",
+      "definition": "The harmonic mean of precision and recall. Useful single metric when you need to balance both. F1 = 2 × (Precision × Recall) / (Precision + Recall)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "The Precision-Recall Trade-off"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lowering the classification threshold catches more positives (<strong>higher recall</strong>) but also flags more false alarms (<strong>lower precision</strong>). The right balance depends on your use case."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pr_curve.py",
+      "code": "from sklearn.metrics import precision_recall_curve, average_precision_score\nimport matplotlib.pyplot as plt\n\nprecisions, recalls, thresholds = precision_recall_curve(y_test, probs)\nap = average_precision_score(y_test, probs)\n\nplt.figure(figsize=(8, 5))\nplt.plot(recalls, precisions, lw=2)\nplt.xlabel('Recall')\nplt.ylabel('Precision')\nplt.title(f'Precision-Recall Curve (AP = {ap:.3f})')\nplt.grid(True)\nplt.show()\n\n# Find threshold that maximises F1\nf1_scores = 2 * precisions[:-1] * recalls[:-1] / (precisions[:-1] + recalls[:-1] + 1e-9)\nbest_idx = f1_scores.argmax()\nprint(f'Best threshold: {thresholds[best_idx]:.3f}')\nprint(f'At that threshold: P={precisions[best_idx]:.3f} R={recalls[best_idx]:.3f}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "AUC-ROC: Measuring Discrimination"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "roc_curve.py",
+      "code": "from sklearn.metrics import roc_curve, roc_auc_score\nimport matplotlib.pyplot as plt\n\nfpr, tpr, thresholds = roc_curve(y_test, probs)\nauc = roc_auc_score(y_test, probs)\n\nplt.figure(figsize=(7, 6))\nplt.plot(fpr, tpr, lw=2, label=f'ROC curve (AUC = {auc:.3f})')\nplt.plot([0, 1], [0, 1], 'k--', label='Random classifier (AUC = 0.5)')\nplt.xlabel('False Positive Rate')\nplt.ylabel('True Positive Rate (Recall)')\nplt.title('ROC Curve')\nplt.legend()\nplt.grid(True)\nplt.show()"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Regression Metrics"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "regression_metrics.py",
+      "code": "from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score\nimport numpy as np\n\nrmse = np.sqrt(mean_squared_error(y_test, preds))\nmae  = mean_absolute_error(y_test, preds)\nr2   = r2_score(y_test, preds)\nmape = np.mean(np.abs((y_test - preds) / y_test)) * 100  # % error\n\nprint(f'RMSE: {rmse:.2f}  (penalises large errors more)')\nprint(f'MAE:  {mae:.2f}   (robust to outliers)')\nprint(f'R²:   {r2:.3f}   (1 = perfect, 0 = predicts mean)')\nprint(f'MAPE: {mape:.1f}% (percentage error, scale-independent)')"
+    },
+    {
+      "type": "tip",
+      "text": "For cancer detection, missing a true case (low recall) is more dangerous than a false alarm. For spam filtering, sending important emails to spam (low precision) is more annoying than missing some spam. Choose your primary metric based on the cost of each error type."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "In a cancer screening model, which is more important?",
+          "question": "In a cancer screening model, which metric should you prioritise?",
           "type": "multiple-choice",
           "options": [
             "High precision",
             "High recall",
             "High accuracy",
-            "Low F1"
+            "High RMSE"
           ],
           "correctAnswer": 1,
-          "explanation": "Missing a cancer case (false negative) is more dangerous than a false alarm, so recall matters more."
+          "explanation": "Missing a cancer case (false negative) is far more dangerous than a false alarm requiring a follow-up test. High recall (catching all actual cancer cases) should be the priority."
+        },
+        {
+          "id": "q2",
+          "question": "What does an AUC-ROC of 0.5 indicate?",
+          "type": "multiple-choice",
+          "options": [
+            "The model is perfectly accurate",
+            "The model performs no better than random guessing",
+            "The model has 50% recall",
+            "The model has 50% precision"
+          ],
+          "correctAnswer": 1,
+          "explanation": "AUC-ROC of 0.5 means the ROC curve lies along the diagonal — the model's positive predictions are no better than random chance."
+        },
+        {
+          "id": "q3",
+          "question": "What is the F1 score?",
+          "type": "multiple-choice",
+          "options": [
+            "The average of accuracy and precision",
+            "The harmonic mean of precision and recall",
+            "The geometric mean of precision and accuracy",
+            "Total correct predictions divided by total predictions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "F1 = 2*(Precision*Recall)/(Precision+Recall). It's the harmonic mean, which penalises large differences between precision and recall — a useful single metric when both matter."
         }
       ]
     }
@@ -62,23 +151,34 @@
   "faq": [
     {
       "q": "What is AUC-ROC?",
-      "a": "The Area Under the ROC Curve measures discrimination ability across all thresholds. 1.0 is perfect; 0.5 is random."
+      "a": "The Area Under the ROC (Receiver Operating Characteristic) Curve. The ROC curve plots True Positive Rate vs False Positive Rate at every classification threshold. AUC summarises this — 1.0 is perfect, 0.5 is no better than random."
+    },
+    {
+      "q": "When should I use PR-AUC instead of ROC-AUC?",
+      "a": "PR-AUC (Precision-Recall AUC) is more informative than ROC-AUC on heavily imbalanced datasets. ROC-AUC can look optimistic when the negative class dominates; PR-AUC focuses on how well you find the rare positive class."
+    },
+    {
+      "q": "How do I choose between RMSE and MAE for regression?",
+      "a": "If large errors are especially costly (a prediction off by 10x is much worse than off by 2x), use RMSE — it penalises large errors more. If outliers shouldn't dominate your evaluation, use MAE."
     }
   ],
   "sources": [
     {
-      "name": "Metrics",
+      "name": "sklearn: Model Evaluation",
       "url": "https://scikit-learn.org/stable/modules/model_evaluation.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: classification_report",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "model comparison",
-      "business reporting"
-    ],
+    "usedIn": ["model comparison", "business reporting", "A/B testing", "ML monitoring dashboards"],
     "examples": [
-      "Comparing two fraud models using AUC-ROC"
+      "Comparing two fraud models: Model A has higher precision, Model B has higher recall — choose based on business cost",
+      "Medical test evaluation using ROC-AUC to find the best sensitivity/specificity trade-off"
     ]
   }
 }

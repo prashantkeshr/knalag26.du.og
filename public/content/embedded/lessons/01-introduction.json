@@ -1,17 +1,35 @@
 {
   "id": "01-introduction",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino IDE 2.x / Raspberry Pi OS Bookworm",
   "technology": "embedded",
   "module": "embedded-basics",
   "title": "Introduction to Embedded Systems",
   "subtitle": "What embedded systems are and how they differ from general-purpose computers",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
   "prerequisites": [],
-  "skillsTaught": [
-    "embedded.basics"
-  ],
+  "skillsTaught": ["embedded.basics"],
+  "whyItExists": {
+    "problem": "Modern devices — from smart watches to car ABS systems — need computers that run a single task reliably, indefinitely, with tiny power budgets and no operating system to get in the way.",
+    "solution": "Embedded systems use a microcontroller (CPU + memory + I/O on one chip) running bare-metal or RTOS firmware, optimised for deterministic, low-power, real-time operation.",
+    "whenToUse": "When you need: hardware control, real-time response, ultra-low power, mass production cost sensitivity, or a device without a display or keyboard.",
+    "whenNotToUse": "When you need a full OS, complex networking stacks, a GUI, or high computational throughput — use a Raspberry Pi or a PC instead."
+  },
+  "explainModes": {
+    "beginner": "An embedded system is a tiny computer built into a device to do one job — like the chip in your microwave that tracks time and controls the magnetron. It has just enough memory and speed to do its job and nothing more.",
+    "simple": "Unlike a laptop that can run any app, an embedded system runs one dedicated program forever. It uses a microcontroller — a single chip with CPU, RAM, and storage — instead of separate components.",
+    "standard": "Embedded systems pair a microcontroller (MCU) with minimal RAM and flash to run firmware deterministically. They interact with the physical world through GPIO, ADC, timers, and bus peripherals like I2C and SPI.",
+    "technical": "MCUs run bare-metal or RTOS firmware in a super-loop or interrupt-driven model. They lack MMU and OS scheduling; every cycle counts. Real-time constraints are met through hardware timers and interrupt priority levels.",
+    "deepDive": "Embedded design involves trade-offs across power consumption (active vs sleep modes), memory hierarchy (flash/SRAM/EEPROM), clock speed, peripheral availability, and cost. Harvard architecture (separate program/data buses) enables single-cycle fetch; ARM Cortex-M uses a modified Harvard with unified address space. Bare-metal firmware relies on startup code (reset handler, vector table, .data/.bss initialisation) before main()."
+  },
   "content": [
     {
       "type": "heading",
@@ -20,27 +38,78 @@
     },
     {
       "type": "paragraph",
-      "text": "An embedded system is a computer designed for a specific purpose, embedded within a larger device. It has limited resources (RAM, CPU) and runs dedicated software."
+      "text": "An <strong>embedded system</strong> is a computer designed for a specific purpose, embedded within a larger device. Unlike a laptop that runs arbitrary software, an embedded system executes dedicated firmware — the program is fixed and runs from power-on to power-off. Examples surround you: the ABS controller in your car, the thermostat on your wall, the chip inside a smart lightbulb."
     },
     {
-      "type": "definition",
-      "term": "Microcontroller",
-      "definition": "A compact integrated circuit with a CPU, flash memory, RAM, and I/O peripherals on a single chip."
+      "type": "comparison",
+      "title": "Microcontroller vs Microprocessor",
+      "a": {
+        "name": "Microcontroller (MCU)",
+        "description": "CPU + RAM + Flash + peripherals on a single chip",
+        "strengths": ["All-in-one, no external chips needed", "Low cost (< $1 in volume)", "Deterministic real-time behavior", "Ultra-low power modes (µA sleep)"],
+        "weaknesses": ["Limited RAM (KB range)", "No OS or multi-process support", "Single purpose"],
+        "useWhen": "You need to control hardware with tight timing and low cost"
+      },
+      "b": {
+        "name": "Microprocessor (MPU)",
+        "description": "CPU-only chip; needs external RAM, storage, and peripherals",
+        "strengths": ["Runs full Linux OS", "GBs of RAM possible", "High compute throughput", "Rich software ecosystem"],
+        "weaknesses": ["Requires many support chips", "Higher power draw (watts)", "Slower boot time (seconds)"],
+        "useWhen": "You need a full OS, GUI, or complex networking (use Raspberry Pi)"
+      }
     },
     {
-      "type": "definition",
-      "term": "Microprocessor",
-      "definition": "A CPU that requires external RAM, flash, and peripherals — like the chip in a laptop."
+      "type": "heading",
+      "level": 2,
+      "text": "Common Embedded Platforms"
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "examples.txt",
-      "code": "Embedded systems everywhere:\n  - Arduino Uno:     ATmega328P @ 16 MHz, 2 KB RAM, 32 KB flash\n  - Raspberry Pi 4:  ARM Cortex-A72 @ 1.8 GHz, 1-8 GB RAM\n  - ESP32:           Dual-core @ 240 MHz, 520 KB RAM, WiFi + BT built-in\n  - STM32:           ARM Cortex-M4 @ 168 MHz, 192 KB RAM"
+      "filename": "platforms.txt",
+      "code": "Platform        CPU                RAM      Flash    WiFi/BT   Use Case\n─────────────────────────────────────────────────────────────────────\nArduino Uno     AVR ATmega328P     2 KB     32 KB    No        Learning, prototyping\nESP32-WROOM     Xtensa LX6 240MHz  520 KB   4 MB     WiFi+BT   IoT devices\nESP8266         Xtensa L106 80MHz  80 KB    4 MB     WiFi      Low-cost WiFi nodes\nSTM32F103       ARM Cortex-M3      20 KB    64 KB    No        Industrial control\nRaspberry Pi 4  ARM Cortex-A72     1-8 GB   —        WiFi+BT   Edge computing, Linux\nRaspberry Pi    ARM Cortex-A53     512 MB   —        WiFi+BT   Headless sensor hubs\nZero W"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Embedded Development Loop"
+    },
+    {
+      "type": "paragraph",
+      "text": "Embedded development follows a cycle: <strong>write firmware</strong> on your PC → <strong>compile</strong> to machine code → <strong>flash</strong> (upload) to the MCU via USB/JTAG → <strong>run & observe</strong> via serial monitor or LEDs → debug and repeat. The Arduino IDE and PlatformIO handle this cycle with one-click uploads."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "hello_world.ino",
+      "code": "// The 'Hello World' of embedded: blink an LED\n// Runs on Arduino Uno, Nano, Mega, ESP32, etc.\n\nconst int LED_PIN = 13;  // Built-in LED on most Arduino boards\n\nvoid setup() {\n  // Called once at power-on or reset\n  pinMode(LED_PIN, OUTPUT);\n  Serial.begin(115200);\n  Serial.println(\"Embedded system started!\");\n}\n\nvoid loop() {\n  // Called repeatedly, forever\n  digitalWrite(LED_PIN, HIGH);  // Turn LED on\n  Serial.println(\"LED ON\");\n  delay(1000);                  // Wait 1 second\n\n  digitalWrite(LED_PIN, LOW);   // Turn LED off\n  Serial.println(\"LED OFF\");\n  delay(1000);\n}"
     },
     {
       "type": "tip",
-      "text": "Arduino is great for learning. For production IoT, consider ESP32 (built-in WiFi) or STM32 (more powerful)."
+      "text": "Arduino is the best starting point for embedded programming. For production IoT, consider the ESP32 (built-in WiFi/Bluetooth) or STM32 (more powerful peripherals). Arduino-style programming works on all three."
+    },
+    {
+      "type": "warning",
+      "text": "Never connect 5V signals to a Raspberry Pi GPIO pin — it uses 3.3V logic and 5V will permanently damage the GPIO controller. Always check your board's voltage level before wiring sensors."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Real-Time vs General-Purpose"
+    },
+    {
+      "type": "paragraph",
+      "text": "A key concept in embedded systems is <strong>real-time operation</strong>: the system must respond to events within a guaranteed time window. A car's ABS must respond to a wheel-slip event in under 10 ms — if it misses that window, the response is useless or dangerous. General-purpose computers (Linux, Windows) have no such guarantees because the OS scheduler can preempt your code at any moment."
+    },
+    {
+      "type": "definition",
+      "term": "Hard Real-Time",
+      "definition": "Missing a deadline is a system failure. Used in safety-critical systems: ABS, pacemakers, flight controls."
+    },
+    {
+      "type": "definition",
+      "term": "Soft Real-Time",
+      "definition": "Missing a deadline degrades quality but doesn't cause failure. Example: video streaming — a late frame causes a glitch but not a crash."
     },
     {
       "type": "quiz",
@@ -50,13 +119,39 @@
           "question": "What is the key difference between a microcontroller and a microprocessor?",
           "type": "multiple-choice",
           "options": [
-            "Microcontrollers are faster",
-            "Microcontrollers include CPU, memory, and I/O on one chip",
-            "Microprocessors are cheaper",
-            "Microcontrollers run Linux"
+            "Microcontrollers are faster than microprocessors",
+            "Microcontrollers include CPU, memory, and I/O peripherals on one chip",
+            "Microprocessors are cheaper and smaller",
+            "Microcontrollers can run Linux"
           ],
           "correctAnswer": 1,
-          "explanation": "A microcontroller integrates CPU, flash, RAM, and I/O on a single chip, designed for embedded use."
+          "explanation": "A microcontroller integrates CPU, flash, RAM, and I/O on a single chip. A microprocessor is just the CPU — it needs external memory and peripherals."
+        },
+        {
+          "id": "q2",
+          "question": "Which platform would you choose for a low-cost WiFi-enabled IoT sensor?",
+          "type": "multiple-choice",
+          "options": [
+            "Arduino Uno",
+            "STM32F103",
+            "ESP32",
+            "Raspberry Pi 4"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The ESP32 has built-in WiFi and Bluetooth, 520 KB RAM, and runs at 240 MHz — purpose-built for IoT. Arduino Uno has no wireless capability."
+        },
+        {
+          "id": "q3",
+          "question": "What is 'hard real-time' in an embedded system?",
+          "type": "multiple-choice",
+          "options": [
+            "The system uses hardware interrupts",
+            "The system is physically hard to program",
+            "Missing a response deadline is a system failure",
+            "The firmware is compiled, not interpreted"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Hard real-time means every deadline must be met — missing one is unacceptable (e.g., ABS, pacemakers). Soft real-time allows occasional misses."
         }
       ]
     }
@@ -64,25 +159,40 @@
   "faq": [
     {
       "q": "Can an Arduino run Linux?",
-      "a": "No. Arduino has only 2 KB of RAM and 32 KB of flash — far too little for Linux. Use a Raspberry Pi if you need a full OS."
+      "a": "No. The Arduino Uno has only 2 KB of SRAM and 32 KB of flash — far too little for Linux. Linux needs at least 4 MB RAM. Use a Raspberry Pi if you need a full OS."
+    },
+    {
+      "q": "What language do you use for embedded programming?",
+      "a": "C and C++ are the standard. Arduino uses C++ with a simplified API. MicroPython brings Python to microcontrollers (ESP32, RP2040) but with a performance cost."
+    },
+    {
+      "q": "What is the difference between Arduino Uno and ESP32?",
+      "a": "The ESP32 is far more powerful: 240 MHz dual-core vs 16 MHz, 520 KB RAM vs 2 KB, plus built-in WiFi and Bluetooth. ESP32 costs about the same ($3–5) but can't use all Arduino shields directly."
     }
   ],
   "sources": [
     {
       "name": "Arduino Introduction",
       "url": "https://www.arduino.cc/en/Guide/Introduction",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "ESP32 Technical Reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "robotics",
-      "industrial automation",
-      "consumer electronics",
-      "IoT sensors"
+      "consumer electronics (microwaves, washing machines)",
+      "automotive (ABS, ECU, dashboard)",
+      "medical devices (pacemakers, glucose monitors)",
+      "industrial automation (PLCs, motor controllers)",
+      "IoT sensors (smart thermostats, soil monitors)"
     ],
     "examples": [
-      "A thermostat that reads temperature and controls a relay"
+      "A smart thermostat that reads temperature via I2C and controls a relay — 15,000 lines of C firmware running on a Cortex-M0",
+      "An ABS controller responding to wheel-slip events within 5 ms on an ARM Cortex-M4"
     ]
   }
 }

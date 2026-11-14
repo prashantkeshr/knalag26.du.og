@@ -1,19 +1,35 @@
 {
   "id": "07-i2c-spi",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino Wire.h / SPI.h",
   "technology": "embedded",
   "module": "protocols",
   "title": "I2C and SPI Protocols",
-  "subtitle": "Two-wire vs four-wire protocols for sensors and displays",
+  "subtitle": "Two-wire vs four-wire protocols — connecting sensors, displays, and EEPROMs",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.serial"
-  ],
-  "skillsTaught": [
-    "embedded.i2c-spi"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.serial"],
+  "skillsTaught": ["embedded.i2c-spi"],
+  "whyItExists": {
+    "problem": "Many sensors and peripherals (OLEDs, barometric sensors, IMUs, EEPROMs) need a digital communication protocol more capable than a single GPIO pin but more practical than full UART. You need a standard bus that multiple devices can share.",
+    "solution": "I2C and SPI are the two dominant short-distance synchronous bus protocols. I2C uses only 2 wires and supports up to 128 devices per bus. SPI uses 4 wires per connection but is 10× faster. Knowing both lets you use virtually any peripheral chip.",
+    "whenToUse": "I2C: when you have many devices to connect and speed is secondary (IMUs, environmental sensors, OLED displays). SPI: when you need speed (SD card, TFT display, DAC, ADC).",
+    "whenNotToUse": "I2C for distances over 1 metre (noise issues). SPI when you're running out of GPIO pins (each device needs its own SS pin)."
+  },
+  "explainModes": {
+    "beginner": "I2C is like a single street with many numbered houses (device addresses). Every device on the same two wires gets a unique number so they don't interfere with each other. SPI is faster but needs more wires — one dedicated 'you're selected' wire per device.",
+    "simple": "I2C: master sends the 7-bit address, then reads or writes data. All devices share SDA and SCL wires. SPI: master selects a device by pulling its SS pin LOW, then clocks data simultaneously in both directions on MOSI and MISO.",
+    "standard": "I2C is a half-duplex synchronous protocol running at 100 kHz (standard), 400 kHz (fast), or 1 MHz (fast-plus). It's multi-master capable with arbitration. SPI is full-duplex synchronous, up to 20 MHz on Arduino, with no addressing — chip select (SS) pins determine which device is active.",
+    "technical": "I2C transaction: START condition (SDA HIGH→LOW while SCL HIGH) → 7-bit address + R/W bit → ACK → data bytes → STOP. Wire.h uses a 32-byte transmit/receive buffer. SPI uses shift registers for simultaneous TX/RX. SPI has four modes (CPOL × CPHA) — the data sheet specifies which one.",
+    "deepDive": "I2C pull-up resistors are critical: too high (>10 kΩ) slows edges at high speed; too low (<1 kΩ) causes excessive current. At 400 kHz with 3.3 V, 2.2 kΩ pull-ups are standard. Clock stretching allows slow slaves to hold SCL LOW. SPI clock speed is limited by capacitance and wire length — a 50 Ω series resistor on SCLK damps reflections on longer wires."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,44 +38,111 @@
     },
     {
       "type": "paragraph",
-      "text": "I2C uses just two wires (SDA data, SCL clock) and supports multiple devices via 7-bit addresses."
+      "text": "<strong>I2C</strong> (Inter-Integrated Circuit) uses just two wires: <strong>SDA</strong> (data) and <strong>SCL</strong> (clock). Every device on the bus has a unique 7-bit address (0x00–0x7F), enabling up to 128 devices on a single pair of wires. On Arduino Uno: SDA = A4, SCL = A5. The <code>Wire.h</code> library handles all I2C communication."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "i2c.ino",
-      "code": "#include <Wire.h>\n\nvoid setup() {\n  Wire.begin();\n  Serial.begin(9600);\n}\n\n// Scan for I2C devices\nvoid loop() {\n  for (byte addr = 1; addr < 127; addr++) {\n    Wire.beginTransmission(addr);\n    if (Wire.endTransmission() == 0) {\n      Serial.print(\"Found device at 0x\");\n      Serial.println(addr, HEX);\n    }\n  }\n  delay(5000);\n}"
+      "filename": "i2c_scan.ino",
+      "code": "#include <Wire.h>\n\nvoid setup() {\n  Wire.begin();\n  Serial.begin(115200);\n  Serial.println(F(\"Scanning I2C bus...\"));\n\n  int found = 0;\n  for (byte addr = 1; addr < 127; addr++) {\n    Wire.beginTransmission(addr);\n    byte error = Wire.endTransmission();\n\n    if (error == 0) {\n      Serial.print(F(\"Found device at 0x\"));\n      if (addr < 16) Serial.print('0');\n      Serial.print(addr, HEX);\n\n      // Identify common devices\n      if (addr == 0x3C || addr == 0x3D) Serial.print(F(\" (SSD1306 OLED)\"));\n      if (addr == 0x76 || addr == 0x77) Serial.print(F(\" (BME280 pressure)\"));\n      if (addr == 0x48)                 Serial.print(F(\" (ADS1115 ADC or TMP75)\"));\n      if (addr == 0x68 || addr == 0x69) Serial.print(F(\" (MPU-6050 IMU)\"));\n      Serial.println();\n      found++;\n    }\n  }\n  Serial.print(found); Serial.println(F(\" device(s) found.\"));\n}"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "SPI: Four-Wire Interface"
+      "text": "Using an I2C Sensor: BME280"
     },
     {
       "type": "paragraph",
-      "text": "SPI is faster than I2C. It uses four wires: MOSI, MISO, SCK, and SS (chip select). Used for displays and SD cards."
+      "text": "The <strong>BME280</strong> measures temperature, humidity, and barometric pressure — all via I2C. It is one of the most popular environmental sensors and ships at address 0x76 or 0x77."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "spi.ino",
-      "code": "#include <SPI.h>\n\nvoid setup() {\n  SPI.begin();\n  pinMode(SS, OUTPUT);\n}\n\nvoid sendByte(byte data) {\n  digitalWrite(SS, LOW);\n  SPI.transfer(data);\n  digitalWrite(SS, HIGH);\n}"
+      "filename": "bme280.ino",
+      "code": "// Library: Adafruit BME280 Library\n// Dependency: Adafruit Unified Sensor\n#include <Adafruit_BME280.h>\n#include <Wire.h>\n\nAdafruit_BME280 bme;  // uses I2C address 0x76\n\nvoid setup() {\n  Serial.begin(115200);\n  Wire.begin();\n\n  if (!bme.begin(0x76)) {\n    Serial.println(F(\"Error: BME280 not found at 0x76!\"));\n    while (1) delay(100);\n  }\n  Serial.println(F(\"BME280 ready\"));\n}\n\nvoid loop() {\n  Serial.print(F(\"Temp: \"));     Serial.print(bme.readTemperature(), 1); Serial.print(F(\"°C  \"));\n  Serial.print(F(\"Humidity: \")); Serial.print(bme.readHumidity(), 1);    Serial.print(F(\"%  \"));\n  Serial.print(F(\"Pressure: \")); Serial.print(bme.readPressure() / 100.0F, 1); Serial.println(F(\" hPa\"));\n  delay(1000);\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Run the I2C scanner sketch whenever you get a new I2C device — it confirms the device is wired correctly and shows its actual address. Many modules have address conflicts (two BME280s both at 0x76): change the address jumper or use a multiplexer (TCA9548A)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SPI: Four-Wire High-Speed Interface"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>SPI</strong> (Serial Peripheral Interface) uses four wires: <strong>MOSI</strong> (Master Out Slave In), <strong>MISO</strong> (Master In Slave Out), <strong>SCK</strong> (clock), and <strong>SS/CS</strong> (Slave Select / Chip Select). It's faster than I2C (up to 20 MHz) and full-duplex. Each device needs its own SS pin — 4 devices need 4 extra GPIO pins."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "spi_sd_card.ino",
+      "code": "// SD card via SPI using the SD library\n// Arduino Uno SPI pins: 11=MOSI, 12=MISO, 13=SCK, 10=CS\n#include <SPI.h>\n#include <SD.h>\n\nconst int SD_CS = 10;\n\nvoid setup() {\n  Serial.begin(115200);\n\n  if (!SD.begin(SD_CS)) {\n    Serial.println(F(\"SD card init failed!\"));\n    while (1);\n  }\n  Serial.println(F(\"SD card ready\"));\n\n  // Create/append a file\n  File logFile = SD.open(\"log.csv\", FILE_WRITE);\n  if (logFile) {\n    logFile.println(F(\"time_ms,temperature,humidity\"));\n    logFile.close();\n    Serial.println(F(\"Header written\"));\n  }\n}\n\nvoid loop() {\n  File logFile = SD.open(\"log.csv\", FILE_WRITE);\n  if (logFile) {\n    logFile.print(millis());\n    logFile.print(',');\n    logFile.print(25.3);  // replace with actual sensor read\n    logFile.print(',');\n    logFile.println(60.1);\n    logFile.close();\n  }\n  delay(5000);\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "I2C vs SPI",
+      "a": {
+        "name": "I2C",
+        "description": "Two-wire: SDA + SCL shared by all devices",
+        "strengths": ["Only 2 wires for unlimited devices", "Built-in device addressing", "Easy to scan/discover devices", "Good for slow sensors (BME280, MPU-6050, OLED)"],
+        "weaknesses": ["Slower (100–400 kHz standard)", "Half-duplex", "Needs pull-up resistors (4.7 kΩ)", "More complex protocol overhead"],
+        "useWhen": "Many devices, short distances, speed not critical"
+      },
+      "b": {
+        "name": "SPI",
+        "description": "Four wires: MOSI + MISO + SCK + 1 SS pin per device",
+        "strengths": ["Very fast (1–20+ MHz)", "Full-duplex", "Simpler protocol, less overhead", "Required for SD cards, TFT displays"],
+        "weaknesses": ["4 wires minimum + 1 SS per device", "No addressing — GPIO pins for chip select", "No multi-master support"],
+        "useWhen": "High speed needed: SD cards, TFT displays, DACs, ADCs"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "I2C requires pull-up resistors on both SDA and SCL (typically 4.7 kΩ to Vcc). Most breakout boards include them, but wiring multiple I2C boards together may add too many pull-ups in parallel, dropping resistance below 1 kΩ and causing signal integrity issues. Remove pull-ups from extra boards if you see corrupted I2C data."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "How many wires does I2C use?",
+          "question": "How many wires does I2C use to connect multiple devices?",
           "type": "multiple-choice",
           "options": [
-            "1",
-            "2",
-            "4",
-            "8"
+            "1 wire per device",
+            "2 wires shared among all devices (SDA + SCL)",
+            "4 wires plus 1 chip-select per device",
+            "8 wires for the data bus"
           ],
           "correctAnswer": 1,
-          "explanation": "I2C uses two wires: SDA (data) and SCL (clock). Both are shared among all devices on the bus."
+          "explanation": "I2C uses just 2 shared wires: SDA (data) and SCL (clock). All devices share these lines, differentiated by their unique 7-bit addresses."
+        },
+        {
+          "id": "q2",
+          "question": "When should you choose SPI over I2C?",
+          "type": "multiple-choice",
+          "options": [
+            "When you have more than 8 devices to connect",
+            "When you need high speed (SD cards, TFT displays) and have GPIO pins to spare",
+            "When you need fewer wires and slower speed",
+            "When the device operates at 3.3 V"
+          ],
+          "correctAnswer": 1,
+          "explanation": "SPI is 10–100× faster than I2C, making it essential for SD cards and TFT displays. The trade-off is a dedicated SS pin per device."
+        },
+        {
+          "id": "q3",
+          "question": "You scan the I2C bus and find nothing at any address, though a BME280 is connected. What is the most likely cause?",
+          "type": "multiple-choice",
+          "options": [
+            "The BME280 is incompatible with Arduino",
+            "SDA and/or SCL wires are disconnected or swapped",
+            "The Serial Monitor baud rate is wrong",
+            "Wire.h is not included"
+          ],
+          "correctAnswer": 1,
+          "explanation": "If the scan finds no devices, the most common cause is a wiring fault: SDA/SCL swapped, missing pull-up resistors, or Vcc/GND reversed. Check connections first."
         }
       ]
     }
@@ -67,24 +150,40 @@
   "faq": [
     {
       "q": "When should I choose SPI over I2C?",
-      "a": "Use SPI when you need high speed (SD cards, displays). Use I2C when you need fewer wires and many devices. I2C is simpler to wire but slower."
+      "a": "Use SPI for high-speed devices (SD cards ≥4 MHz, TFT displays ≥10 MHz). Use I2C when you have many slow sensors and few spare GPIO pins. I2C is simpler to wire but slower. For most sensors (BME280, MPU-6050, OLED), I2C is fine."
+    },
+    {
+      "q": "Two of my I2C devices have the same address. How do I use both?",
+      "a": "Option 1: check the datasheet — many devices have address pins to change to a second address. Option 2: use a TCA9548A I2C multiplexer that provides 8 isolated I2C buses, letting you have 8 devices with identical addresses."
+    },
+    {
+      "q": "What pull-up resistor value should I use for I2C?",
+      "a": "4.7 kΩ at 100 kHz (standard mode), 2.2 kΩ at 400 kHz (fast mode), 1 kΩ at 1 MHz (fast-plus). Most breakout boards include 4.7 kΩ pull-ups. Too low a value wastes power; too high causes slow edges at high speed."
     }
   ],
   "sources": [
     {
-      "name": "I2C on Arduino",
+      "name": "Wire Library (I2C) Reference",
       "url": "https://www.arduino.cc/reference/en/language/functions/communication/wire/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "SPI Library Reference",
+      "url": "https://www.arduino.cc/reference/en/language/functions/communication/spi/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "sensors",
-      "displays",
-      "storage"
+      "Environmental sensors (BME280, BMP180 via I2C)",
+      "IMU motion sensors (MPU-6050 via I2C)",
+      "OLED displays (SSD1306 via I2C or SPI)",
+      "SD card data logging (SPI)",
+      "TFT colour displays (ILI9341 via SPI)"
     ],
     "examples": [
-      "Connecting an OLED display via I2C to show sensor readings"
+      "Weather station connecting BME280 (I2C 0x76) and SSD1306 OLED (I2C 0x3C) on the same two wires",
+      "Data logger writing sensor readings to SD card via SPI at 4 MHz"
     ]
   }
 }

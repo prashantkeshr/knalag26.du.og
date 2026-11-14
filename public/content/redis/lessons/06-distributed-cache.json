@@ -1,38 +1,111 @@
 {
   "id": "06-distributed-cache",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "caching",
   "title": "Distributed Caching",
   "subtitle": "Multi-instance Redis, consistent hashing, and Redis Cluster",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.eviction"
-  ],
-  "skillsTaught": [
-    "redis.distributed"
-  ],
+  "prerequisites": ["redis.eviction"],
+  "skillsTaught": ["redis.distributed"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "A single Redis node is limited by one machine's RAM and throughput. High-traffic applications may need terabytes of cache or millions of requests per second — beyond any single node.",
+    "solution": "Distribute keys across multiple Redis nodes using consistent hashing or Redis Cluster. Each node owns a portion of the keyspace, so the cache scales horizontally.",
+    "whenToUse": "When your dataset exceeds a single node's memory, when you need more throughput than one node can serve, or when you need high availability across data centers.",
+    "whenNotToUse": "Single-node Redis handles tens of GBs and 100k+ ops/sec. Only distribute when you've exhausted vertical scaling. Cluster adds complexity — start simple."
+  },
+  "explainModes": {
+    "beginner": "One Redis server can only hold so much data. Distributed caching splits the data across multiple servers, like assigning each customer to a different cashier.",
+    "simple": "Redis Cluster splits keys across multiple nodes using a hash function. The client sends each key to the right node automatically. If a node fails, Cluster can promote a replica to take over.",
+    "standard": "Redis Cluster partitions the keyspace into 16384 hash slots. Each node owns a range of slots. A key maps to a slot via CRC16(key) % 16384. The cluster client routes commands to the correct node. Replicas provide read scaling and failover.",
+    "technical": "Redis Cluster uses gossip protocol for cluster state propagation. Nodes exchange PING/PONG with partial cluster state. A node is considered failed after CLUSTER_NODE_TIMEOUT (default 15s) of no response confirmed by a majority. Slave promotion via Raft-like election. MOVED errors redirect clients to the correct node; ASK errors redirect during key migration.",
+    "deepDive": "Hash tags ({user}) allow related keys to share a slot: CRC16 uses only the content between {} as the hash input. This enables multi-key commands (MGET, pipelines) across related keys in a cluster. Without hash tags, MGET on keys hashed to different nodes would fail. Key distribution is uniform only with many keys — small key counts can produce hot slots."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Scaling Redis"
+      "text": "Why Distribute Redis?"
     },
     {
       "type": "paragraph",
-      "text": "A single Redis instance may not be enough. Use Redis Cluster or a client-side consistent hash to distribute keys across multiple instances."
+      "text": "A single Redis node can handle <strong>millions of ops/sec</strong> and terabytes of RAM on large hardware. But for datasets that don't fit in one machine, or for extreme throughput, you need to distribute across nodes. Redis offers two approaches: <strong>Redis Cluster</strong> (built-in) and client-side sharding."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Cluster Basics"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis Cluster automatically shards data across nodes using <strong>16384 hash slots</strong>. Each key is assigned a slot via <code>CRC16(key) % 16384</code>, and each node owns a range of slots."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "cluster-setup.sh",
+      "code": "# Start 6 Redis instances (3 primary + 3 replica)\nredis-server --port 7000 --cluster-enabled yes --cluster-config-file nodes-7000.conf &\nredis-server --port 7001 --cluster-enabled yes --cluster-config-file nodes-7001.conf &\nredis-server --port 7002 --cluster-enabled yes --cluster-config-file nodes-7002.conf &\nredis-server --port 7003 --cluster-enabled yes --cluster-config-file nodes-7003.conf &\nredis-server --port 7004 --cluster-enabled yes --cluster-config-file nodes-7004.conf &\nredis-server --port 7005 --cluster-enabled yes --cluster-config-file nodes-7005.conf &\n\n# Create cluster with 1 replica per primary\nredis-cli --cluster create \\\n  127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 \\\n  127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \\\n  --cluster-replicas 1\n\n# Check cluster health\nredis-cli -p 7000 cluster info\nredis-cli -p 7000 cluster nodes"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connecting from Node.js"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "cluster.js",
-      "code": "import { createCluster } from \"redis\";\n\nconst cluster = createCluster({\n  rootNodes: [\n    { url: \"redis://localhost:7000\" },\n    { url: \"redis://localhost:7001\" },\n    { url: \"redis://localhost:7002\" }\n  ]\n});\nawait cluster.connect();"
+      "filename": "cluster-client.js",
+      "code": "import { createCluster } from 'redis';\n\nconst cluster = createCluster({\n  rootNodes: [\n    { url: 'redis://localhost:7000' },\n    { url: 'redis://localhost:7001' },\n    { url: 'redis://localhost:7002' },\n  ],\n});\n\nawait cluster.connect();\n\n// Commands route to correct node automatically\nawait cluster.set('user:1', 'Alice');  // goes to node holding slot for 'user:1'\nawait cluster.get('user:1');           // goes to same node\n\n// MGET works only if all keys are on same node\n// Use hash tags to co-locate keys\nawait cluster.set('{user:1}.name', 'Alice');\nawait cluster.set('{user:1}.email', 'alice@ex.com');\nawait cluster.mGet(['{user:1}.name', '{user:1}.email']);  // same slot, works!"
+    },
+    {
+      "type": "definition",
+      "term": "Hash Tag",
+      "definition": "A substring in {} in a key that Redis uses as the hash input instead of the whole key. Keys sharing the same hash tag always map to the same hash slot, enabling multi-key commands in a cluster."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "High Availability with Sentinel"
+    },
+    {
+      "type": "paragraph",
+      "text": "For single-node deployments that need failover (but not sharding), <strong>Redis Sentinel</strong> is simpler than Cluster. It monitors a primary/replica pair and auto-promotes on failure."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "sentinel.conf",
+      "code": "# sentinel.conf\nsentinel monitor mymaster 127.0.0.1 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 60000\nsentinel parallel-syncs mymaster 1"
+    },
+    {
+      "type": "comparison",
+      "title": "Redis Cluster vs Sentinel",
+      "a": {
+        "name": "Redis Cluster",
+        "description": "Sharding + HA in one",
+        "strengths": ["Scales beyond single-node memory", "Built-in HA", "Up to 1000 nodes", "No single point of failure"],
+        "weaknesses": ["Complex setup", "Multi-key commands require hash tags", "No cross-slot transactions"],
+        "useWhen": "Dataset exceeds single-node memory or you need massive throughput"
+      },
+      "b": {
+        "name": "Redis Sentinel",
+        "description": "HA only, no sharding",
+        "strengths": ["Simple setup", "Transparent to client libraries", "Full command support", "No hash tag restrictions"],
+        "weaknesses": ["Single node capacity limit", "No horizontal scaling"],
+        "useWhen": "You need failover but dataset fits in one node"
+      }
     },
     {
       "type": "tip",
-      "text": "Redis Cluster automatically shards data across up to 1000 nodes using 16384 hash slots."
+      "text": "Redis Cluster uses 16384 hash slots distributed across shards. Use hash tags like <code>{user:1}.name</code> and <code>{user:1}.email</code> to ensure related keys land on the same shard, enabling multi-key operations."
     },
     {
       "type": "quiz",
@@ -41,14 +114,35 @@
           "id": "q1",
           "question": "How many hash slots does Redis Cluster use?",
           "type": "multiple-choice",
-          "options": [
-            "1024",
-            "8192",
-            "16384",
-            "65536"
-          ],
+          "options": ["1024", "8192", "16384", "65536"],
           "correctAnswer": 2,
-          "explanation": "Redis Cluster uses 16384 hash slots distributed across shards."
+          "explanation": "Redis Cluster uses exactly 16384 hash slots distributed across all primary nodes. Keys are mapped to slots via CRC16(key) % 16384."
+        },
+        {
+          "id": "q2",
+          "question": "What is a hash tag in Redis Cluster?",
+          "type": "multiple-choice",
+          "options": [
+            "A metadata tag added to keys",
+            "A substring in {} used to force related keys onto the same hash slot",
+            "A compression algorithm",
+            "A TTL modifier for clustered keys"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A hash tag is a substring between {} in a key name. Redis uses only that part as the hash input, ensuring keys with the same tag land on the same hash slot."
+        },
+        {
+          "id": "q3",
+          "question": "What is the difference between Redis Cluster and Redis Sentinel?",
+          "type": "multiple-choice",
+          "options": [
+            "Sentinel is for sharding, Cluster is for failover",
+            "Cluster provides both sharding and HA; Sentinel provides HA without sharding",
+            "They are identical but Sentinel is newer",
+            "Cluster requires more than 10 nodes"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis Cluster shards data across multiple nodes AND provides failover. Redis Sentinel only provides automatic failover for a primary/replica setup without sharding."
         }
       ]
     }
@@ -56,23 +150,26 @@
   "faq": [
     {
       "q": "Can I use pipelining with Redis Cluster?",
-      "a": "Yes, but all keys in a pipeline must map to the same hash slot. Use hash tags {user:1} to force co-location."
+      "a": "Yes, but all keys in a pipeline must map to the same hash slot. Use hash tags {tag} in your key names to force related keys to the same slot."
+    },
+    {
+      "q": "What happens when a node fails in Redis Cluster?",
+      "a": "Cluster detects the failure via gossip protocol, waits for CLUSTER_NODE_TIMEOUT (default 15s), then elects a replica to become the new primary via a Raft-like election."
+    },
+    {
+      "q": "What is the minimum nodes for Redis Cluster?",
+      "a": "3 primary nodes minimum. Each needs at least 1 replica for high availability, so 6 nodes total for a minimal HA cluster."
     }
   ],
   "sources": [
-    {
-      "name": "Redis Cluster",
-      "url": "https://redis.io/docs/manual/scaling/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Redis Cluster", "url": "https://redis.io/docs/manual/scaling/", "verified": "2026-11-04" },
+    { "name": "Redis Sentinel", "url": "https://redis.io/docs/manual/sentinel/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "high-traffic caching",
-      "session clusters"
-    ],
+    "usedIn": ["high-traffic e-commerce caching", "session clusters for millions of users", "gaming platform leaderboards"],
     "examples": [
-      "Distributing session storage across 3 Redis nodes"
+      "Distributing session storage across a 6-node Redis Cluster for a 50M user platform",
+      "Using Redis Sentinel for a managed failover setup on AWS ElastiCache"
     ]
   }
 }

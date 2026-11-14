@@ -1,44 +1,124 @@
 {
   "id": "13-persistence",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-production",
   "title": "Redis Persistence",
   "subtitle": "RDB snapshots vs AOF and hybrid persistence",
   "difficulty": "advanced",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "redis.lua"
-  ],
-  "skillsTaught": [
-    "redis.persistence"
-  ],
+  "prerequisites": ["redis.lua"],
+  "skillsTaught": ["redis.persistence"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "Redis stores data in RAM. Without persistence, every restart means complete data loss — unacceptable for session stores, queues, and any data you can't afford to lose.",
+    "solution": "Redis offers two persistence mechanisms: RDB (periodic snapshots to disk) and AOF (append-only log of every write). Each has different durability and performance tradeoffs. Hybrid mode combines both.",
+    "whenToUse": "Any Redis that holds data you cannot rebuild on restart: sessions, queues, rate limit counters, Streams. Even pure caches benefit from persistence to warm up faster after restart.",
+    "whenNotToUse": "If Redis is used exclusively as an ephemeral cache with a cold-start warm-up acceptable, you can disable persistence to squeeze extra performance."
+  },
+  "explainModes": {
+    "beginner": "RDB is like taking a photo of your data every few minutes. AOF is like writing down every change you make in a diary. If something goes wrong, you restore from the last photo (RDB) or replay the diary (AOF).",
+    "simple": "RDB saves a snapshot of all data to disk periodically. Fast startup, may lose last few minutes of writes. AOF logs every write command. Almost zero data loss, slower startup. Hybrid does both: fast startup + good durability.",
+    "standard": "RDB uses fork() to create a child process that writes a compact binary snapshot. The parent continues serving requests. AOF appends each write command as text. On startup, Redis replays the AOF to restore state. Hybrid (aof-use-rdb-preamble) writes an RDB preamble at AOF rewrite time, combining fast load with low data loss.",
+    "technical": "RDB fork uses copy-on-write semantics — the parent and child share memory pages until the parent writes, triggering a page copy. Memory spikes during save proportional to write rate. AOF fsync policies: always (1 write/command, safest), everysec (1 fsync/sec, default), no (OS decides). AOF rewrite compacts the log by writing current state without historical commands.",
+    "deepDive": "Redis 7.0 introduced Multi-Part AOF (MP-AOF) to eliminate the atomic rename needed at rewrite time. The AOF is split into a base file (the last RDB preamble) and incremental files. This reduces fsync pauses and disk space during rewrite. The aof_manifest file tracks the parts. On load, Redis replays base + incrementals in order. For minimum data loss in a cluster, enable AOF with everysec on all replicas too."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Persistence Options"
+      "text": "Why Persistence Matters"
     },
     {
       "type": "paragraph",
-      "text": "Redis offers two persistence mechanisms: RDB (periodic snapshots) and AOF (append-only file of every write command)."
+      "text": "Redis stores everything in RAM. Without persistence, a server restart, power failure, or crash means <strong>total data loss</strong>. Redis provides two persistence mechanisms with different tradeoffs between durability and performance."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "RDB — Periodic Snapshots"
+    },
+    {
+      "type": "paragraph",
+      "text": "RDB creates a <strong>point-in-time snapshot</strong> of all data. Redis forks a child process to write the snapshot — the parent keeps serving requests with minimal impact."
     },
     {
       "type": "code",
-      "lang": "text",
-      "filename": "redis.conf",
-      "code": "# RDB snapshot every 60 seconds if at least 1 key changed\nsave 60 1\ndbfilename dump.rdb\n\n# AOF\nappendonly yes\nappendfsync everysec\n\n# Hybrid (recommended)\naof-use-rdb-preamble yes"
+      "lang": "bash",
+      "filename": "rdb-config.conf",
+      "code": "# redis.conf — RDB configuration\n\n# Save rules: save <seconds> <changes>\n# Save if at least 1 change happened in 3600 seconds\nsave 3600 1\n# Save if at least 100 changes happened in 300 seconds\nsave 300 100\n# Save if at least 10000 changes happened in 60 seconds\nsave 60 10000\n\n# RDB filename and directory\ndbfilename dump.rdb\ndir /var/lib/redis\n\n# Compress RDB (uses LZF compression)\nrdbcompression yes\n\n# Manual save (blocks server — don't use in production)\n# redis-cli SAVE\n\n# Non-blocking save\n# redis-cli BGSAVE\n\n# Check last save time\n# redis-cli LASTSAVE"
     },
     {
       "type": "definition",
       "term": "RDB",
-      "definition": "A point-in-time snapshot of the dataset. Fast to load on restart but may lose the last few minutes of writes."
+      "definition": "Redis Database — a compact binary snapshot of all data at a point in time. Fast to load on restart but may lose up to minutes of writes if Redis crashes between saves."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AOF — Append-Only File"
+    },
+    {
+      "type": "paragraph",
+      "text": "AOF logs every write command. On restart, Redis replays all commands to reconstruct the dataset. It provides much better durability — typically less than 1 second of data loss."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "aof-config.conf",
+      "code": "# redis.conf — AOF configuration\nappendonly yes\nappendfilename \"appendonly.aof\"\n\n# Fsync policy (how often to flush to disk)\n# always   — fsync after every write (safest, slowest)\n# everysec — fsync once per second (recommended default)\n# no       — let OS decide (fastest, least safe)\nappendfsync everysec\n\n# Rewrite AOF to compact it (removes historical commands)\nauto-aof-rewrite-percentage 100  # rewrite when AOF doubles in size\nauto-aof-rewrite-min-size 64mb   # only if AOF is at least 64MB\n\n# Trigger manual AOF rewrite (non-blocking)\n# redis-cli BGREWRITEAOF"
     },
     {
       "type": "definition",
       "term": "AOF",
-      "definition": "Logs every write command. Minimal data loss but larger files and slower startup."
+      "definition": "Append-Only File — a log of every write command in RESP format. Near-zero data loss with everysec fsync (up to 1 second loss), but slower startup and larger files than RDB."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hybrid Persistence (Recommended)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Hybrid persistence combines the <strong>fast startup of RDB</strong> with the <strong>low data loss of AOF</strong>. At AOF rewrite time, Redis writes an RDB preamble, then appends subsequent commands. On restart it loads the RDB preamble (fast) then replays only the new AOF tail (small)."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "hybrid-config.conf",
+      "code": "# redis.conf — Recommended production setup\nappendonly yes\nappendfsync everysec\naof-use-rdb-preamble yes   # hybrid mode: RDB preamble + AOF tail\n\nauto-aof-rewrite-percentage 100\nauto-aof-rewrite-min-size 64mb\n\n# Save RDB as backup too\nsave 3600 1\nsave 300 100"
+    },
+    {
+      "type": "comparison",
+      "title": "RDB vs AOF",
+      "a": {
+        "name": "RDB",
+        "description": "Periodic point-in-time snapshots",
+        "strengths": ["Compact binary format", "Fast startup (load snapshot once)", "Low I/O overhead between saves", "Great for backups"],
+        "weaknesses": ["May lose minutes of writes", "Fork can spike memory under heavy write load"],
+        "useWhen": "Backup, disaster recovery, tolerable data loss window"
+      },
+      "b": {
+        "name": "AOF",
+        "description": "Every-command write log",
+        "strengths": ["Up to 1-second data loss with everysec", "Human-readable log", "Automatic compaction via rewrite"],
+        "weaknesses": ["Larger files", "Slower startup (replay all commands)", "Higher write I/O"],
+        "useWhen": "Session stores, queues, any data with strict durability requirements"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "For most production Redis deployments, enable <strong>hybrid persistence</strong>: <code>appendonly yes</code> + <code>aof-use-rdb-preamble yes</code> + <code>appendfsync everysec</code>. This gives fast startup and at most 1 second of data loss."
+    },
+    {
+      "type": "warning",
+      "text": "RDB fork() can temporarily double memory usage under a heavy write load due to copy-on-write. Set <code>maxmemory</code> to no more than 50% of RAM if RDB saves are frequent."
     },
     {
       "type": "quiz",
@@ -47,14 +127,35 @@
           "id": "q1",
           "question": "Which persistence mode has the least data loss?",
           "type": "multiple-choice",
+          "options": ["RDB with 60s interval", "AOF with everysec fsync", "AOF with always fsync", "No persistence"],
+          "correctAnswer": 2,
+          "explanation": "AOF with always fsync writes to disk on every command — zero data loss but slowest. everysec risks up to 1 second of writes. RDB can lose minutes."
+        },
+        {
+          "id": "q2",
+          "question": "What is hybrid persistence in Redis?",
+          "type": "multiple-choice",
           "options": [
-            "RDB with 60s interval",
-            "AOF with everysec fsync",
-            "AOF with always fsync",
-            "No persistence"
+            "Using both a primary and replica",
+            "Using RDB and AOF files in separate directories",
+            "AOF with an RDB preamble: fast startup + low data loss",
+            "Storing some data in RAM and some on disk"
           ],
           "correctAnswer": 2,
-          "explanation": "AOF with always fsync writes to disk on every command — zero data loss but slowest."
+          "explanation": "Hybrid (aof-use-rdb-preamble yes) writes an RDB snapshot as the AOF preamble at rewrite time. On startup, Redis loads the compact RDB then replays only the smaller AOF tail — fast load with low data loss."
+        },
+        {
+          "id": "q3",
+          "question": "Why can RDB saves temporarily double Redis memory?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis copies all data before saving",
+            "Fork creates a child process sharing memory via copy-on-write; writes cause page duplication",
+            "RDB compresses data which requires extra space",
+            "Redis pauses writes during RDB"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RDB uses fork(). The child process shares memory pages with the parent via copy-on-write. Each write in the parent triggers a page copy, potentially doubling memory if write rate is high during the save."
         }
       ]
     }
@@ -62,23 +163,26 @@
   "faq": [
     {
       "q": "Can I use both RDB and AOF?",
-      "a": "Yes. The recommended setup is hybrid persistence: AOF with an RDB preamble. Use aof-use-rdb-preamble yes."
+      "a": "Yes. The recommended setup is hybrid persistence: AOF with an RDB preamble (aof-use-rdb-preamble yes). This gives fast startup from the RDB portion and minimal data loss from the AOF tail."
+    },
+    {
+      "q": "How do I disable persistence for a pure cache?",
+      "a": "Set 'save \"\"' (empty string) in redis.conf to disable RDB, and appendonly no to disable AOF. The instance becomes volatile — all data is lost on restart."
+    },
+    {
+      "q": "How large will the AOF file get?",
+      "a": "It grows with every write until a rewrite compacts it. Redis triggers auto-rewrite when the AOF doubles in size (auto-aof-rewrite-percentage 100). Force a rewrite with BGREWRITEAOF."
     }
   ],
   "sources": [
-    {
-      "name": "Persistence",
-      "url": "https://redis.io/docs/manual/persistence/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Persistence", "url": "https://redis.io/docs/manual/persistence/", "verified": "2026-11-04" },
+    { "name": "AOF", "url": "https://redis.io/docs/management/persistence/#aof-advantages", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "production deployments",
-      "crash recovery"
-    ],
+    "usedIn": ["production session stores", "job queue backends", "primary data stores on managed Redis (ElastiCache, Redis Cloud)"],
     "examples": [
-      "AOF with everysec for a session store"
+      "Using hybrid AOF (aof-use-rdb-preamble yes) for a session store that must survive instance restarts",
+      "Disabling persistence entirely for a pure page-cache layer where a cold start is acceptable"
     ]
   }
 }

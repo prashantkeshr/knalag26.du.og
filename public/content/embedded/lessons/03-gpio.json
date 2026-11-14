@@ -1,19 +1,35 @@
 {
   "id": "03-gpio",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino IDE 2.x",
   "technology": "embedded",
   "module": "embedded-basics",
   "title": "GPIO: Digital and Analog I/O",
   "subtitle": "Pins, voltage levels, pull-up resistors, and ADC",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.mcu-arch"
-  ],
-  "skillsTaught": [
-    "embedded.gpio"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.mcu-arch"],
+  "skillsTaught": ["embedded.gpio"],
+  "whyItExists": {
+    "problem": "Microcontrollers need to interact with the physical world: read button presses, detect sensor voltages, drive LEDs, control motors. Without understanding GPIO configuration, you get floating inputs (random readings), damaged pins, or non-functional circuits.",
+    "solution": "GPIO (General Purpose Input/Output) pins are configurable as inputs or outputs. Understanding pull-up/pull-down resistors, voltage levels, ADC, and PWM lets you correctly interface any sensor or actuator.",
+    "whenToUse": "Every time you connect a physical component: buttons, LEDs, sensors, relays, displays, or any external hardware.",
+    "whenNotToUse": "For high-speed digital interfaces (SD card, Ethernet), use dedicated hardware peripherals (SPI, I2C) rather than bit-banging GPIO."
+  },
+  "explainModes": {
+    "beginner": "GPIO pins are like switches that you can control from code. You can set them as OUTPUT to light an LED, or INPUT to read a button. The tricky part is making sure input pins don't float around randomly — that's what pull-up resistors fix.",
+    "simple": "Each GPIO pin can be digital (0V or 5V) or analog (0-5V gradient). Set a pin as OUTPUT and write HIGH/LOW. Set it as INPUT and read its state. Add a pull-up resistor (or use the built-in one) so buttons read stable values.",
+    "standard": "GPIO pins are configured via the DDR (Data Direction Register) or pinMode(). Digital pins sample the input voltage against a threshold (typically 0.3*Vcc for LOW, 0.7*Vcc for HIGH). Analog pins feed a 10-bit SAR ADC producing values 0–1023. PWM uses hardware timers to generate variable-duty-cycle square waves.",
+    "technical": "On AVR, each port has three registers: DDRx (direction), PORTx (output/pull-up), PINx (input). Setting DDRx bit = 1 makes it output; PORTx bit = 1 enables the internal 20–50 kΩ pull-up when in input mode. The ADC has a 13-clock-cycle conversion time at 16 MHz = 9.6 kSPS max.",
+    "deepDive": "AVR GPIO sink/source current limits are 40 mA per pin and 200 mA per port. Exceeding these permanently damages the chip. The SAR ADC uses a successive-approximation algorithm and shares a multiplexer across all analog pins. PWM frequency on Timer0/2 is ~976 Hz; Timer1 is ~488 Hz with 8-bit resolution, or configurable up to 16-bit with ICR1."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,23 +38,93 @@
     },
     {
       "type": "paragraph",
-      "text": "GPIO pins let your microcontroller interact with the physical world: read buttons, control LEDs, talk to sensors."
+      "text": "GPIO pins are the bridge between your microcontroller and the physical world. Every pin can be configured as an <strong>output</strong> (drive voltage high or low) or <strong>input</strong> (read external voltage). Arduino Uno has 14 digital pins (D0–D13) and 6 analog pins (A0–A5) that also work as digital GPIO."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Digital Output: Driving LEDs and Relays"
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "gpio.ino",
-      "code": "// Arduino GPIO example\nconst int LED_PIN = 13;\nconst int BTN_PIN = 2;\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  pinMode(BTN_PIN, INPUT_PULLUP); // internal pull-up resistor\n}\n\nvoid loop() {\n  // LOW when button pressed (pull-up inverts logic)\n  if (digitalRead(BTN_PIN) == LOW) {\n    digitalWrite(LED_PIN, HIGH);\n  } else {\n    digitalWrite(LED_PIN, LOW);\n  }\n}"
+      "filename": "digital_output.ino",
+      "code": "// Digital output: control an LED\nconst int LED_PIN = 9;  // any digital pin\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);  // configure as output\n}\n\nvoid loop() {\n  digitalWrite(LED_PIN, HIGH);  // 5V on pin\n  delay(500);\n  digitalWrite(LED_PIN, LOW);   // 0V on pin\n  delay(500);\n}"
+    },
+    {
+      "type": "warning",
+      "text": "Always use a current-limiting resistor (220Ω–1kΩ) in series with an LED. Without it, the LED draws too much current and either burns out instantly or damages the GPIO pin. Formula: R = (Vcc - Vf) / If = (5V - 2V) / 20mA = 150Ω minimum."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Digital Input: Reading Buttons with Pull-Up"
+    },
+    {
+      "type": "paragraph",
+      "text": "An <strong>unconnected (floating) input</strong> pin picks up electrical noise and reads random HIGH or LOW values. You need to <em>bias</em> it to a known state using a pull-up or pull-down resistor. Arduino has a convenient built-in <code>INPUT_PULLUP</code> mode that connects an internal ~50 kΩ resistor to Vcc."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "adc.ino",
-      "code": "// Read analog sensor (potentiometer on A0)\nint raw = analogRead(A0);         // 0-1023\nfloat voltage = raw * (5.0 / 1023.0); // convert to volts\nSerial.println(voltage);"
+      "filename": "button_pullup.ino",
+      "code": "const int LED_PIN = 13;\nconst int BTN_PIN = 2;\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  // INPUT_PULLUP: pin reads HIGH when button not pressed\n  // When button connects pin to GND, it reads LOW\n  pinMode(BTN_PIN, INPUT_PULLUP);\n  Serial.begin(115200);\n}\n\nvoid loop() {\n  int state = digitalRead(BTN_PIN);\n\n  // Logic is INVERTED with pull-up: LOW = pressed\n  if (state == LOW) {\n    digitalWrite(LED_PIN, HIGH);  // button pressed: LED on\n    Serial.println(\"Button pressed\");\n  } else {\n    digitalWrite(LED_PIN, LOW);   // button released: LED off\n  }\n}"
     },
     {
       "type": "tip",
-      "text": "Always use INPUT_PULLUP instead of INPUT when reading buttons. Floating inputs give random readings."
+      "text": "Always use INPUT_PULLUP instead of INPUT when reading buttons. Floating inputs give random, unpredictable readings. The logic is inverted: LOW means pressed (button pulls pin to GND), HIGH means released."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Analog Input: Reading Sensors with ADC"
+    },
+    {
+      "type": "paragraph",
+      "text": "Arduino's 10-bit ADC converts an analog voltage (0–5V) to a digital number (0–1023). Use <code>analogRead(A0)</code> to read pins A0–A5. This is essential for sensors that output a variable voltage: potentiometers, thermistors, light-dependent resistors (LDR), and soil moisture sensors."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "analog_read.ino",
+      "code": "void setup() {\n  Serial.begin(115200);\n  // A0-A5 are automatically input — no pinMode needed for analog\n}\n\nvoid loop() {\n  int raw = analogRead(A0);               // 0 to 1023\n  float voltage = raw * (5.0 / 1023.0);  // convert to volts\n  float percent  = raw / 1023.0 * 100.0; // 0–100%\n\n  Serial.print(\"Raw: \"); Serial.print(raw);\n  Serial.print(\"  Voltage: \"); Serial.print(voltage, 2); Serial.print(\"V\");\n  Serial.print(\"  Pct: \"); Serial.print(percent, 1); Serial.println(\"%\");\n\n  delay(200);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Analog Output: PWM"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>PWM (Pulse Width Modulation)</strong> simulates analog output by rapidly switching a digital pin between HIGH and LOW at a fixed frequency. The <em>duty cycle</em> (percentage of time HIGH) controls the perceived voltage. <code>analogWrite(pin, 0–255)</code> sets the duty cycle on PWM-capable pins (marked ~ on Arduino Uno: 3, 5, 6, 9, 10, 11)."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "pwm_fade.ino",
+      "code": "const int LED_PIN = 9;  // must be a PWM pin (~)\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n}\n\nvoid loop() {\n  // Fade in\n  for (int brightness = 0; brightness <= 255; brightness += 5) {\n    analogWrite(LED_PIN, brightness);  // 0=off, 255=full on\n    delay(10);\n  }\n  // Fade out\n  for (int brightness = 255; brightness >= 0; brightness -= 5) {\n    analogWrite(LED_PIN, brightness);\n    delay(10);\n  }\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "3.3V vs 5V Logic",
+      "a": {
+        "name": "5V Logic (Arduino Uno / Nano)",
+        "description": "GPIO operates at 5V HIGH, 0V LOW",
+        "strengths": ["Wider compatibility with older sensors", "More noise margin", "Higher GPIO current drive"],
+        "weaknesses": ["Cannot directly connect to 3.3V devices", "Requires level shifter for Raspberry Pi"],
+        "useWhen": "Using 5V sensors, traditional Arduino shields, or legacy components"
+      },
+      "b": {
+        "name": "3.3V Logic (ESP32 / Raspberry Pi / Arduino Zero)",
+        "description": "GPIO operates at 3.3V HIGH, 0V LOW",
+        "strengths": ["Lower power consumption", "Direct 3.3V sensor compatibility", "Required for modern RF chips"],
+        "weaknesses": ["5V on input will damage the chip permanently", "Less current per pin"],
+        "useWhen": "Modern sensors, WiFi/BT modules, Raspberry Pi GPIO"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "Never connect a 5V signal to a 3.3V GPIO pin (ESP32, Raspberry Pi, Arduino Zero/MKR). It will permanently damage the input protection diodes or the GPIO controller. Use a voltage divider (two resistors) or a dedicated logic-level converter IC."
     },
     {
       "type": "quiz",
@@ -48,38 +134,80 @@
           "question": "What does INPUT_PULLUP do?",
           "type": "multiple-choice",
           "options": [
-            "Sets the pin as output",
-            "Connects an internal resistor to Vcc so unconnected pins read HIGH",
-            "Disables the pin",
-            "Doubles the read speed"
+            "Boosts the GPIO current output capability",
+            "Connects an internal ~50kΩ resistor to Vcc so unconnected pins read HIGH",
+            "Sets the pin as an analog output",
+            "Doubles the read sampling rate"
           ],
           "correctAnswer": 1,
-          "explanation": "A pull-up resistor keeps the pin at HIGH when nothing is connected. When the button is pressed, it pulls the pin to LOW/GND."
+          "explanation": "INPUT_PULLUP connects the internal pull-up resistor so the pin defaults to HIGH. When a button pulls it to GND, it reads LOW — logic is inverted compared to a pull-down configuration."
+        },
+        {
+          "id": "q2",
+          "question": "What value does analogRead() return for a 2.5V input on a 5V Arduino?",
+          "type": "multiple-choice",
+          "options": [
+            "2.5",
+            "250",
+            "512",
+            "1023"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The 10-bit ADC maps 0–5V to 0–1023. 2.5V is half of 5V, so: 2.5 / 5.0 × 1023 ≈ 512."
+        },
+        {
+          "id": "q3",
+          "question": "Which pins on Arduino Uno support analogWrite() (PWM)?",
+          "type": "multiple-choice",
+          "options": [
+            "All digital pins 0–13",
+            "Only analog pins A0–A5",
+            "Pins marked with ~ (3, 5, 6, 9, 10, 11)",
+            "Only pins 2 and 3"
+          ],
+          "correctAnswer": 2,
+          "explanation": "PWM is generated by hardware timers. On the Uno, only pins 3, 5, 6, 9, 10, and 11 are timer-connected and support analogWrite() — these are marked with a ~ symbol on the board."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "Can I connect a 5V signal to a Raspberry Pi GPIO?",
-      "a": "No! Raspberry Pi GPIO is 3.3V. A 5V signal will damage it. Use a voltage divider or a logic level converter."
+      "q": "Can I connect a 5V sensor to a Raspberry Pi GPIO?",
+      "a": "No! Raspberry Pi GPIO is 3.3V. A 5V signal will damage it. Use a voltage divider (10kΩ + 20kΩ resistors) or a dedicated bidirectional logic-level converter module."
+    },
+    {
+      "q": "My LED is very dim even at full analogWrite(255). Why?",
+      "a": "Your resistor value may be too high, or the LED Vf (forward voltage) is higher than expected. Try a 220Ω resistor. Blue and white LEDs have ~3.2V Vf vs ~2V for red/green, so they're dimmer on 5V Arduino."
+    },
+    {
+      "q": "Why does my button cause multiple triggers?",
+      "a": "Mechanical switch bounce — the contacts physically bounce on contact, generating multiple edges. Debounce in software with a 10–20 ms delay after first trigger, or use the Bounce2 library."
     }
   ],
   "sources": [
     {
-      "name": "Arduino GPIO",
+      "name": "Arduino digitalRead()",
       "url": "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Arduino analogWrite() / PWM",
+      "url": "https://www.arduino.cc/reference/en/language/functions/analog-io/analogwrite/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "LED control",
-      "button reading",
-      "sensor interfacing"
+      "LED control and dimming",
+      "Button and switch input reading",
+      "Potentiometer volume controls",
+      "Servo motor position control",
+      "Sensor voltage reading (thermistor, LDR, soil moisture)"
     ],
     "examples": [
-      "Reading a push button to toggle an LED on Arduino"
+      "Reading a push button with INPUT_PULLUP to toggle an LED on Arduino Uno",
+      "Using analogRead(A0) to read a potentiometer and map it to servo position"
     ]
   }
 }

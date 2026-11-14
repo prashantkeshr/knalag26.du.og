@@ -1,19 +1,31 @@
 {
   "id": "14-model-deployment",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-14",
+  "technologyVersion": "scikit-learn 1.5 / FastAPI 0.111",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-production",
   "title": "Deploying ML Models",
   "subtitle": "Saving models, building APIs, and serving predictions",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "ml.feature-selection"
-  ],
-  "skillsTaught": [
-    "ml.deployment"
-  ],
+  "prerequisites": ["ml.feature-selection"],
+  "skillsTaught": ["ml.deployment", "ml.model-serving", "ml.fastapi", "ml.joblib"],
+  "whyItExists": {
+    "problem": "A trained model sitting on a data scientist's laptop provides zero business value. It needs to be accessible to applications and users in real time — accepting new inputs and returning predictions within milliseconds.",
+    "solution": "Model deployment packages a trained model and its preprocessing pipeline as a REST API endpoint that any application can call over HTTP.",
+    "whenToUse": "When you're ready to put a model into production. Even if you're just prototyping, a local FastAPI server lets you test the model end-to-end before full deployment.",
+    "whenNotToUse": "For batch predictions over large datasets, a REST API is wasteful — load the model directly in a script and run predictions on the entire dataset at once."
+  },
+  "explainModes": {
+    "beginner": "Once a model is trained, you save it to a file (like saving a document). Then you wrap it in a small web server that listens for requests. When an app sends features over the internet, the server loads the model, runs the prediction, and sends back the result.",
+    "simple": "Model deployment: save the trained model with joblib, write a FastAPI server that loads the model on startup, define an endpoint that accepts feature values in a JSON request body, runs the model, and returns the prediction.",
+    "standard": "Production deployment requires: serialising the model and all preprocessing objects (scaler, encoder) with joblib, an API server (FastAPI) that validates inputs, applies transformations, and returns predictions with proper error handling, plus Docker for reproducible containerisation.",
+    "technical": "The deployment artefact must include the full inference pipeline: imputer → encoder → scaler → model. Use Pydantic for input validation. Version the API (/v1/predict). Containerise with Docker for environment reproducibility. CI/CD deploys on passing tests.",
+    "deepDive": "Production ML serving has two modes: online (low-latency single-row predictions via REST API) and batch (high-throughput bulk scoring via batch jobs). Canary deployments roll out new models to a fraction of traffic first. Shadow mode compares new model predictions against the live model without affecting users."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,33 +34,109 @@
     },
     {
       "type": "paragraph",
-      "text": "Persist a trained model with joblib or pickle and serve it via a REST API for real-time predictions."
+      "text": "Deployment is the step that turns a trained model into business value. The workflow: <strong>save</strong> the model and preprocessing pipeline → <strong>build an API</strong> that loads them → <strong>containerise</strong> with Docker → <strong>deploy</strong> to a server or cloud service."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 1: Save the Full Pipeline"
+    },
+    {
+      "type": "paragraph",
+      "text": "Always save the <strong>complete preprocessing pipeline</strong> alongside the model. If you trained on scaled features but deploy only the model (without the scaler), predictions will be completely wrong."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "deploy.py",
-      "code": "import joblib\nfrom fastapi import FastAPI\nfrom pydantic import BaseModel\nimport numpy as np\n\n# Save model\njoblib.dump(model, \"model.joblib\")\njoblib.dump(scaler, \"scaler.joblib\")\n\n# Load and serve\nmodel = joblib.load(\"model.joblib\")\nscaler = joblib.load(\"scaler.joblib\")\n\napp = FastAPI()\n\nclass Features(BaseModel):\n    age: float\n    income: float\n\n@app.post(\"/predict\")\ndef predict(f: Features):\n    X = np.array([[f.age, f.income]])\n    X_scaled = scaler.transform(X)\n    pred = model.predict(X_scaled)[0]\n    prob = model.predict_proba(X_scaled)[0, 1]\n    return {\"prediction\": int(pred), \"probability\": float(prob)}"
+      "filename": "save_model.py",
+      "code": "import joblib\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.ensemble import GradientBoostingClassifier\nimport os\n\n# Build a Pipeline that includes preprocessing\npipe = Pipeline([\n    ('scaler', StandardScaler()),\n    ('model', GradientBoostingClassifier(n_estimators=200))\n])\npipe.fit(X_train, y_train)\n\n# Save to a versioned directory\nos.makedirs('models/v1', exist_ok=True)\njoblib.dump(pipe, 'models/v1/pipeline.joblib')\njoblib.dump(X.columns.tolist(), 'models/v1/feature_names.joblib')  # save column order\n\nprint(f'Model saved. Test score: {pipe.score(X_test, y_test):.3f}')\n\n# Load later\nloaded_pipe = joblib.load('models/v1/pipeline.joblib')\nfeature_names = joblib.load('models/v1/feature_names.joblib')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 2: Build a REST API with FastAPI"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "api.py",
+      "code": "from fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel, validator\nimport joblib\nimport numpy as np\nimport pandas as pd\nfrom typing import Optional\n\n# Load model on startup (not on every request)\npipe = joblib.load('models/v1/pipeline.joblib')\nfeature_names = joblib.load('models/v1/feature_names.joblib')\n\napp = FastAPI(title='ML Model API', version='1.0')\n\nclass PredictRequest(BaseModel):\n    age: float\n    income: float\n    tenure_months: int\n    num_products: int\n    has_credit_card: int\n\n    @validator('age')\n    def age_must_be_positive(cls, v):\n        if v <= 0:\n            raise ValueError('age must be positive')\n        return v\n\nclass PredictResponse(BaseModel):\n    prediction: int\n    probability: float\n    model_version: str = 'v1'\n\n@app.post('/v1/predict', response_model=PredictResponse)\ndef predict(req: PredictRequest):\n    # Build feature DataFrame in the correct column order\n    data = pd.DataFrame([req.dict()], columns=feature_names)\n    \n    try:\n        pred = int(pipe.predict(data)[0])\n        prob = float(pipe.predict_proba(data)[0, 1])\n        return PredictResponse(prediction=pred, probability=prob)\n    except Exception as e:\n        raise HTTPException(status_code=500, detail=str(e))\n\n@app.get('/health')\ndef health():\n    return {'status': 'ok', 'model': 'v1'}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 3: Run and Test Locally"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "test_api.py",
+      "code": "# Start the server:\n# uvicorn api:app --reload --port 8000\n\nimport requests\n\npayload = {\n    'age': 42.0,\n    'income': 75000.0,\n    'tenure_months': 24,\n    'num_products': 2,\n    'has_credit_card': 1\n}\n\nresponse = requests.post('http://localhost:8000/v1/predict', json=payload)\nresult = response.json()\n\nprint(f'Prediction:  {result[\"prediction\"]}')    # 0 or 1\nprint(f'Probability: {result[\"probability\"]:.3f}') # P(class=1)\nprint(f'Status:      {response.status_code}')      # 200 = OK"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 4: Containerise with Docker"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "Dockerfile",
+      "code": "# Dockerfile — saves as a text file, not .py\n# FROM python:3.11-slim\n# WORKDIR /app\n# COPY requirements.txt .\n# RUN pip install --no-cache-dir -r requirements.txt\n# COPY . .\n# EXPOSE 8000\n# CMD [\"uvicorn\", \"api:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n\n# requirements.txt:\n# fastapi==0.111.0\n# uvicorn==0.30.0\n# scikit-learn==1.5.0\n# pandas==2.2.0\n# joblib==1.4.0\n# numpy==1.26.0\n\n# Build and run:\nimport subprocess\nprint('docker build -t ml-api .')\nprint('docker run -p 8000:8000 ml-api')"
     },
     {
       "type": "tip",
-      "text": "Always save the scaler alongside the model — predictions on unscaled data will be wrong."
+      "text": "Always save the scaler, imputer, and encoder objects alongside the model — not just the model weights. Predictions on unscaled or un-encoded data will be completely wrong."
+    },
+    {
+      "type": "warning",
+      "text": "<strong>Model drift</strong>: when real-world data distributions change over time, your model's performance degrades silently. Set up monitoring to compare prediction distributions and actual outcomes. Retrain when performance drops below your threshold."
+    },
+    {
+      "type": "info",
+      "text": "FastAPI automatically generates interactive API documentation at <code>/docs</code> (Swagger UI). This lets you test endpoints directly in the browser without writing any extra code."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Why must you save the scaler with the model?",
+          "question": "Why must you save the scaler alongside the model?",
           "type": "multiple-choice",
           "options": [
             "To reduce file size",
-            "Because predictions need the same transformation applied during training",
+            "Because production inputs must receive the same transformation that was applied during training",
             "Scalers contain the model weights",
-            "For logging purposes"
+            "For logging and auditing purposes"
           ],
           "correctAnswer": 1,
-          "explanation": "Predictions must pass through the same scaling used during training, or the inputs will be on a different scale."
+          "explanation": "The model learned from scaled features. If you feed unscaled production data to the model, it will produce wildly wrong predictions. The same scaler (with the same fitted mean/std) must transform all inputs."
+        },
+        {
+          "id": "q2",
+          "question": "What is model drift?",
+          "type": "multiple-choice",
+          "options": [
+            "When a model takes too long to make predictions",
+            "When model performance degrades over time because real-world data distributions change",
+            "When a model is transferred to a different server",
+            "When model weights change during deployment"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Model drift occurs when the statistical properties of the input data change over time (data drift) or when the relationship between inputs and the target changes (concept drift), causing the trained model to become less accurate."
+        },
+        {
+          "id": "q3",
+          "question": "What is the main advantage of using a sklearn Pipeline for deployment?",
+          "type": "multiple-choice",
+          "options": [
+            "It makes the model train faster",
+            "The entire preprocessing + model is saved as a single object — no risk of mismatching scaler and model versions",
+            "It automatically tunes hyperparameters",
+            "It adds validation logic to the API"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A Pipeline bundles all preprocessing steps and the model together. Saving the whole pipeline as one joblib file ensures the scaler, encoder, and model are always in sync — you can't accidentally use the wrong version."
         }
       ]
     }
@@ -56,23 +144,35 @@
   "faq": [
     {
       "q": "What is model drift?",
-      "a": "When model performance degrades over time because real-world data distributions change. Monitor predictions vs actual outcomes in production."
+      "a": "Model performance degrades over time because the real-world data distribution changes. For example, a fraud detection model trained on 2024 patterns may miss new fraud techniques in 2025. Monitor predictions vs actual outcomes and retrain regularly."
+    },
+    {
+      "q": "Should I use Flask or FastAPI for ML APIs?",
+      "a": "FastAPI is the modern choice: it's significantly faster, generates automatic OpenAPI docs at /docs, validates inputs with Pydantic, and supports async out of the box. Flask is simpler but slower and lacks automatic validation."
+    },
+    {
+      "q": "What is the difference between online and batch serving?",
+      "a": "Online serving (REST API) returns predictions in real time for individual or small groups of inputs — used for interactive applications. Batch serving runs predictions over large datasets on a schedule — used for overnight scoring or bulk processing."
     }
   ],
   "sources": [
     {
-      "name": "Model Persistence",
+      "name": "sklearn: Model Persistence",
       "url": "https://scikit-learn.org/stable/model_persistence.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "FastAPI Documentation",
+      "url": "https://fastapi.tiangolo.com/tutorial/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "real-time scoring APIs",
-      "batch prediction jobs"
-    ],
+    "usedIn": ["real-time scoring APIs", "batch prediction jobs", "embedded ML in applications", "credit scoring systems"],
     "examples": [
-      "Credit scoring API returning probability of default"
+      "FastAPI server returning probability of customer churn for a CRM integration",
+      "Containerised XGBoost model on AWS ECS scoring 10M transactions per night",
+      "Credit scoring API returning probability of default in < 10ms for loan approval flows"
     ]
   }
 }

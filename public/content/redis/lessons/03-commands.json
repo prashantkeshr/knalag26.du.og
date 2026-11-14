@@ -1,54 +1,140 @@
 {
   "id": "03-commands",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-basics",
   "title": "Essential Redis Commands",
   "subtitle": "GET, SET, DEL, KEYS, SCAN, EXPIRE, and TTL",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.data-types"
-  ],
-  "skillsTaught": [
-    "redis.commands"
-  ],
+  "prerequisites": ["redis.data-types"],
+  "skillsTaught": ["redis.commands"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Knowing the data types is not enough — you need to know the commands to manipulate them. Each Redis type has its own command set, and some cross-cutting commands like EXPIRE, TTL, DEL, and SCAN apply to all keys.",
+    "solution": "Redis provides a focused command vocabulary. Universal commands handle key lifecycle (expiry, deletion, renaming, scanning). Type-specific commands handle the structure itself.",
+    "whenToUse": "Every time you interact with Redis from an application or the CLI, you are using these commands. Mastering them is prerequisite to everything else.",
+    "whenNotToUse": "Avoid KEYS * in production — it blocks the server while scanning the full keyspace. Use SCAN instead."
+  },
+  "explainModes": {
+    "beginner": "Commands are like verbs for Redis. SET puts something in, GET takes it out, DEL removes it, EXPIRE schedules its auto-removal, and TTL checks how much time is left.",
+    "simple": "Every Redis command is <COMMAND> key [options]. Universal commands work on any key type: DEL, EXISTS, EXPIRE, TTL, RENAME, TYPE. Each data type also has its own command prefix: H for hashes, L for lists, S for sets, Z for sorted sets.",
+    "standard": "Redis commands follow a naming convention: command prefix indicates the type (H=hash, L=list, S=set, Z=zset) and the verb indicates the operation (GET, SET, ADD, POP, RANGE). Cross-type commands like EXPIRE, TTL, DEL, EXISTS, and SCAN apply universally.",
+    "technical": "Redis commands execute atomically in the single-threaded event loop. Commands are pipelined over TCP in the RESP (Redis Serialization Protocol) format. Time complexity is documented per command — O(1) for GET/SET, O(log N) for sorted set insertions, O(N) for LRANGE. SCAN is O(1) per call, O(N) overall (cursor-based iteration).",
+    "deepDive": "RESP3 (Redis 6+) adds support for push types and richer type information over the wire. Pipelining batches multiple commands without waiting for individual responses, reducing round-trip overhead. MULTI/EXEC provides optimistic transactions — commands queue atomically but see no isolation from concurrent writers between MULTI and EXEC."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Working with Keys"
+      "text": "Universal Key Commands"
     },
     {
       "type": "paragraph",
-      "text": "Every Redis value lives under a key. Key naming conventions (like user:1:profile) help organise data."
+      "text": "These commands work on <strong>any</strong> key regardless of type. They manage the key lifecycle: existence, deletion, renaming, type inspection, and expiry."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Key operations\nSET greeting \"Hello\"\nGET greeting\nDEL greeting\nEXISTS greeting  # 0\n\n# Expiry\nSET session:abc \"data\" EX 3600  # expires in 1 hour\nTTL session:abc  # seconds remaining\n\n# Pattern scan (use SCAN not KEYS in production)\nSCAN 0 MATCH user:* COUNT 100"
+      "filename": "universal-commands.sh",
+      "code": "# Check existence\nEXISTS user:1       # 1 if exists, 0 if not\nEXISTS user:1 user:2 user:3  # count of existing keys\n\n# Delete\nDEL user:1          # deletes one key\nDEL user:1 user:2   # deletes multiple\nUNLINK user:1       # async delete (non-blocking, prefer for large keys)\n\n# Inspect\nTYPE user:1         # string, list, set, zset, hash, stream\nOBJECT ENCODING user:1  # internal encoding\n\n# Rename\nRENAME old:key new:key   # overwrites new:key if exists\nRENAMENX old:key new:key # only if new:key does not exist"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Expiry and TTL"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every Redis key can have a <strong>Time-To-Live (TTL)</strong>. Redis automatically deletes expired keys. This is the foundation of caching."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "expiry.sh",
+      "code": "# Set with inline expiry (most common)\nSET session:abc \"data\" EX 3600    # expire in 3600 seconds\nSET otp:user1 \"123456\" PX 300000  # expire in 300000 ms (5 min)\n\n# Add expiry to an existing key\nEXPIRE session:abc 7200   # 2 hours from now\nPEXPIRE session:abc 86400000  # 24 hours in milliseconds\n\n# Expire at a Unix timestamp\nEXPIREAT promo:sale 1735689600  # exact Unix timestamp\n\n# Check remaining TTL\nTTL session:abc   # seconds remaining (-1 = no expiry, -2 = key gone)\nPTTL session:abc  # milliseconds remaining\n\n# Remove expiry (make key permanent)\nPERSIST session:abc"
+    },
+    {
+      "type": "definition",
+      "term": "TTL (Time-To-Live)",
+      "definition": "The number of seconds (or milliseconds with PTTL) until Redis automatically deletes a key. Returns -1 if no expiry is set, -2 if the key does not exist."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Scanning Keys Safely"
+    },
+    {
+      "type": "warning",
+      "text": "Never use <code>KEYS *</code> in production. It blocks the entire Redis server while scanning all keys — with millions of keys, this freezes your application for seconds."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "scan.sh",
+      "code": "# SCAN iterates safely (cursor-based, non-blocking)\n# Returns a cursor + a batch of keys\nSCAN 0 MATCH user:* COUNT 100\n# Returns: 1) \"2748\"   (next cursor)\n#          2) [\"user:1\", \"user:2\", ...]\n\n# Keep scanning until cursor returns 0 (full iteration)\nSCAN 2748 MATCH user:* COUNT 100\n# ... repeat with returned cursor ...\nSCAN 0 MATCH user:* COUNT 100  # cursor 0 = complete\n\n# Type-specific scan\nHSCAN myhash 0 MATCH field:* COUNT 50\nSSCAN myset 0 MATCH prefix:*\nZSCAN myzset 0 MATCH a*"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Pipelining for Bulk Operations"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every Redis command requires a network round-trip. <strong>Pipelining</strong> batches multiple commands into one network request, dramatically improving throughput for bulk operations."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "pipeline.js",
+      "code": "// Without pipeline: 100 round-trips\nfor (const id of userIds) {\n  await redis.get(`user:${id}`);\n}\n\n// With pipeline: 1 round-trip\nconst pipeline = redis.pipeline();\nfor (const id of userIds) {\n  pipeline.get(`user:${id}`);\n}\nconst results = await pipeline.exec();\n// results is an array of [error, value] tuples"
     },
     {
       "type": "tip",
-      "text": "Never use KEYS * in production — it blocks the server. Use SCAN instead."
+      "text": "Use <code>UNLINK</code> instead of <code>DEL</code> for large keys (big lists, hashes). UNLINK removes the key immediately from the keyspace but frees memory asynchronously in the background."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What does TTL return when a key has no expiry?",
+          "question": "What does TTL return when a key exists but has no expiry set?",
+          "type": "multiple-choice",
+          "options": ["0", "-1", "-2", "null"],
+          "correctAnswer": 1,
+          "explanation": "TTL returns -1 for keys that exist but have no expiry. It returns -2 if the key does not exist at all."
+        },
+        {
+          "id": "q2",
+          "question": "Why should you use SCAN instead of KEYS * in production?",
           "type": "multiple-choice",
           "options": [
-            "0",
-            "-1",
-            "-2",
-            "null"
+            "SCAN is faster per key",
+            "KEYS * blocks the server while scanning all keys; SCAN iterates without blocking",
+            "SCAN uses less network bandwidth",
+            "KEYS * requires root access"
           ],
           "correctAnswer": 1,
-          "explanation": "TTL returns -1 for keys that exist but have no expiry set."
+          "explanation": "Redis is single-threaded. KEYS * scans all keys in one shot, blocking all other commands. SCAN uses a cursor and returns results in small batches."
+        },
+        {
+          "id": "q3",
+          "question": "What is the difference between DEL and UNLINK?",
+          "type": "multiple-choice",
+          "options": [
+            "DEL is for strings, UNLINK is for lists",
+            "DEL removes keys synchronously; UNLINK removes from keyspace immediately but frees memory asynchronously",
+            "UNLINK only works on expired keys",
+            "DEL returns the value, UNLINK does not"
+          ],
+          "correctAnswer": 1,
+          "explanation": "UNLINK is a non-blocking version of DEL. The key disappears immediately from the keyspace but actual memory deallocation happens in a background thread, so it doesn't block the event loop."
         }
       ]
     }
@@ -56,23 +142,26 @@
   "faq": [
     {
       "q": "How do I rename a key?",
-      "a": "RENAME oldkey newkey. If newkey already exists it is overwritten."
+      "a": "RENAME oldkey newkey. If newkey already exists it is overwritten. Use RENAMENX to only rename if newkey does not exist."
+    },
+    {
+      "q": "How do I copy a key?",
+      "a": "COPY source destination [DB db] [REPLACE]. Available since Redis 6.2."
+    },
+    {
+      "q": "Can I set expiry on a hash field?",
+      "a": "Not in standard Redis. TTL applies to the whole key. Redis 7.4+ added HEXPIRE for field-level expiry, but it is not yet widely available on managed services."
     }
   ],
   "sources": [
-    {
-      "name": "Commands Reference",
-      "url": "https://redis.io/commands/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Commands Reference", "url": "https://redis.io/commands/", "verified": "2026-11-04" },
+    { "name": "SCAN", "url": "https://redis.io/commands/scan/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "session management",
-      "temporary data"
-    ],
+    "usedIn": ["session management", "temporary tokens", "bulk data processing"],
     "examples": [
-      "Storing a password-reset token with 15-minute expiry"
+      "Storing a password-reset token with a 15-minute expiry using SET token:xyz EX 900",
+      "Scanning all user keys nightly for cleanup using SCAN with MATCH user:* without blocking"
     ]
   }
 }

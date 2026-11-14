@@ -1,19 +1,34 @@
 {
   "id": "09-hashes",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "advanced-structures",
   "title": "Hashes",
   "subtitle": "HSET, HGET, HMGET, and efficient object storage",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.sorted-sets"
-  ],
-  "skillsTaught": [
-    "redis.hashes"
-  ],
+  "prerequisites": ["redis.sorted-sets"],
+  "skillsTaught": ["redis.hashes"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Storing structured objects as a single JSON string means deserializing the whole object just to read or update one field. Storing each field as a separate string key creates key sprawl and multiple round-trips.",
+    "solution": "Redis Hashes store field-value pairs under one key. You can get/set individual fields in O(1) without deserializing the whole object. They use a compact in-memory format for small objects.",
+    "whenToUse": "User profiles, session data, product details, counters grouped by entity — any time you have an object with known fields that you read/update partially.",
+    "whenNotToUse": "If you need TTL per field (not supported), or if the object has nested structures (use JSON strings or RedisJSON). Hashes also can't be queried by field value."
+  },
+  "explainModes": {
+    "beginner": "A Hash in Redis is like a drawer with labeled compartments. The drawer has a name (the key), and inside are labeled slots (fields) each holding a value. You can open one compartment without emptying the whole drawer.",
+    "simple": "HSET stores field-value pairs under one key. HGET reads one field. HMGET reads multiple fields in one call. HGETALL reads everything. HINCRBY atomically increments a numeric field without reading it first.",
+    "standard": "Redis Hashes map string fields to string values. All hash commands are prefixed with H. HSET is O(1) per field. HGETALL is O(N) in the number of fields. Use HMGET to fetch multiple fields in one round-trip. HINCRBY and HINCRBYFLOAT provide atomic increments without GET/SET cycles.",
+    "technical": "Redis encodes small hashes as a listpack (compact flat array) when field count ≤ hash-max-listpack-entries (default 128) and all values are ≤ hash-max-listpack-value (default 64 bytes). Above those thresholds, it converts to a hash table. Listpack is 3-5x more memory-efficient. HRANDFIELD (Redis 6.2+) returns random fields, useful for sampling.",
+    "deepDive": "The listpack encoding stores fields and values as inline entries: [prevlen][len][data]. This is cache-line friendly for small hashes. The conversion from listpack to hash table is one-way and triggered by any single field exceeding the threshold. For large objects, consider using GET/SET with JSON + RedisJSON module for nested access and partial update with JSONPath. Hash expiry per field (HEXPIRE) was added in Redis 7.4."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +37,65 @@
     },
     {
       "type": "paragraph",
-      "text": "Hashes store field-value pairs under a single key. They are memory-efficient for storing objects with many fields."
+      "text": "Hashes store <strong>field-value pairs</strong> under a single key — like a mini-document. They're perfect for user profiles, session data, and product records where you want to read or update individual fields without loading the whole object."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Store user object\nHSET user:1 name \"Alice\" email \"alice@ex.com\" age 30\n\n# Get one field\nHGET user:1 name\n\n# Get multiple fields\nHMGET user:1 name email\n\n# Get all fields\nHGETALL user:1\n\n# Increment a numeric field\nHINCRBY user:1 loginCount 1\n\n# Delete a field\nHDEL user:1 age"
+      "filename": "hash-basics.sh",
+      "code": "# Store an object\nHSET user:1 name \"Alice\" email \"alice@example.com\" age 30 city \"London\"\n\n# Read one field\nHGET user:1 name         # \"Alice\"\n\n# Read multiple fields in one round-trip\nHMGET user:1 name email  # [\"Alice\", \"alice@example.com\"]\n\n# Read all fields\nHGETALL user:1\n# 1) \"name\"\n# 2) \"Alice\"\n# 3) \"email\"\n# 4) \"alice@example.com\"\n# ...\n\n# Check field existence\nHEXISTS user:1 email  # 1\nHEXISTS user:1 phone  # 0\n\n# Count fields\nHLEN user:1  # 4"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Modifying Hash Fields"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "hash-modify.sh",
+      "code": "# Update one field without touching others\nHSET user:1 city \"Paris\"\n\n# Delete a field\nHDEL user:1 phone\n\n# Atomic increment of a numeric field\nHSET user:1 loginCount 0\nHINCRBY user:1 loginCount 1    # 1\nHINCRBY user:1 loginCount 1    # 2\nHINCRBYFLOAT user:1 score 1.5  # floating point increment\n\n# Set field only if not exists\nHSETNX user:1 role \"admin\"  # only sets if 'role' field doesn't exist\n\n# Get all keys or values\nHKEYS user:1   # [\"name\", \"email\", \"age\", \"city\"]\nHVALS user:1   # [\"Alice\", \"alice@example.com\", \"30\", \"Paris\"]"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Session Storage with Hashes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Hashes are ideal for session storage. You can update individual session fields (like last activity) without reading and rewriting the entire session object."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "session.js",
+      "code": "async function createSession(sessionId, userId, data) {\n  const key = `session:${sessionId}`;\n  await redis.hSet(key, {\n    userId,\n    createdAt: Date.now(),\n    lastActive: Date.now(),\n    ip: data.ip,\n    userAgent: data.userAgent,\n  });\n  await redis.expire(key, 86400);  // 24-hour session\n}\n\nasync function touchSession(sessionId) {\n  // Update just the lastActive field — no full read/write\n  const key = `session:${sessionId}`;\n  await redis.hSet(key, 'lastActive', Date.now());\n  await redis.expire(key, 86400);  // extend TTL\n}\n\nasync function getSessionUser(sessionId) {\n  // Fetch only what you need\n  return redis.hGet(`session:${sessionId}`, 'userId');\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "Hash vs JSON String for Objects",
+      "a": {
+        "name": "Redis Hash",
+        "description": "Native field-value map",
+        "strengths": ["Update single fields without full read/write", "Atomic numeric increments (HINCRBY)", "Less serialization overhead", "Memory-efficient for small objects"],
+        "weaknesses": ["No nested structures", "No field-level TTL (before Redis 7.4)", "No query by field value"],
+        "useWhen": "Objects with known flat fields that need partial updates"
+      },
+      "b": {
+        "name": "JSON String (GET/SET)",
+        "description": "Serialized object as a string",
+        "strengths": ["Supports nested structures", "Single GET/SET", "Any structure fits"],
+        "weaknesses": ["Full read/write for any update", "No atomic field increment", "Deserialize whole object for one field"],
+        "useWhen": "Complex nested objects, or when you always read/write the whole object"
+      }
     },
     {
       "type": "tip",
-      "text": "Use hashes instead of one string per field when an object has many attributes — it uses less memory."
+      "text": "Use <code>HMGET</code> instead of multiple <code>HGET</code> calls to fetch several fields in one network round-trip. For reading the entire object, <code>HGETALL</code> is equivalent but returns all fields — be cautious on large hashes."
+    },
+    {
+      "type": "warning",
+      "text": "Avoid very large hashes (thousands of fields). For user activity logs or large datasets, use separate keys or Redis Streams instead."
     },
     {
       "type": "quiz",
@@ -41,14 +104,35 @@
           "id": "q1",
           "question": "What command retrieves all fields and values from a Redis hash?",
           "type": "multiple-choice",
+          "options": ["HGET", "HMGET", "HGETALL", "HSCAN"],
+          "correctAnswer": 2,
+          "explanation": "HGETALL returns all field-value pairs. Use HSCAN for large hashes to avoid blocking on iteration."
+        },
+        {
+          "id": "q2",
+          "question": "How do you atomically increment a numeric field in a hash?",
+          "type": "multiple-choice",
           "options": [
-            "HGET",
-            "HMGET",
-            "HGETALL",
-            "HSCAN"
+            "GET field, increment in app, SET field",
+            "HINCRBY key field increment",
+            "HSET key field (old + new)",
+            "HINCR key field"
+          ],
+          "correctAnswer": 1,
+          "explanation": "HINCRBY increments a hash field's integer value atomically. HINCRBYFLOAT does the same for floats. No GET/SET round-trip needed — the increment is atomic."
+        },
+        {
+          "id": "q3",
+          "question": "What encoding does Redis use for small hashes?",
+          "type": "multiple-choice",
+          "options": [
+            "Skip list",
+            "B-tree",
+            "Listpack (compact flat array)",
+            "Bloom filter"
           ],
           "correctAnswer": 2,
-          "explanation": "HGETALL returns all field-value pairs in a hash."
+          "explanation": "Small hashes (default ≤128 fields, ≤64 bytes/value) use a listpack encoding — a compact flat byte array that is 3-5x more memory-efficient than a hash table."
         }
       ]
     }
@@ -56,24 +140,26 @@
   "faq": [
     {
       "q": "How many fields can a Redis hash have?",
-      "a": "Up to 2^32-1 (over 4 billion) fields per hash."
+      "a": "Up to 2^32 - 1 (over 4 billion) fields. In practice, keep hashes small and focused — large hashes with thousands of fields are better split across multiple keys."
+    },
+    {
+      "q": "Can I expire a single hash field?",
+      "a": "Redis 7.4 added HEXPIRE for field-level expiry, but it's not yet available on all managed services. For older versions, use separate string keys if you need per-field TTL."
+    },
+    {
+      "q": "What is HSCAN for?",
+      "a": "HSCAN iterates over hash fields in cursor-based batches without blocking. Use it instead of HGETALL on very large hashes to avoid a single O(N) blocking operation."
     }
   ],
   "sources": [
-    {
-      "name": "Hashes",
-      "url": "https://redis.io/docs/data-types/hashes/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Hashes", "url": "https://redis.io/docs/data-types/hashes/", "verified": "2026-11-04" },
+    { "name": "HSET", "url": "https://redis.io/commands/hset/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "user profiles",
-      "product data",
-      "session storage"
-    ],
+    "usedIn": ["user profiles", "product catalogs", "session storage", "configuration objects"],
     "examples": [
-      "Storing user preferences as a hash instead of a JSON string"
+      "Storing user profile fields (name, email, tier) as a hash and updating login count with HINCRBY on each sign-in",
+      "Session storage in Express.js using connect-redis with hash-per-session"
     ]
   }
 }

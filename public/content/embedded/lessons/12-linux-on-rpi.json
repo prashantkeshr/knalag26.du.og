@@ -1,60 +1,165 @@
 {
   "id": "12-linux-on-rpi",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Raspberry Pi OS Bookworm / systemd 252",
   "technology": "embedded",
   "module": "raspberry-pi",
   "title": "Linux on Raspberry Pi",
-  "subtitle": "systemd services, cron, and running code at boot",
+  "subtitle": "systemd services, cron jobs, logging, and running code at boot",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.rpi-gpio"
-  ],
-  "skillsTaught": [
-    "embedded.rpi-linux"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.rpi-gpio"],
+  "skillsTaught": ["embedded.rpi-linux"],
+  "whyItExists": {
+    "problem": "A Raspberry Pi that only works when you're logged in and manually running a script isn't useful as a deployed device. Real embedded Pi projects must run reliably at boot, restart after crashes, and log their output for diagnosis.",
+    "solution": "systemd is the init system on Raspberry Pi OS. Creating a .service unit file lets your Python script start automatically at boot, restart on failure, and integrate with journalctl for log viewing. cron handles scheduled tasks.",
+    "whenToUse": "Any Pi project meant to run unattended: sensor loggers, home servers, media players, kiosk displays, IoT hubs.",
+    "whenNotToUse": "Development phase — start with direct script execution. Only wrap in systemd when the project is stable enough to deploy."
+  },
+  "explainModes": {
+    "beginner": "When you deploy a Raspberry Pi somewhere, you need your Python script to start automatically when the Pi powers on and restart itself if it crashes. systemd is the tool that does this — it's like a supervisor for your programs.",
+    "simple": "Create a .service file describing your script, copy it to /etc/systemd/system/, then run systemctl enable to start it at boot and systemctl start to run it now. Use journalctl -u yourservice to see the logs.",
+    "standard": "systemd unit files define a service's start command, working directory, restart policy, and dependencies (like network.target for internet-dependent scripts). Services run as a specific user and log to the journal automatically without any extra log setup.",
+    "technical": "systemd uses cgroup-based resource tracking. Service types: simple (default, main process), forking (daemonises), notify (signals readiness), oneshot (runs and exits). The WantedBy directive creates symlinks in multi-user.target.wants/. TimeoutStopSec and KillSignal control shutdown behavior.",
+    "deepDive": "systemd socket activation allows a service to start only when a connection arrives on a socket. For resilient Pi projects: use `Restart=always`, `RestartSec=5`, `StartLimitIntervalSec=0` (no restart limit). Add `MemoryMax=` to prevent a runaway script from consuming all SRAM. Watchdog integration: set `WatchdogSec=30` and have the service call `sd_notify(WATCHDOG=1)` or use `systemd-notify`."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Running Scripts at Boot"
+      "text": "Running Scripts at Boot with systemd"
     },
     {
       "type": "paragraph",
-      "text": "Use systemd to run your Python script as a service, with automatic restart on failure."
+      "text": "<strong>systemd</strong> is the init system on Raspberry Pi OS. It starts and supervises all system processes. To run your Python script as a service, create a <code>.service</code> unit file and register it with systemd. This gives you automatic startup, crash recovery, and centralised logging."
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "sensor.service",
-      "code": "[Unit]\nDescription=Sensor Data Logger\nAfter=network.target\n\n[Service]\nExecStart=/usr/bin/python3 /home/pi/sensor_logger.py\nWorkingDirectory=/home/pi\nUser=pi\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target"
+      "filename": "sensor-logger.service",
+      "code": "[Unit]\nDescription=Sensor Data Logger\nDocumentation=https://github.com/yourname/sensor-logger\nAfter=network.target  # start after network is up\nWants=network.target\n\n[Service]\nType=simple\nUser=pi\nGroup=pi\nWorkingDirectory=/home/pi/sensor-logger\nEnvironment=PYTHONUNBUFFERED=1\nExecStart=/home/pi/sensor-logger/venv/bin/python main.py\n\n# Auto-restart on crash\nRestart=always\nRestartSec=5\nStartLimitIntervalSec=0  # no limit on restart attempts\n\n# Log to journal\nStandardOutput=journal\nStandardError=journal\nSyslogIdentifier=sensor-logger\n\n[Install]\nWantedBy=multi-user.target"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Install and enable the service\nsudo cp sensor.service /etc/systemd/system/\nsudo systemctl daemon-reload\nsudo systemctl enable sensor.service\nsudo systemctl start sensor.service\n\n# Check status\nsudo systemctl status sensor.service\njournalctl -u sensor.service -f   # live logs"
+      "filename": "systemd-install.sh",
+      "code": "# 1. Copy service file\nsudo cp sensor-logger.service /etc/systemd/system/\n\n# 2. Reload systemd to pick up new file\nsudo systemctl daemon-reload\n\n# 3. Enable: start at every boot\nsudo systemctl enable sensor-logger.service\n\n# 4. Start now (without rebooting)\nsudo systemctl start sensor-logger.service\n\n# 5. Check status\nsudo systemctl status sensor-logger.service\n\n# 6. View live logs (Ctrl+C to stop)\njournalctl -u sensor-logger.service -f\n\n# 7. View last 50 lines\njournalctl -u sensor-logger.service -n 50 --no-pager\n\n# Common control commands:\n# sudo systemctl stop    sensor-logger   # stop\n# sudo systemctl restart sensor-logger   # restart\n# sudo systemctl disable sensor-logger   # don't start at boot"
     },
     {
       "type": "tip",
-      "text": "Use journalctl -u yourservice to view logs. This is essential for debugging headless Pi applications."
+      "text": "Always use a Python virtual environment in your service: `ExecStart=/home/pi/myproject/venv/bin/python main.py`. This isolates dependencies and avoids conflicts between projects. Create the venv with `python3 -m venv venv` inside the project directory."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Scheduled Tasks with cron"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>cron</strong> runs commands on a time schedule. Use <code>crontab -e</code> to edit your user's cron table. Common patterns: hourly data upload, daily log rotation, weekly backups."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "crontab-examples.sh",
+      "code": "# Edit your user's cron jobs\ncrontab -e\n\n# Crontab format:\n# min  hour  day  month  weekday  command\n#  *    *     *     *       *\n\n# Example cron jobs:\n# Run sensor upload every 5 minutes\n*/5 * * * * /home/pi/scripts/upload_sensor.py >> /home/pi/logs/upload.log 2>&1\n\n# Run backup every day at 2:30 AM\n30 2 * * * /home/pi/scripts/backup.sh >> /home/pi/logs/backup.log 2>&1\n\n# Reboot Pi every Monday at 4 AM (keep Pi fresh)\n0 4 * * 1 /sbin/reboot\n\n# Run on reboot\n@reboot sleep 30 && /home/pi/scripts/startup.py >> /home/pi/logs/startup.log 2>&1\n\n# View current cron jobs\ncrontab -l"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Log Management with journalctl"
+    },
+    {
+      "type": "paragraph",
+      "text": "All systemd services log to the <strong>journal</strong> automatically. <code>journalctl</code> is your primary debugging tool for deployed Pi projects. The journal survives service crashes and stores structured logs with timestamps."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "journalctl-commands.sh",
+      "code": "# Live stream logs from your service\njournalctl -u sensor-logger -f\n\n# Last 100 lines\njournalctl -u sensor-logger -n 100 --no-pager\n\n# Logs since yesterday\njournalctl -u sensor-logger --since yesterday\n\n# Logs between specific times\njournalctl -u sensor-logger --since \"2026-11-14 09:00\" --until \"2026-11-14 10:00\"\n\n# Only errors\njournalctl -u sensor-logger -p err\n\n# System boot logs\njournalctl -b   # current boot\njournalctl -b -1 # previous boot (useful after crash)\n\n# Disk usage of journal\njournalctl --disk-usage\n\n# Limit journal size (edit /etc/systemd/journald.conf)\n# SystemMaxUse=50M"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "File Permissions and Python Script Best Practices"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "pi-deploy-checklist.sh",
+      "code": "# Make Python script executable\nchmod +x /home/pi/myproject/main.py\n# Add shebang line at top of main.py:\n# #!/home/pi/myproject/venv/bin/python\n\n# Fix file ownership\nchown -R pi:pi /home/pi/myproject/\n\n# Create log directory with correct permissions\nmkdir -p /home/pi/logs\nchown pi:pi /home/pi/logs\n\n# Test run as the pi user (before systemd)\nsudo -u pi /home/pi/myproject/venv/bin/python /home/pi/myproject/main.py\n\n# Check what a running service is doing\nsudo lsof -p $(systemctl show -p MainPID sensor-logger | cut -d= -f2)"
+    },
+    {
+      "type": "comparison",
+      "title": "systemd Service vs cron for Automation",
+      "a": {
+        "name": "systemd Service",
+        "description": "Long-running daemon managed by systemd",
+        "strengths": ["Automatic restart on crash", "Start at boot with dependencies", "Centralised journalctl logging", "Resource limits (CPU, memory, network)"],
+        "weaknesses": ["More setup (service file)", "Overkill for one-time tasks"],
+        "useWhen": "Long-running servers, sensor pollers, MQTT clients — anything that runs indefinitely"
+      },
+      "b": {
+        "name": "cron Job",
+        "description": "Scheduled one-shot command execution",
+        "strengths": ["Simple time-based scheduling", "No service file needed", "Runs and exits cleanly"],
+        "weaknesses": ["No crash recovery", "Harder to debug (no live log)", "Minimum interval is 1 minute"],
+        "useWhen": "Periodic uploads, cleanup scripts, backups — tasks that run and exit"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "When a systemd service needs to access GPIO, it must run as the `pi` user (or add the user to the `gpio` group) — running as root is unnecessary and a security risk. Add `User=pi` and `Group=pi` to your .service file, and ensure the user is in the `gpio` and `i2c` groups: `sudo usermod -aG gpio,i2c,spi pi`."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What systemd command enables a service to start at boot?",
+          "question": "What systemd command makes a service start automatically at every boot?",
           "type": "multiple-choice",
           "options": [
-            "systemctl start",
-            "systemctl enable",
-            "systemctl restart",
-            "systemctl install"
+            "systemctl start myservice",
+            "systemctl enable myservice",
+            "systemctl restart myservice",
+            "systemctl boot myservice"
           ],
           "correctAnswer": 1,
-          "explanation": "systemctl enable creates the symlink that causes the service to start automatically at boot."
+          "explanation": "`systemctl enable` creates the symlink in /etc/systemd/system/multi-user.target.wants/ that causes the service to start at boot. `systemctl start` only starts it once for the current session."
+        },
+        {
+          "id": "q2",
+          "question": "How do you view live log output from a systemd service called 'sensor-logger'?",
+          "type": "multiple-choice",
+          "options": [
+            "tail -f /var/log/sensor-logger.log",
+            "journalctl -u sensor-logger -f",
+            "systemctl logs sensor-logger",
+            "cat /etc/systemd/system/sensor-logger.journal"
+          ],
+          "correctAnswer": 1,
+          "explanation": "`journalctl -u sensor-logger -f` streams live logs from the sensor-logger service. The -u flag filters by unit name; -f follows the stream like tail -f."
+        },
+        {
+          "id": "q3",
+          "question": "What does the cron entry `*/5 * * * * /home/pi/upload.py` do?",
+          "type": "multiple-choice",
+          "options": [
+            "Runs upload.py once at minute 5 of every hour",
+            "Runs upload.py every 5 minutes, every hour, every day",
+            "Runs upload.py every 5 hours",
+            "Runs upload.py on the 5th day of every month"
+          ],
+          "correctAnswer": 1,
+          "explanation": "*/5 in the minutes field means 'every 5 minutes'. The remaining * fields (hour, day, month, weekday) mean 'any', so the command runs every 5 minutes around the clock."
         }
       ]
     }
@@ -62,23 +167,39 @@
   "faq": [
     {
       "q": "How do I schedule a script to run every 5 minutes?",
-      "a": "Add to crontab with crontab -e: */5 * * * * /usr/bin/python3 /home/pi/script.py >> /home/pi/log.txt 2>&1"
+      "a": "Edit crontab with `crontab -e` and add: `*/5 * * * * /home/pi/venv/bin/python /home/pi/script.py >> /home/pi/logs/script.log 2>&1`. The 2>&1 redirects stderr to the same log file so you capture errors."
+    },
+    {
+      "q": "My service starts but then stops immediately. How do I diagnose it?",
+      "a": "Run `journalctl -u yourservice -n 50 --no-pager` to see the last 50 log lines including any Python tracebacks. Also run the ExecStart command manually from the terminal as the same user (e.g., `sudo -u pi /path/to/venv/bin/python main.py`) to see errors directly."
+    },
+    {
+      "q": "Can a systemd service start before WiFi is connected?",
+      "a": "Yes, unless you tell it not to. Add `After=network-online.target` and `Wants=network-online.target` (instead of just network.target) to wait until the network interface has an IP address before starting. Also enable the network-online service: `sudo systemctl enable systemd-networkd-wait-online`."
     }
   ],
   "sources": [
     {
-      "name": "systemd",
+      "name": "systemd Service Documentation",
       "url": "https://www.freedesktop.org/software/systemd/man/systemd.service.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "journalctl Reference",
+      "url": "https://www.freedesktop.org/software/systemd/man/journalctl.html",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "always-on Pi projects",
-      "sensor logging daemons"
+      "Sensor logging daemons running 24/7 on headless Pi",
+      "MQTT subscriber services on IoT gateway Pi",
+      "Pi-hole DNS service (custom systemd service)",
+      "Scheduled camera capture with cron + motion detection service"
     ],
     "examples": [
-      "Running a Pi camera capture service on boot with systemd"
+      "DHT22 temperature logger systemd service: restarts automatically after crashes, logs via journalctl",
+      "Daily SD card backup cron job copying sensor data to a USB drive at 3 AM"
     ]
   }
 }

@@ -1,49 +1,112 @@
 {
   "id": "14-clustering",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-production",
   "title": "Redis Cluster & Sentinel",
   "subtitle": "High availability and horizontal scaling",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "redis.persistence"
-  ],
-  "skillsTaught": [
-    "redis.clustering"
-  ],
+  "prerequisites": ["redis.persistence"],
+  "skillsTaught": ["redis.clustering"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "A single Redis node is a single point of failure. If it goes down, your application loses its cache, sessions, or queue. Even with persistence, there's downtime for restart. High-traffic apps also need more capacity than one node.",
+    "solution": "Redis Sentinel monitors a primary/replica pair and auto-promotes on failure (HA without sharding). Redis Cluster provides both HA and horizontal sharding across many nodes for truly large datasets.",
+    "whenToUse": "Sentinel: when you need failover but dataset fits on one node. Cluster: when dataset exceeds one node's memory or you need extreme throughput.",
+    "whenNotToUse": "Single-node Redis is simpler and handles 100GB+ and 1M+ ops/sec. Only add clustering when you have an actual capacity or availability requirement that single-node can't meet."
+  },
+  "explainModes": {
+    "beginner": "Imagine a Redis that never goes down: Sentinel is a watchdog that notices when the main Redis crashes and quickly promotes a backup to take over. Cluster is like having multiple Redis boxes and splitting your data between them.",
+    "simple": "Sentinel: 3+ Sentinel processes monitor your primary. If the primary fails, they vote and promote a replica. Apps use the Sentinel address, not the primary address directly. Cluster: data is split into 16384 hash slots across 3+ nodes. Each node owns a range of slots.",
+    "standard": "Sentinel: Sentinels monitor via PING and vote to declare the primary down (quorum). They then trigger a failover: a replica is promoted, other replicas repoint to the new primary. Clients discover the current primary via the Sentinel. Cluster: 16384 hash slots, CRC16(key)%16384 determines slot. Nodes hold slot ranges and gossip cluster state. MOVED errors redirect clients to the correct node.",
+    "technical": "Sentinel uses a Raft-like quorum: needs ⌊N/2⌋+1 Sentinels to agree on failover (N=total sentinels). Sentinel leader election prevents split-brain. Cluster gossip uses PING/PONG with partial cluster state. A node is flagged PFAIL (probable failure) after CLUSTER_NODE_TIMEOUT, FAIL after a majority agrees. Replica promotion uses a Raft-like election among replicas of the failed primary.",
+    "deepDive": "Cluster supports read scaling via readonly replicas (READONLY command on the client connection). Multi-key commands require all keys in the same slot — use hash tags {tag} to co-locate. CLUSTER RESET wipes cluster state; CLUSTER REBALANCE redistributes slots. Managed Redis (ElastiCache, Upstash, Redis Cloud) abstracts away Sentinel/Cluster setup and provides automatic failover transparently."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Redis Sentinel"
+      "text": "Redis Primary-Replica Replication"
     },
     {
       "type": "paragraph",
-      "text": "Sentinel monitors a primary/replica setup and performs automatic failover when the primary fails. It is simpler than Cluster."
-    },
-    {
-      "type": "code",
-      "lang": "text",
-      "filename": "sentinel.conf",
-      "code": "sentinel monitor mymaster 127.0.0.1 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 60000"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "Redis Cluster"
-    },
-    {
-      "type": "paragraph",
-      "text": "Cluster provides both high availability and sharding across up to 1000 nodes using 16384 hash slots."
+      "text": "Before Sentinel or Cluster, understand replication. A <strong>replica</strong> synchronises all writes from the primary in real time. Replicas serve reads, reduce load, and provide a failover target. But failover is manual without Sentinel."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Check cluster health\nredis-cli cluster info\nredis-cli cluster nodes"
+      "filename": "replication.sh",
+      "code": "# Start a replica that replicates from primary at 6379\nredis-server --port 6380 --replicaof 127.0.0.1 6379\n\n# Check replication status\nredis-cli -p 6379 INFO replication\n# role:master\n# connected_slaves:1\n# slave0:ip=127.0.0.1,port=6380,state=online,offset=...\n\nredis-cli -p 6380 INFO replication\n# role:slave\n# master_host:127.0.0.1\n# master_port:6379\n# master_link_status:up"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Sentinel — Automated Failover"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sentinel monitors the primary and replicas. When the primary fails, Sentinels vote and promote a replica automatically — typically within 10–30 seconds."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "sentinel.conf",
+      "code": "# sentinel.conf (run 3 Sentinels for quorum of 2)\nsentinel monitor mymaster 127.0.0.1 6379 2\n# 2 = quorum (how many Sentinels must agree primary is down)\n\nsentinel down-after-milliseconds mymaster 5000\n# Mark primary down after 5 seconds of no response\n\nsentinel failover-timeout mymaster 60000\n# Failover must complete within 60 seconds\n\nsentinel parallel-syncs mymaster 1\n# Only 1 replica syncs with new primary at a time (reduces load)\n\n# Start Sentinels\nredis-sentinel sentinel.conf &\nredis-sentinel sentinel2.conf &\nredis-sentinel sentinel3.conf &\n\n# Check Sentinel status\nredis-cli -p 26379 SENTINEL masters\nredis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connecting via Sentinel in Node.js"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "sentinel-client.js",
+      "code": "import Redis from 'ioredis';\n\n// Connect via Sentinel — automatically follows failovers\nconst redis = new Redis({\n  sentinels: [\n    { host: '127.0.0.1', port: 26379 },\n    { host: '127.0.0.1', port: 26380 },\n    { host: '127.0.0.1', port: 26381 },\n  ],\n  name: 'mymaster',    // must match 'sentinel monitor <name>'\n  role: 'master',      // 'master' for writes, 'slave' for reads\n});\n\n// The client asks Sentinel for the current primary address\n// and reconnects automatically after failover\nawait redis.set('key', 'value');"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Cluster — Sharding + HA"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis Cluster shards data across multiple nodes using <strong>16384 hash slots</strong>. Each primary owns a slot range. Replicas provide failover. Keys route automatically via CRC16."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "cluster-info.sh",
+      "code": "# Check cluster health\nredis-cli -p 7000 CLUSTER INFO\n# cluster_state:ok\n# cluster_slots_assigned:16384\n# cluster_known_nodes:6\n\n# See which nodes own which slots\nredis-cli -p 7000 CLUSTER NODES\n\n# See where a key would go\nredis-cli -p 7000 CLUSTER KEYSLOT user:1    # slot number\nredis-cli -p 7000 CLUSTER KEYSLOT user:2    # different slot\n\n# Hash tags: force co-location\nredis-cli -p 7000 CLUSTER KEYSLOT \"{user:1}.name\"   # same slot\nredis-cli -p 7000 CLUSTER KEYSLOT \"{user:1}.email\"  # same slot"
+    },
+    {
+      "type": "comparison",
+      "title": "Sentinel vs Cluster",
+      "a": {
+        "name": "Redis Sentinel",
+        "description": "HA only — no sharding",
+        "strengths": ["Simpler setup", "Full command compatibility", "No hash tag restrictions", "Transparent failover"],
+        "weaknesses": ["Single-node capacity limit", "No horizontal scale", "Failover takes 10-30 seconds"],
+        "useWhen": "Need failover, dataset fits in one node (up to ~100GB)"
+      },
+      "b": {
+        "name": "Redis Cluster",
+        "description": "Sharding + HA",
+        "strengths": ["Scales beyond single-node memory", "Built-in HA per shard", "Up to 1000 nodes"],
+        "weaknesses": ["Complex setup", "Multi-key ops need hash tags", "No cross-slot transactions", "Client library must support cluster"],
+        "useWhen": "Dataset exceeds single node, or need extreme horizontal throughput"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "For most applications, start with Redis Sentinel (simpler, full compatibility). Only move to Cluster when your dataset exceeds single-node capacity. Many teams use managed Redis (AWS ElastiCache, Upstash, Redis Cloud) to avoid managing Sentinel or Cluster manually."
     },
     {
       "type": "quiz",
@@ -53,13 +116,34 @@
           "question": "What is Redis Sentinel used for?",
           "type": "multiple-choice",
           "options": [
-            "Horizontal sharding",
-            "Automatic failover for primary/replica setup",
-            "Data encryption",
+            "Horizontal sharding across many nodes",
+            "Automatic failover for a primary/replica setup",
+            "Data encryption at rest",
             "Schema validation"
           ],
           "correctAnswer": 1,
-          "explanation": "Sentinel monitors Redis instances and automatically promotes a replica if the primary fails."
+          "explanation": "Sentinel monitors a primary/replica setup and automatically promotes a replica if the primary fails. It does not provide sharding — use Cluster for that."
+        },
+        {
+          "id": "q2",
+          "question": "How does Redis Cluster route a key to the correct node?",
+          "type": "multiple-choice",
+          "options": [
+            "Round-robin across all nodes",
+            "CRC16(key) % 16384 determines the hash slot; each node owns a range of slots",
+            "The client remembers which node holds which key",
+            "All keys are on node 0; others are replicas"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis Cluster uses CRC16(key) % 16384 to map every key to one of 16384 hash slots. Each primary node owns a contiguous range of slots. The cluster-aware client routes commands to the correct node."
+        },
+        {
+          "id": "q3",
+          "question": "What is the minimum number of primary nodes for a Redis Cluster?",
+          "type": "multiple-choice",
+          "options": ["1", "2", "3", "5"],
+          "correctAnswer": 2,
+          "explanation": "Redis Cluster requires at least 3 primary nodes to function correctly. This ensures that the cluster can reach a quorum for failure detection and slot rebalancing."
         }
       ]
     }
@@ -67,22 +151,26 @@
   "faq": [
     {
       "q": "Should I use Sentinel or Cluster?",
-      "a": "Use Sentinel for HA without sharding (simpler). Use Cluster when you need horizontal scale across many nodes."
+      "a": "Use Sentinel for HA without sharding (simpler, full command compatibility). Use Cluster only when you need horizontal scale — your dataset doesn't fit in one node."
+    },
+    {
+      "q": "What happens during a Sentinel failover?",
+      "a": "Sentinels detect the primary is down, vote to agree, elect a Sentinel leader, choose a replica to promote, reconfigure other replicas to follow the new primary, and notify clients. Total time: typically 10-30 seconds."
+    },
+    {
+      "q": "How do managed Redis services handle HA?",
+      "a": "AWS ElastiCache, Redis Cloud, and Upstash abstract Sentinel/Cluster internally. ElastiCache offers 'Cluster Mode Disabled' (Sentinel-like) and 'Cluster Mode Enabled' (sharded Cluster). Failover is transparent to your application."
     }
   ],
   "sources": [
-    {
-      "name": "Sentinel",
-      "url": "https://redis.io/docs/manual/sentinel/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Sentinel", "url": "https://redis.io/docs/manual/sentinel/", "verified": "2026-11-04" },
+    { "name": "Cluster", "url": "https://redis.io/docs/manual/scaling/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "high-availability production systems"
-    ],
+    "usedIn": ["high-availability session stores", "game leaderboard backends", "e-commerce cart/session clusters"],
     "examples": [
-      "3-node Sentinel setup on AWS ElastiCache"
+      "3-node Sentinel setup on AWS ElastiCache with automatic failover for a 10M-user session store",
+      "6-node Redis Cluster (3 primary + 3 replica) for a gaming platform needing 200GB cache"
     ]
   }
 }

@@ -1,45 +1,110 @@
 {
   "id": "13-mqtt",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "paho-mqtt 2.x / Mosquitto 2.x / EMQX 5.x",
   "technology": "embedded",
   "module": "iot-projects",
   "title": "MQTT Protocol",
-  "subtitle": "Publish-subscribe messaging for IoT devices",
+  "subtitle": "Publish-subscribe messaging for IoT — broker, QoS, topics, and Home Assistant integration",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.rpi-linux"
-  ],
-  "skillsTaught": [
-    "embedded.mqtt"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.rpi-linux"],
+  "skillsTaught": ["embedded.mqtt"],
+  "whyItExists": {
+    "problem": "IoT systems have many sensors and actuators that need to communicate with each other and with dashboards/automation systems. HTTP polling is too heavy for constrained devices. Direct device-to-device is too complex to coordinate. You need a lightweight message bus.",
+    "solution": "MQTT is a publish-subscribe protocol designed specifically for IoT. Devices publish messages to topics; any interested subscriber receives them. A central broker (Mosquitto) routes everything. It uses <1 KB RAM and handles unreliable networks gracefully.",
+    "whenToUse": "Any IoT system with multiple sensors and actuators, home automation (Home Assistant), industrial telemetry, fleet management, or any device-to-cloud communication.",
+    "whenNotToUse": "Synchronous request-response (use HTTP/REST). Real-time bi-directional streaming (use WebSocket). Devices without IP networking (use RS-485, CAN, Zigbee)."
+  },
+  "explainModes": {
+    "beginner": "MQTT works like a radio station. Sensors (publishers) broadcast on channels (topics) like 'home/living-room/temperature'. Dashboards (subscribers) tune in to those channels and receive every broadcast. The broker is like the radio tower that routes signals between everyone.",
+    "simple": "Every MQTT device connects to a central broker (server). Publishers send messages to named topics (e.g., 'sensors/01/temp'). Subscribers register interest in topics using wildcards (sensors/#). The broker delivers every published message to all matching subscribers.",
+    "standard": "MQTT uses a client-server model where the server (broker) is the hub. All clients connect to the broker via TCP port 1883 (or 8883 for TLS). Messages have: topic (hierarchical string path), payload (up to 256 MB, usually JSON), QoS level (0/1/2), and optional retain flag.",
+    "technical": "MQTT CONNECT packet carries clientId, username, password, keepalive. QoS 0 = fire-and-forget (no ACK). QoS 1 = at-least-once (PUBACK, may duplicate). QoS 2 = exactly-once (four-way PUBREC/PUBREL/PUBCOMP handshake). Retained messages are stored by broker and delivered to new subscribers immediately on subscribe. Last Will and Testament (LWT) lets devices publish a 'gone offline' message on unexpected disconnect.",
+    "deepDive": "MQTT 5.0 adds: message expiry interval, topic aliases (reduce packet size), user properties (key-value metadata), shared subscriptions (load balancing across subscribers), flow control, and reason codes for diagnostics. For large deployments, EMQX or VerneMQ support horizontal clustering to millions of connections. MQTT over WebSocket (port 443) allows browser clients (mqttws31.min.js, MQTT.js) without special firewall rules."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Why MQTT?"
+      "text": "How MQTT Works: Broker, Topics, Pub/Sub"
     },
     {
       "type": "paragraph",
-      "text": "MQTT is a lightweight publish-subscribe protocol designed for constrained IoT devices. Devices publish to topics; subscribers receive messages."
+      "text": "MQTT is a <strong>publish-subscribe</strong> protocol. <em>Publishers</em> send messages to <em>topics</em> (hierarchical paths like <code>home/kitchen/temperature</code>). <em>Subscribers</em> receive messages from topics they've registered interest in. The <strong>broker</strong> (server) routes all messages between clients. No publisher needs to know who subscribes — full decoupling."
     },
     {
-      "type": "definition",
-      "term": "Broker",
-      "definition": "The MQTT server that receives all messages and routes them to subscribers. Popular: Mosquitto, EMQX, HiveMQ Cloud."
+      "type": "code",
+      "lang": "text",
+      "filename": "mqtt-topics.txt",
+      "code": "MQTT Topic Structure\n────────────────────\nhome/living-room/temperature   → specific sensor\nhome/living-room/humidity\nhome/kitchen/temperature\nhome/#                         → all home/ subtopics (# wildcard)\nhome/+/temperature             → temperature from any room (+ single-level wildcard)\n\nCommon IoT topic conventions:\ncmnd/device-id/POWER           → Tasmota: command to turn on\nstat/device-id/RESULT          → Tasmota: status result\nhomeassistant/sensor/01/state  → Home Assistant auto-discovery"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Installing Mosquitto Broker on Raspberry Pi"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "mosquitto-install.sh",
+      "code": "# Install Mosquitto MQTT broker\nsudo apt update && sudo apt install -y mosquitto mosquitto-clients\n\n# Start and enable at boot\nsudo systemctl enable --now mosquitto\n\n# Configure: allow anonymous connections on localhost\n# (add auth for internet-facing brokers)\necho \"allow_anonymous true\" | sudo tee /etc/mosquitto/conf.d/local.conf\necho \"listener 1883\" >> /etc/mosquitto/conf.d/local.conf\nsudo systemctl restart mosquitto\n\n# Test: open two terminals\n# Terminal 1 — subscribe:\nmosquitto_sub -h localhost -t \"test/#\" -v\n\n# Terminal 2 — publish:\nmosquitto_pub -h localhost -t \"test/hello\" -m '{\"value\": 42}'\n# Terminal 1 should receive: test/hello {\"value\": 42}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Python MQTT Publisher: Sending Sensor Data"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "mqtt_publisher.py",
-      "code": "import paho.mqtt.client as mqtt\nimport json, time, random\n\nclient = mqtt.Client(\"sensor-01\")\nclient.connect(\"mqtt.broker.host\", 1883)\n\nwhile True:\n    payload = json.dumps({\"temp\": round(random.uniform(20, 30), 1), \"humidity\": round(random.uniform(40, 70), 1)})\n    client.publish(\"home/living-room/sensor\", payload, qos=1)\n    print(f\"Published: {payload}\")\n    time.sleep(5)"
+      "code": "import paho.mqtt.client as mqtt\nimport json\nimport time\nimport random\n\n# Install: pip install paho-mqtt\nBROKER   = \"localhost\"  # or your Pi's IP from other devices\nPORT     = 1883\nCLIENT_ID = \"sensor-01\"\n\nclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, CLIENT_ID)\n\n# Optional: last will message (sent if client disconnects unexpectedly)\nclient.will_set(\n    f\"home/sensors/{CLIENT_ID}/status\",\n    payload=json.dumps({\"online\": False}),\n    qos=1, retain=True\n)\n\nclient.connect(BROKER, PORT, keepalive=60)\nclient.loop_start()  # start background thread for MQTT\n\n# Publish online status\nclient.publish(\n    f\"home/sensors/{CLIENT_ID}/status\",\n    json.dumps({\"online\": True}),\n    qos=1, retain=True\n)\n\ntry:\n    while True:\n        payload = json.dumps({\n            \"temperature\": round(20 + random.uniform(0, 10), 1),\n            \"humidity\":    round(40 + random.uniform(0, 30), 1),\n            \"uptime\":      int(time.time())\n        })\n        result = client.publish(f\"home/sensors/{CLIENT_ID}/data\", payload, qos=1)\n        print(f\"Published: {payload} [rc={result.rc}]\")\n        time.sleep(5)\n\nexcept KeyboardInterrupt:\n    print(\"Stopping...\")\nfinally:\n    client.loop_stop()\n    client.disconnect()"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Python MQTT Subscriber: Receiving and Acting on Data"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "mqtt_subscriber.py",
-      "code": "import paho.mqtt.client as mqtt\nimport json\n\ndef on_message(client, userdata, msg):\n    data = json.loads(msg.payload)\n    print(f\"{msg.topic}: {data}\")\n\nclient = mqtt.Client()\nclient.on_message = on_message\nclient.connect(\"mqtt.broker.host\", 1883)\nclient.subscribe(\"home/#\")  # wildcard\nclient.loop_forever()"
+      "code": "import paho.mqtt.client as mqtt\nimport json\n\nBROKER = \"localhost\"\n\ndef on_connect(client, userdata, flags, reason_code, properties):\n    print(f\"Connected: {reason_code}\")\n    # Subscribe in on_connect so it re-subscribes after reconnect\n    client.subscribe(\"home/#\", qos=1)\n    print(\"Subscribed to home/#\")\n\ndef on_message(client, userdata, msg):\n    topic   = msg.topic\n    payload = msg.payload.decode(\"utf-8\")\n\n    try:\n        data = json.loads(payload)\n        if \"temperature\" in data:\n            temp = data[\"temperature\"]\n            print(f\"[{topic}] Temperature: {temp}°C\", end=\"\")\n            if temp > 28:\n                print(\" ⚠ HIGH TEMP — triggering cooling fan\")\n                client.publish(\"home/actuators/fan\", json.dumps({\"on\": True}), qos=1)\n            else:\n                print()\n    except json.JSONDecodeError:\n        print(f\"[{topic}] Raw: {payload}\")\n\nclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, \"dashboard-01\")\nclient.on_connect = on_connect\nclient.on_message = on_message\nclient.connect(BROKER, 1883, keepalive=60)\nclient.loop_forever()  # blocking"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "MQTT QoS Levels"
+    },
+    {
+      "type": "comparison",
+      "title": "MQTT QoS 0 vs QoS 1 vs QoS 2",
+      "a": {
+        "name": "QoS 0 — At Most Once",
+        "description": "Fire and forget — no ACK",
+        "strengths": ["Fastest, lowest overhead", "Best for high-frequency data (10+ per second)"],
+        "weaknesses": ["Message may be lost if connection drops", "No delivery guarantee"],
+        "useWhen": "Live telemetry where a missed reading is acceptable (temperature updates)"
+      },
+      "b": {
+        "name": "QoS 1 — At Least Once",
+        "description": "Guaranteed delivery with PUBACK",
+        "strengths": ["Guaranteed delivery", "Simple ACK mechanism"],
+        "weaknesses": ["May deliver duplicates — receiver must be idempotent"],
+        "useWhen": "Sensor data you must not lose: alarms, door events, billing meters"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Use `retain=True` on status topics (online/offline, current setpoint) so new subscribers immediately get the last value without waiting for the next publish. Retained messages are stored by the broker and delivered instantly on subscribe."
     },
     {
       "type": "quiz",
@@ -49,13 +114,39 @@
           "question": "What is an MQTT broker?",
           "type": "multiple-choice",
           "options": [
-            "A sensor device",
-            "The server that routes messages between publishers and subscribers",
-            "A protocol for I2C",
+            "A type of IoT sensor",
+            "The central server that receives messages and routes them to matching subscribers",
+            "A protocol for I2C bus communication",
             "A type of microcontroller"
           ],
           "correctAnswer": 1,
-          "explanation": "The MQTT broker is the central server that receives messages from publishers and delivers them to all matching subscribers."
+          "explanation": "The MQTT broker is the message hub. Publishers send to it; it delivers to all matching subscribers. Mosquitto and EMQX are popular open-source brokers."
+        },
+        {
+          "id": "q2",
+          "question": "What does the topic wildcard 'home/+/temperature' match?",
+          "type": "multiple-choice",
+          "options": [
+            "All topics starting with home/",
+            "Any single-level subtopic of home/ followed by /temperature (e.g. home/kitchen/temperature)",
+            "Only the exact string 'home/+/temperature'",
+            "All temperature topics regardless of prefix"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The + wildcard matches exactly one level. home/+/temperature matches home/kitchen/temperature, home/living-room/temperature, etc., but NOT home/floor1/room2/temperature (that would need home/#)."
+        },
+        {
+          "id": "q3",
+          "question": "What is a 'retained message' in MQTT?",
+          "type": "multiple-choice",
+          "options": [
+            "A message held in a queue due to network failure",
+            "A message stored by the broker and immediately sent to any new subscriber to that topic",
+            "A message encrypted with TLS",
+            "A message with QoS 2 delivery guarantee"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A retained message (publish with retain=True) is stored by the broker as the 'last known value'. When a new client subscribes to that topic, it receives the retained message immediately — without waiting for the next publish."
         }
       ]
     }
@@ -63,24 +154,40 @@
   "faq": [
     {
       "q": "What is QoS in MQTT?",
-      "a": "Quality of Service levels: QoS 0 = at most once (fire and forget), QoS 1 = at least once (may duplicate), QoS 2 = exactly once (slowest but guaranteed)."
+      "a": "Quality of Service: QoS 0 = at most once (no guarantee, fastest), QoS 1 = at least once (may duplicate, guaranteed delivery), QoS 2 = exactly once (slowest, four-way handshake). Use QoS 1 for most IoT data; QoS 2 only for billing or financial messages."
+    },
+    {
+      "q": "How do I secure my MQTT broker so only my devices can connect?",
+      "a": "Add password authentication to Mosquitto: create a password file with `mosquitto_passwd -c /etc/mosquitto/passwd myuser`, add `password_file /etc/mosquitto/passwd` and `allow_anonymous false` to mosquitto.conf. For internet-facing brokers, also enable TLS on port 8883 using Let's Encrypt certificates."
+    },
+    {
+      "q": "Can I use a cloud MQTT broker instead of running Mosquitto locally?",
+      "a": "Yes. HiveMQ Cloud (free tier), EMQX Cloud, and AWS IoT Core offer hosted MQTT brokers. Use them when devices are outside your local network. The paho-mqtt client code is the same — just change the broker hostname, port, and add TLS/authentication."
     }
   ],
   "sources": [
     {
-      "name": "paho-mqtt",
+      "name": "paho-mqtt Python Client",
       "url": "https://www.eclipse.org/paho/index.php?page=clients/python/index.php",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Mosquitto MQTT Broker",
+      "url": "https://mosquitto.org/documentation/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "home automation",
-      "industrial telemetry",
-      "fleet management"
+      "Home Assistant home automation hub",
+      "Industrial SCADA telemetry (temperature, pressure, flow)",
+      "Smart city infrastructure (parking, air quality)",
+      "Fleet GPS tracking systems",
+      "Agricultural monitoring (soil, weather, irrigation)"
     ],
     "examples": [
-      "Pi sending temperature data to Home Assistant via MQTT"
+      "Raspberry Pi sending DHT22 temperature data to Mosquitto every 5 seconds, displayed in Home Assistant dashboard",
+      "ESP32 humidity sensor publishing via MQTT → Node-RED → InfluxDB → Grafana dashboard"
     ]
   }
 }

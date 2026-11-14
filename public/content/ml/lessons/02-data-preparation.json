@@ -1,19 +1,31 @@
 {
   "id": "02-data-preparation",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "pandas 2.2 / scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-foundations",
   "title": "Data Preparation",
   "subtitle": "Cleaning, normalising, handling missing values and outliers",
   "difficulty": "beginner",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.basics"
-  ],
-  "skillsTaught": [
-    "ml.data-prep"
-  ],
+  "prerequisites": ["ml.basics"],
+  "skillsTaught": ["ml.data-prep", "ml.imputation", "ml.scaling"],
+  "whyItExists": {
+    "problem": "Real-world data is messy — it contains missing values, duplicates, inconsistent formats, skewed distributions, and outliers. ML algorithms trained on bad data produce bad predictions.",
+    "solution": "Data preparation systematically cleans and transforms raw data into a form that algorithms can learn from effectively.",
+    "whenToUse": "Before training any model. Data preparation is not optional — it is the most time-consuming part of a real ML project (often 60–80% of total effort).",
+    "whenNotToUse": "You can skip some steps (like normalisation) for tree-based models like Random Forest and XGBoost, which are scale-invariant. But cleaning missing values and removing duplicates is always necessary."
+  },
+  "explainModes": {
+    "beginner": "Before teaching a computer with examples, you have to tidy them up — fix typos, fill in blanks, and put everything on the same scale. It's like cleaning up messy notes before studying from them.",
+    "simple": "Data preparation means: remove duplicates, fill in or remove missing values, convert text categories to numbers, and scale numeric columns so big numbers don't overshadow small ones.",
+    "standard": "Data preparation involves imputing missing values, encoding categoricals, scaling numeric features, and splitting into train/test sets. The fit is always done on training data only to avoid leakage.",
+    "technical": "Preprocessing steps (imputation, encoding, scaling) must be part of the cross-validation loop. Fitting on the full dataset introduces data leakage and over-estimates performance. Use sklearn Pipelines to encapsulate these transforms.",
+    "deepDive": "Data quality directly bounds model performance. Missing-at-random (MAR) assumptions underpin most imputation strategies. Distribution shift between train and test sets (covariate shift) can be detected with domain classifiers and corrected with importance weighting."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +34,75 @@
     },
     {
       "type": "paragraph",
-      "text": "Garbage in, garbage out. Most ML time is spent cleaning and transforming data, not training models."
+      "text": "<strong>Garbage in, garbage out.</strong> Most ML engineers spend 60–80% of their project time on data, not modelling. A clean dataset with a simple model almost always beats a messy dataset with a sophisticated one."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 1: Explore the Data First"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "prep.py",
-      "code": "import pandas as pd\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.impute import SimpleImputer\n\ndf = pd.read_csv(\"data.csv\")\n\n# Drop duplicates\ndf = df.drop_duplicates()\n\n# Fill missing values with column median\nimp = SimpleImputer(strategy=\"median\")\ndf[[\"age\",\"income\"]] = imp.fit_transform(df[[\"age\",\"income\"]])\n\n# Standardise features (mean=0, std=1)\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform(df[[\"age\",\"income\"]])"
+      "filename": "eda.py",
+      "code": "import pandas as pd\nimport numpy as np\n\ndf = pd.read_csv('data.csv')\n\n# Shape and types\nprint(df.shape)          # (rows, cols)\nprint(df.dtypes)         # column data types\n\n# Missing value counts\nprint(df.isnull().sum())\n\n# Basic statistics\nprint(df.describe())\n\n# Duplicate rows\nprint(f'Duplicates: {df.duplicated().sum()}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 2: Handle Missing Values"
+    },
+    {
+      "type": "paragraph",
+      "text": "Three strategies: <strong>drop</strong> rows/columns with missing values (safe only if the fraction is small), <strong>impute</strong> with a statistic (median for numeric, most-frequent for categorical), or <strong>flag</strong> the missingness as a new binary feature."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "impute.py",
+      "code": "from sklearn.impute import SimpleImputer\nfrom sklearn.model_selection import train_test_split\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Impute numeric columns with median\nnum_imputer = SimpleImputer(strategy='median')\nX_train_num = num_imputer.fit_transform(X_train[numeric_cols])\nX_test_num  = num_imputer.transform(X_test[numeric_cols])   # transform only!\n\n# Impute categoricals with most frequent value\ncat_imputer = SimpleImputer(strategy='most_frequent')\nX_train_cat = cat_imputer.fit_transform(X_train[cat_cols])\nX_test_cat  = cat_imputer.transform(X_test[cat_cols])"
+    },
+    {
+      "type": "warning",
+      "text": "Always call <code>fit_transform()</code> on training data, then <code>transform()</code> (not <code>fit_transform()</code>) on test data. Fitting on test data leaks information and inflates your performance metrics."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 3: Encode Categorical Features"
+    },
+    {
+      "type": "paragraph",
+      "text": "Most ML algorithms require numeric inputs. <strong>One-hot encoding</strong> works for unordered categories (city, colour). <strong>Ordinal encoding</strong> works for ordered categories (small < medium < large). <code>pd.get_dummies()</code> is a quick option for small cardinality."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "encode.py",
+      "code": "from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder\nimport pandas as pd\n\n# One-hot (creates a column per category)\nohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False)\ncity_encoded = ohe.fit_transform(X_train[['city']])\n\n# Ordinal (preserves order)\nordinal = OrdinalEncoder(categories=[['small','medium','large']])\nsize_encoded = ordinal.fit_transform(X_train[['size']])\n\n# Quick option with pandas\nX_dummies = pd.get_dummies(X_train, columns=['city'], drop_first=True)"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Step 4: Scale Numeric Features"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>StandardScaler</strong> (mean=0, std=1) works best for linear models and neural networks. <strong>MinMaxScaler</strong> (0 to 1) is useful when you need a bounded range. Tree-based models (Random Forest, XGBoost) don't need scaling."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "scale.py",
+      "code": "from sklearn.preprocessing import StandardScaler, MinMaxScaler\nimport numpy as np\n\n# Standard scaling (z-score)\nscaler = StandardScaler()\nX_train_sc = scaler.fit_transform(X_train)\nX_test_sc  = scaler.transform(X_test)\n\n# Log-transform skewed feature before scaling\nX_train['log_income'] = np.log1p(X_train['income'])  # log1p handles zeros\n\nprint(f'Mean: {X_train_sc.mean(axis=0).round(3)}')\nprint(f'Std:  {X_train_sc.std(axis=0).round(3)}')"
     },
     {
       "type": "tip",
-      "text": "Always fit the scaler on training data only, then transform both train and test sets."
+      "text": "For skewed features (like income or house price), apply a log transform before scaling. This compresses extreme values and helps linear models converge faster."
+    },
+    {
+      "type": "info",
+      "text": "The full preprocessing pipeline can be built with <code>sklearn.pipeline.Pipeline</code> and <code>ColumnTransformer</code>, which apply different transforms to different columns automatically."
     },
     {
       "type": "quiz",
@@ -48,7 +118,33 @@
             "Test data should not be scaled"
           ],
           "correctAnswer": 1,
-          "explanation": "Fitting on the whole dataset leaks test-set statistics into training, giving overly optimistic results."
+          "explanation": "Fitting on the whole dataset leaks test-set statistics (mean, std) into training, giving overly optimistic results that won't hold in production."
+        },
+        {
+          "id": "q2",
+          "question": "Which imputation strategy is most robust to outliers for numeric features?",
+          "type": "multiple-choice",
+          "options": [
+            "Mean imputation",
+            "Median imputation",
+            "Zero imputation",
+            "Mode imputation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The median is robust to outliers because it is not affected by extreme values, unlike the mean."
+        },
+        {
+          "id": "q3",
+          "question": "When should you use one-hot encoding instead of ordinal encoding?",
+          "type": "multiple-choice",
+          "options": [
+            "When the category has many unique values",
+            "When there is no meaningful order between category values",
+            "When the model is a decision tree",
+            "When the dataset is small"
+          ],
+          "correctAnswer": 1,
+          "explanation": "One-hot encoding is appropriate for nominal (unordered) categories like city or colour. Ordinal encoding incorrectly implies ordering between unordered values."
         }
       ]
     }
@@ -56,23 +152,34 @@
   "faq": [
     {
       "q": "Should I remove all rows with missing values?",
-      "a": "Only if the fraction is small. Otherwise impute (fill in) missing values using the median, mean, or a model."
+      "a": "Only if the fraction is very small (< 1–2%). Otherwise impute. Dropping many rows reduces your effective dataset size and can introduce bias if the missingness is not random."
+    },
+    {
+      "q": "What is the difference between StandardScaler and MinMaxScaler?",
+      "a": "StandardScaler converts to zero mean and unit variance (unbounded range). MinMaxScaler maps to [0, 1] but is sensitive to outliers. Use StandardScaler for linear models and neural networks; MinMaxScaler for algorithms that need a bounded range like k-NN."
+    },
+    {
+      "q": "What is data leakage?",
+      "a": "Data leakage occurs when information from the test set (or future data) is used during training. Common causes: fitting scalers on the full dataset, including future-derived features, or not splitting before preprocessing."
     }
   ],
   "sources": [
     {
-      "name": "Data Preprocessing",
+      "name": "sklearn: Preprocessing",
       "url": "https://scikit-learn.org/stable/modules/preprocessing.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "pandas: Working with missing data",
+      "url": "https://pandas.pydata.org/docs/user_guide/missing_data.html",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "data pipelines",
-      "feature stores"
-    ],
+    "usedIn": ["data pipelines", "feature stores", "ETL workflows", "real-time scoring systems"],
     "examples": [
-      "Cleaning a customer churn dataset before modelling"
+      "Cleaning a customer churn dataset — imputing missing tenure, encoding plan type, scaling spend",
+      "Preprocessing sensor data: removing outliers, imputing gaps, normalising readings before anomaly detection"
     ]
   }
 }

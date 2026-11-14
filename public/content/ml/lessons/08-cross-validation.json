@@ -1,19 +1,31 @@
 {
   "id": "08-cross-validation",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "model-evaluation",
   "title": "Cross-Validation",
   "subtitle": "K-fold, stratified folds, and avoiding data leakage",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.metrics"
-  ],
-  "skillsTaught": [
-    "ml.cross-validation"
-  ],
+  "prerequisites": ["ml.metrics"],
+  "skillsTaught": ["ml.cross-validation", "ml.hyperparameter-tuning", "ml.pipeline"],
+  "whyItExists": {
+    "problem": "A single train/test split is unreliable — it depends on which samples ended up in each set by chance. You could get lucky or unlucky and completely misjudge how good your model really is.",
+    "solution": "Cross-validation evaluates the model on multiple different train/test splits and averages the results. This gives a much more reliable performance estimate and also uses all data for both training and validation.",
+    "whenToUse": "Whenever comparing models, selecting hyperparameters, or reporting model performance — especially on small to medium datasets where a single split is too noisy.",
+    "whenNotToUse": "When the dataset is very large (millions of rows) and a single hold-out test set is statistically stable. CV is computationally expensive on large datasets."
+  },
+  "explainModes": {
+    "beginner": "Instead of splitting your data once, cross-validation splits it 5 times, each time using a different chunk as the test set. The 5 scores are averaged. This is like taking an exam 5 times with different questions and averaging your grade for a fairer assessment.",
+    "simple": "K-fold CV divides data into K equal parts (folds). It trains K times: each time using K-1 folds for training and 1 fold for testing. The results are averaged. This reduces the luck factor of a single split.",
+    "standard": "K-fold CV provides an unbiased estimate of test error by rotating through K train/test splits. Stratified K-fold preserves class ratios. Pipeline integration prevents preprocessing leakage across folds.",
+    "technical": "CV minimises both optimistic bias (from a lucky split) and pessimistic bias (from a small training set). Nested CV separates hyperparameter selection (inner loop) from model assessment (outer loop) to avoid selection bias.",
+    "deepDive": "K-fold CV is a nearly unbiased estimator of the generalisation error but has high variance for small K. Leave-One-Out CV is unbiased but computationally expensive and has high variance. Repeated K-fold averages multiple independent K-fold runs, trading cost for stability."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +34,63 @@
     },
     {
       "type": "paragraph",
-      "text": "A single train/test split can be lucky or unlucky. Cross-validation evaluates the model on multiple splits and averages the results."
+      "text": "A single train/test split is <strong>unreliable</strong>. If your test set happens to contain easy examples, you overestimate performance. If it contains hard ones, you underestimate. Cross-validation evaluates the model on multiple independent splits and averages the results for a fairer estimate."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Basic K-Fold Cross-Validation"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "cv.py",
-      "code": "from sklearn.model_selection import cross_val_score, StratifiedKFold\nfrom sklearn.ensemble import RandomForestClassifier\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\n\n# 5-fold stratified cross-validation\ncv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)\nscores = cross_val_score(model, X, y, cv=cv, scoring=\"f1\")\nprint(f\"F1: {scores.mean():.3f} ± {scores.std():.3f}\")"
+      "filename": "kfold_cv.py",
+      "code": "from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold\nfrom sklearn.ensemble import RandomForestClassifier\nimport numpy as np\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\n\n# Simple 5-fold (not stratified)\nkf = KFold(n_splits=5, shuffle=True, random_state=42)\nscores = cross_val_score(model, X, y, cv=kf, scoring='f1')\nprint(f'F1 (5-fold):   {scores.mean():.3f} ± {scores.std():.3f}')\n\n# Stratified — preserves class ratios in each fold (use for classification)\nskf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)\nst_scores = cross_val_score(model, X, y, cv=skf, scoring='f1')\nprint(f'F1 (stratified): {st_scores.mean():.3f} ± {st_scores.std():.3f}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Using Pipelines to Prevent Leakage"
+    },
+    {
+      "type": "paragraph",
+      "text": "If you scale the data before cross-validation, the scaler sees the test fold's statistics — this is <strong>data leakage</strong>. Using a <code>Pipeline</code> ensures that preprocessing is re-fit inside each fold on the training data only."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pipeline_cv.py",
+      "code": "from sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import cross_val_score, StratifiedKFold\n\n# Pipeline: scaler is fit inside each CV fold, preventing leakage\npipe = Pipeline([\n    ('scaler', StandardScaler()),\n    ('model', LogisticRegression(max_iter=1000))\n])\n\nskf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)\nscores = cross_val_score(pipe, X, y, cv=skf, scoring='roc_auc')\nprint(f'AUC-ROC: {scores.mean():.3f} ± {scores.std():.3f}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Hyperparameter Tuning with GridSearchCV"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "grid_search.py",
+      "code": "from sklearn.model_selection import GridSearchCV\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\n\npipe = Pipeline([\n    ('scaler', StandardScaler()),\n    ('rf', RandomForestClassifier(random_state=42))\n])\n\nparam_grid = {\n    'rf__n_estimators': [50, 100, 200],\n    'rf__max_depth': [5, 10, None],\n    'rf__min_samples_leaf': [1, 5, 10]\n}\n\nsearch = GridSearchCV(\n    pipe,\n    param_grid,\n    cv=StratifiedKFold(5, shuffle=True, random_state=42),\n    scoring='f1',\n    n_jobs=-1,     # use all CPU cores\n    verbose=1\n)\nsearch.fit(X_train, y_train)\n\nprint(f'Best params: {search.best_params_}')\nprint(f'Best CV F1:  {search.best_score_:.3f}')\nprint(f'Test F1:     {f1_score(y_test, search.predict(X_test)):.3f}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "RandomizedSearchCV for Large Grids"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "random_search.py",
+      "code": "from sklearn.model_selection import RandomizedSearchCV\nfrom scipy.stats import randint, uniform\n\n# When the grid is too large for exhaustive search\nparam_dist = {\n    'rf__n_estimators': randint(50, 500),\n    'rf__max_depth': [5, 10, 20, None],\n    'rf__min_samples_leaf': randint(1, 20),\n    'rf__max_features': uniform(0.3, 0.7)  # fraction of features\n}\n\nrand_search = RandomizedSearchCV(\n    pipe,\n    param_dist,\n    n_iter=50,     # sample 50 random combinations\n    cv=5,\n    scoring='f1',\n    random_state=42,\n    n_jobs=-1\n)\nrand_search.fit(X_train, y_train)\nprint(f'Best CV F1: {rand_search.best_score_:.3f}')"
     },
     {
       "type": "tip",
-      "text": "Use StratifiedKFold for classification to preserve class proportions in each fold."
+      "text": "Always use a Pipeline when cross-validating. Any step that fits from data (scaler, imputer, encoder) must be inside the pipeline so it only sees training folds, not the test fold."
+    },
+    {
+      "type": "warning",
+      "text": "Don't use the test set for hyperparameter selection. Use cross-validation on the training set to pick hyperparameters, then evaluate on the test set exactly once at the end. Using the test set for tuning inflates your performance estimate."
     },
     {
       "type": "quiz",
@@ -42,37 +100,74 @@
           "question": "What does 5-fold cross-validation do?",
           "type": "multiple-choice",
           "options": [
-            "Trains 5 separate models on all data",
-            "Splits data into 5 folds and trains/evaluates 5 times",
-            "Splits data 5 times randomly",
-            "Runs 5 epochs"
+            "Trains 5 separate models on all data and picks the best",
+            "Splits data into 5 folds and trains/tests 5 times, averaging results",
+            "Splits data into 5 random sets and picks the best",
+            "Runs 5 training epochs"
           ],
           "correctAnswer": 1,
-          "explanation": "5-fold CV splits data into 5 equal parts, using each fold once as the test set."
+          "explanation": "5-fold CV splits data into 5 equal parts. Each fold serves once as the test set while the other 4 train the model. The 5 scores are averaged for a stable estimate."
+        },
+        {
+          "id": "q2",
+          "question": "Why should preprocessing be inside a Pipeline during cross-validation?",
+          "type": "multiple-choice",
+          "options": [
+            "To make the code shorter",
+            "To prevent the scaler from seeing test-fold statistics during fitting",
+            "Because sklearn requires it for CV",
+            "To speed up cross-validation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "If you scale before CV, the scaler's mean and std are computed from the full dataset including test folds. A Pipeline refits the scaler inside each fold on training data only."
+        },
+        {
+          "id": "q3",
+          "question": "When should you use StratifiedKFold over KFold?",
+          "type": "multiple-choice",
+          "options": [
+            "When you have more than 1000 samples",
+            "For classification tasks to ensure each fold has the same class proportions",
+            "When training a regression model",
+            "When you have many features"
+          ],
+          "correctAnswer": 1,
+          "explanation": "StratifiedKFold ensures each fold contains approximately the same proportion of each class as the full dataset. This is especially important for imbalanced classification problems."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "What is a pipeline in scikit-learn?",
-      "a": "A Pipeline chains preprocessing steps and the model so they are cross-validated together, preventing data leakage from the scaler."
+      "q": "What is a Pipeline in scikit-learn?",
+      "a": "A Pipeline chains preprocessing steps and the model together so they can be fitted and cross-validated as a single unit. This prevents data leakage by ensuring preprocessing is only fitted on training folds."
+    },
+    {
+      "q": "How many folds should I use?",
+      "a": "5 or 10 folds are the standard. More folds give a lower-bias estimate but take longer. Use 10 for small datasets where you need more training data per fold. For very large datasets, 5 or even 3 folds may be sufficient."
+    },
+    {
+      "q": "What is the difference between GridSearchCV and RandomizedSearchCV?",
+      "a": "GridSearchCV tries every combination of hyperparameters exhaustively — good when the grid is small. RandomizedSearchCV samples a fixed number of random combinations — faster for large grids, and often finds near-optimal settings with fewer trials."
     }
   ],
   "sources": [
     {
-      "name": "Cross-validation",
+      "name": "sklearn: Cross-validation",
       "url": "https://scikit-learn.org/stable/modules/cross_validation.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: Pipeline",
+      "url": "https://scikit-learn.org/stable/modules/pipeline.html",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "model selection",
-      "hyperparameter tuning"
-    ],
+    "usedIn": ["model selection", "hyperparameter tuning", "research paper baselines"],
     "examples": [
-      "Comparing SVM vs RandomForest with 10-fold CV"
+      "Comparing SVM vs RandomForest vs XGBoost using 10-fold stratified CV on a churn dataset",
+      "Tuning n_estimators and max_depth for a RandomForest using GridSearchCV with 5-fold CV"
     ]
   }
 }

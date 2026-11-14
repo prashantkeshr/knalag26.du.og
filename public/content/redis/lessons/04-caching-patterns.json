@@ -1,19 +1,34 @@
 {
   "id": "04-caching-patterns",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "caching",
   "title": "Caching Patterns",
   "subtitle": "Cache-aside, write-through, and read-through",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "redis.commands"
-  ],
-  "skillsTaught": [
-    "redis.caching"
-  ],
+  "prerequisites": ["redis.commands"],
+  "skillsTaught": ["redis.caching"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Databases are slow compared to Redis. Without caching, every API request hits the database, causing high latency and load. But naive caching leads to stale data, thundering herds, and inconsistency.",
+    "solution": "Cache patterns define a contract between the application, cache, and database. Each pattern makes a different tradeoff between consistency, simplicity, and performance.",
+    "whenToUse": "Any time you have read-heavy workloads with data that is expensive to compute or fetch and can tolerate slight staleness.",
+    "whenNotToUse": "Financial transactions, inventory counts, or any data that must always be fresh — or when cache misses would actually be more expensive than just reading from the DB."
+  },
+  "explainModes": {
+    "beginner": "Caching is like keeping a cheat sheet. Instead of recalculating everything from scratch, you write the answer down. Cache-aside means the app fills the cheat sheet on demand. Write-through means you update the cheat sheet every time you change the original.",
+    "simple": "Cache-aside: app checks cache, misses → load DB → write cache. Write-through: every DB write also writes cache. Write-behind: write cache immediately, write DB later in bulk. Read-through: cache fetches from DB itself.",
+    "standard": "Cache-aside (lazy loading) is the most flexible: the application manages cache population on cache misses. Write-through keeps cache consistent with every write. Write-behind (write-back) improves write performance by deferring DB writes. Read-through hides cache logic inside a middleware layer.",
+    "technical": "Cache-aside has eventual consistency between cache and DB during TTL window. Write-through has stronger consistency but doubles write latency. Write-behind risks data loss on cache failure before DB flush. Cache stampede (thundering herd) occurs when many concurrent misses all hit the DB; prevent with mutex (SETNX lock) or probabilistic early expiry.",
+    "deepDive": "Probabilistic early expiry: instead of expiring at TTL, expire with probability p = exp(-β * t_remaining) as the key approaches expiry. The first cache client to 'early-expire' recomputes while others still serve the old value, eliminating the stampede. The XFetch algorithm implements this. For high-read caches, consider hot-key replication: write the same value to key:0 through key:9 and read from a random shard."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,22 +37,85 @@
     },
     {
       "type": "paragraph",
-      "text": "The most common caching pattern. The application checks Redis first; on a miss it loads from the database and writes to Redis."
+      "text": "The most common pattern. The application is responsible for populating the cache: check Redis first, fetch from the DB on a miss, and store the result in Redis for future requests."
     },
     {
       "type": "code",
       "lang": "javascript",
       "filename": "cache-aside.js",
-      "code": "async function getUser(id) {\n  const cached = await redis.get(`user:${id}`);\n  if (cached) return JSON.parse(cached);\n\n  const user = await db.users.findById(id);\n  await redis.set(`user:${id}`, JSON.stringify(user), \"EX\", 300);\n  return user;\n}"
+      "code": "async function getUser(id) {\n  const key = `user:${id}`;\n\n  // 1. Check cache\n  const cached = await redis.get(key);\n  if (cached) {\n    return JSON.parse(cached);  // cache HIT\n  }\n\n  // 2. Cache MISS — load from database\n  const user = await db.users.findById(id);\n  if (!user) return null;\n\n  // 3. Populate cache with TTL\n  await redis.set(key, JSON.stringify(user), 'EX', 300);  // 5 minutes\n\n  return user;\n}"
     },
     {
       "type": "definition",
       "term": "Cache Miss",
-      "definition": "When the requested data is not in the cache and must be fetched from the source."
+      "definition": "When the requested data is not in the cache and must be fetched from the original source (database, API, or computed). A miss triggers cache population."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Write-Through"
+    },
+    {
+      "type": "paragraph",
+      "text": "Every write to the database <strong>also</strong> writes to the cache synchronously. The cache is always up to date, but writes are slower (two writes instead of one)."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "write-through.js",
+      "code": "async function updateUser(id, data) {\n  // 1. Write to database (source of truth)\n  const updated = await db.users.update(id, data);\n\n  // 2. Write to cache simultaneously\n  await redis.set(`user:${id}`, JSON.stringify(updated), 'EX', 300);\n\n  return updated;\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cache Invalidation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Instead of write-through, some patterns simply <strong>invalidate</strong> (delete) the cached entry on update. The next read will trigger a fresh cache-aside fetch."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "invalidation.js",
+      "code": "async function updateUser(id, data) {\n  // Update DB\n  const updated = await db.users.update(id, data);\n\n  // Invalidate cache — next read will be a miss and re-populate\n  await redis.del(`user:${id}`);\n\n  return updated;\n}\n\n// For related cache entries, use a pattern\nasync function invalidateUserCaches(id) {\n  // Pipeline multiple deletes\n  const pipeline = redis.pipeline();\n  pipeline.del(`user:${id}`);\n  pipeline.del(`user:${id}:profile`);\n  pipeline.del(`user:${id}:permissions`);\n  await pipeline.exec();\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Cache Stampede Prevention"
+    },
+    {
+      "type": "paragraph",
+      "text": "When a popular cache entry expires, hundreds of requests simultaneously miss and all hit the database at once. This is a <strong>cache stampede</strong> (thundering herd). Prevent it with a distributed lock."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "stampede-prevention.js",
+      "code": "async function getWithLock(key, ttl, fetchFn) {\n  // Check cache\n  const cached = await redis.get(key);\n  if (cached) return JSON.parse(cached);\n\n  // Try to acquire lock\n  const lockKey = `lock:${key}`;\n  const acquired = await redis.set(lockKey, '1', 'NX', 'EX', 10);\n\n  if (!acquired) {\n    // Another worker is recomputing — wait and retry\n    await new Promise(r => setTimeout(r, 100));\n    return getWithLock(key, ttl, fetchFn);\n  }\n\n  try {\n    // Recheck cache after acquiring lock\n    const rechecked = await redis.get(key);\n    if (rechecked) return JSON.parse(rechecked);\n\n    const value = await fetchFn();\n    await redis.set(key, JSON.stringify(value), 'EX', ttl);\n    return value;\n  } finally {\n    await redis.del(lockKey);\n  }\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "Cache-Aside vs Write-Through",
+      "a": {
+        "name": "Cache-Aside",
+        "description": "App populates cache on miss",
+        "strengths": ["Simple to implement", "Only caches data that is actually read", "DB failure on write doesn't corrupt cache"],
+        "weaknesses": ["Cache is stale until TTL expires or invalidated", "First request after expiry is slow (miss)", "Cache stampede risk"],
+        "useWhen": "Most read-heavy applications with tolerable brief staleness"
+      },
+      "b": {
+        "name": "Write-Through",
+        "description": "Cache updated on every write",
+        "strengths": ["Cache is always up to date", "No stale reads", "No stampede on writes"],
+        "weaknesses": ["Double write latency", "Caches data that may never be read (write waste)", "Cache and DB must succeed atomically"],
+        "useWhen": "When data consistency is critical and write latency is acceptable"
+      }
     },
     {
       "type": "tip",
-      "text": "Always set a TTL on cached values to prevent stale data."
+      "text": "Always set a TTL on cached values. Without a TTL, stale data lives forever and memory fills up. A TTL of 5 minutes is a safe default for most application caches."
     },
     {
       "type": "quiz",
@@ -46,14 +124,35 @@
           "id": "q1",
           "question": "In cache-aside, who is responsible for populating the cache?",
           "type": "multiple-choice",
-          "options": [
-            "The database",
-            "The cache itself",
-            "The application",
-            "A background job"
-          ],
+          "options": ["The database", "The cache itself", "The application", "A background job"],
           "correctAnswer": 2,
-          "explanation": "In cache-aside, the application populates the cache on a cache miss."
+          "explanation": "In cache-aside, the application populates the cache when a miss occurs. The cache never talks to the database directly."
+        },
+        {
+          "id": "q2",
+          "question": "What is a cache stampede?",
+          "type": "multiple-choice",
+          "options": [
+            "When Redis runs out of memory",
+            "When many concurrent requests all miss the cache and hit the database simultaneously",
+            "When cache keys have no TTL",
+            "When the write-through pattern is used"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A cache stampede (thundering herd) happens when a popular key expires and many concurrent requests all go to the database at once before any can re-populate the cache."
+        },
+        {
+          "id": "q3",
+          "question": "What is the main disadvantage of write-through caching?",
+          "type": "multiple-choice",
+          "options": [
+            "Cache may be stale",
+            "Every write has double latency (DB + cache)",
+            "It requires Redis Cluster",
+            "It doesn't work with TTL"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Write-through writes to both the cache and database on every mutation, increasing write latency. It trades write performance for read consistency."
         }
       ]
     }
@@ -61,23 +160,26 @@
   "faq": [
     {
       "q": "What is cache stampede?",
-      "a": "When many requests all miss the cache simultaneously and all hit the database at once. Use a mutex or probabilistic early expiry to prevent it."
+      "a": "When many requests all miss the cache simultaneously and all hit the database at once. Prevent with a distributed mutex (SETNX), probabilistic early expiry, or background refresh."
+    },
+    {
+      "q": "How do I handle cache aside when the DB query is expensive?",
+      "a": "Use a distributed lock (SETNX) so only one request recomputes while others wait. This is the 'read-through with locking' pattern."
+    },
+    {
+      "q": "Should I cache null values?",
+      "a": "Yes — cache a sentinel value (e.g. empty string or 'NULL') with a short TTL to prevent repeated DB hits for non-existent entities. This is called 'negative caching'."
     }
   ],
   "sources": [
-    {
-      "name": "Caching Patterns",
-      "url": "https://redis.io/docs/manual/patterns/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Caching Patterns", "url": "https://redis.io/docs/manual/patterns/", "verified": "2026-11-04" },
+    { "name": "Cache Stampede Prevention", "url": "https://redis.io/docs/manual/patterns/distributed-locks/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "API caching",
-      "database query caching"
-    ],
+    "usedIn": ["API response caching", "database query caching", "computed result caching"],
     "examples": [
-      "Caching product details for 5 minutes"
+      "Caching product details for 5 minutes reduced PostgreSQL CPU by 70%",
+      "Cache-aside with stampede lock prevented DB overload during traffic spikes"
     ]
   }
 }

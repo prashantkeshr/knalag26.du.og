@@ -1,34 +1,133 @@
 {
   "id": "02-data-types",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-basics",
   "title": "Redis Data Types",
   "subtitle": "Strings, lists, sets, sorted sets, hashes, and bitmaps",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.basics"
-  ],
-  "skillsTaught": [
-    "redis.data-types"
-  ],
+  "prerequisites": ["redis.basics"],
+  "skillsTaught": ["redis.data-types"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "If Redis only stored strings, developers would serialize everything to JSON, losing type-specific operations like atomic increments, set intersections, or range queries.",
+    "solution": "Redis provides native data structures — lists, sets, sorted sets, hashes — with commands that operate on them atomically. This means your data model maps directly to Redis without custom code.",
+    "whenToUse": "Pick the data type that matches your access pattern: hash for objects, list for queues, sorted set for rankings, set for membership, string for counters/cache.",
+    "whenNotToUse": "If you need relational joins or complex queries across data, Redis data types are not a substitute for a relational database."
+  },
+  "explainModes": {
+    "beginner": "Redis has different kinds of boxes for different kinds of things. A string box holds one value, a list box holds items in order, a set box holds unique items, and so on.",
+    "simple": "Instead of just key → string, Redis lets you store richer structures: a hash is like a mini-object, a list is like an array, a set is like a unique collection, and a sorted set ranks items by score.",
+    "standard": "Redis supports six core data types: Strings (bytes), Lists (linked lists), Sets (unordered unique strings), Sorted Sets (scored members), Hashes (field-value maps), and Streams (append-only logs). Each type has atomic commands optimized for its structure.",
+    "technical": "Redis strings are binary-safe byte arrays (up to 512 MB). Lists use a quicklist (packed linked list of zip lists). Sets use a hash table or intset for small sets. Sorted sets use a skip list + hash table. Hashes use a listpack (formerly ziplist) for small sizes, then a hash table. These encoding optimizations minimize memory footprint.",
+    "deepDive": "Redis selects encodings dynamically. A list with ≤128 elements of ≤64 bytes each uses OBJ_ENCODING_LISTPACK (compact sequence); beyond that it converts to OBJ_ENCODING_QUICKLIST. Sorted sets with ≤128 members use listpack; larger ones use skiplist+dict. These thresholds are configurable via zset-max-listpack-entries, hash-max-listpack-entries, etc. in redis.conf."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Core Data Types"
+      "text": "The Six Core Data Types"
     },
     {
       "type": "paragraph",
-      "text": "Redis is not just a string cache. It supports rich data structures that map to common programming patterns."
+      "text": "Redis is not just a string cache. It supports <strong>six native data structures</strong> with dedicated commands. Choosing the right type for your use case is the most important Redis design decision."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>String</strong> — bytes, integers, floats. Up to 512 MB per value",
+        "<strong>List</strong> — ordered sequence, O(1) push/pop from both ends",
+        "<strong>Set</strong> — unordered collection of unique strings",
+        "<strong>Sorted Set (ZSet)</strong> — set where every member has a floating-point score",
+        "<strong>Hash</strong> — a field-value map (like a mini-document)",
+        "<strong>Stream</strong> — append-only log of messages with consumer groups"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Strings"
+    },
+    {
+      "type": "paragraph",
+      "text": "Strings are the simplest type — a key maps to a binary-safe byte sequence. Use them for caching, counters, and flags."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# String\nSET user:1:name \"Alice\"\nGET user:1:name\n\n# Hash (like a mini-document)\nHSET user:1 name \"Alice\" age 30\nHGETALL user:1\n\n# List\nRPUSH queue task1 task2 task3\nLPOP queue\n\n# Set\nSADD tags \"redis\" \"cache\"\nSMEMBERS tags\n\n# Sorted Set\nZADD leaderboard 100 \"alice\" 200 \"bob\"\nZRANGE leaderboard 0 -1 WITHSCORES"
+      "filename": "strings.sh",
+      "code": "SET user:1:name \"Alice\"\nGET user:1:name\n# \"Alice\"\n\n# Atomic counter\nSET page:views 0\nINCR page:views    # 1\nINCRBY page:views 5  # 6\n\n# String with expiry (cache)\nSET cache:homepage \"<html>...\" EX 300  # 5-minute cache\n\n# Set only if not exists (mutex / lock)\nSET lock:resource1 \"locked\" NX EX 30  # returns OK or nil"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lists"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lists are ordered sequences with O(1) push and pop at both ends — ideal for <strong>queues</strong> (RPUSH + BLPOP) and <strong>stacks</strong> (LPUSH + LPOP)."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "lists.sh",
+      "code": "# Queue: enqueue at right, dequeue at left\nRPUSH jobs \"send-email\" \"resize-image\" \"notify-user\"\nLPOP jobs   # \"send-email\"\n\n# View without removing\nLRANGE jobs 0 -1  # all items\n\n# Blocking pop (worker waits for work)\nBLPOP jobs 30     # blocks up to 30 seconds\n\n# Trim to last 100 items\nLTRIM activity 0 99"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sets and Sorted Sets"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "sets.sh",
+      "code": "# Set — unique members\nSADD tags \"redis\" \"cache\" \"nosql\"\nSISMEMBER tags \"redis\"  # 1 (true)\nSMEMBERS tags           # all tags\n\n# Set operations\nSADD user:1:friends \"alice\" \"bob\"\nSADD user:2:friends \"bob\" \"carol\"\nSINTER user:1:friends user:2:friends  # common: \"bob\"\nSUNION user:1:friends user:2:friends  # all: alice, bob, carol\n\n# Sorted Set — members ranked by score\nZADD leaderboard 1500 \"alice\" 2000 \"bob\" 1800 \"carol\"\nZRANGE leaderboard 0 -1 WITHSCORES REV  # top to bottom\nZRANK leaderboard \"alice\"  # 2 (0-indexed from low to high)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hashes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Hashes store field-value pairs under one key — like a mini-object. More memory-efficient than storing each field as a separate string key."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "hashes.sh",
+      "code": "# Store a user object\nHSET user:1 name \"Alice\" email \"alice@example.com\" age 30\n\n# Get specific fields\nHGET user:1 name         # \"Alice\"\nHMGET user:1 name email  # [\"Alice\", \"alice@example.com\"]\nHGETALL user:1           # all fields\n\n# Atomic increment of a field\nHINCRBY user:1 loginCount 1\n\n# Check field existence\nHEXISTS user:1 email  # 1"
+    },
+    {
+      "type": "comparison",
+      "title": "Hash vs Separate String Keys",
+      "a": {
+        "name": "Hash (HSET user:1 name Alice age 30)",
+        "description": "One key, multiple fields",
+        "strengths": ["Fewer keys in keyspace", "Get/set multiple fields atomically", "Memory-efficient for small objects"],
+        "weaknesses": ["Cannot set TTL per field", "Can't search by field value"],
+        "useWhen": "Storing objects with known fields (user profile, product, session)"
+      },
+      "b": {
+        "name": "Separate strings (SET user:1:name Alice)",
+        "description": "One key per field",
+        "strengths": ["TTL per field", "Simple to reason about"],
+        "weaknesses": ["More keys in keyspace", "More round-trips to get multiple fields"],
+        "useWhen": "Fields need independent expiry or independent access"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Pick the data type that matches your read pattern. If you need to read the whole object, use a hash. If you need to do range queries by score, use a sorted set."
     },
     {
       "type": "quiz",
@@ -37,14 +136,30 @@
           "id": "q1",
           "question": "Which Redis type maintains elements in order by score?",
           "type": "multiple-choice",
-          "options": [
-            "Set",
-            "List",
-            "Hash",
-            "Sorted Set"
-          ],
+          "options": ["Set", "List", "Hash", "Sorted Set"],
           "correctAnswer": 3,
-          "explanation": "Sorted Sets store members with a floating-point score and keep them ordered."
+          "explanation": "Sorted Sets store members with a floating-point score and always return them in score order."
+        },
+        {
+          "id": "q2",
+          "question": "You want to implement a first-in-first-out (FIFO) job queue. Which Redis commands should you use?",
+          "type": "multiple-choice",
+          "options": [
+            "SADD to enqueue, SPOP to dequeue",
+            "RPUSH to enqueue, BLPOP to dequeue",
+            "ZADD to enqueue, ZPOPMIN to dequeue",
+            "HSET to enqueue, HDEL to dequeue"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RPUSH adds to the right (tail) and BLPOP removes from the left (head), giving FIFO order. BLPOP also blocks workers waiting for jobs."
+        },
+        {
+          "id": "q3",
+          "question": "What is the maximum size of a Redis string value?",
+          "type": "multiple-choice",
+          "options": ["64 KB", "1 MB", "512 MB", "Unlimited"],
+          "correctAnswer": 2,
+          "explanation": "Redis string values can be up to 512 MB. In practice, store large blobs in object storage and cache only references."
         }
       ]
     }
@@ -52,24 +167,26 @@
   "faq": [
     {
       "q": "What is the maximum size of a Redis string?",
-      "a": "512 MB per string value."
+      "a": "512 MB per string value. In practice, keep values small — large values increase serialization cost and network transfer time."
+    },
+    {
+      "q": "Can I expire individual fields in a hash?",
+      "a": "No. TTL is set on the key, not individual fields. If you need per-field expiry, use separate string keys instead."
+    },
+    {
+      "q": "When should I use a List vs a Stream?",
+      "a": "Use a List for simple FIFO queues where messages are consumed once. Use Streams when you need message history, consumer groups, or the ability to replay messages."
     }
   ],
   "sources": [
-    {
-      "name": "Data Types",
-      "url": "https://redis.io/docs/data-types/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Data Types", "url": "https://redis.io/docs/data-types/", "verified": "2026-11-04" },
+    { "name": "Redis Data Structures Tutorial", "url": "https://redis.io/docs/data-types/tutorial/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "queues",
-      "leaderboards",
-      "tags"
-    ],
+    "usedIn": ["queues (Sidekiq uses Redis Lists)", "leaderboards (gaming apps)", "social graphs (Sets for followers)", "rate limiters (sorted set timestamps)"],
     "examples": [
-      "Building a job queue with Redis Lists"
+      "Sidekiq (Ruby background jobs) uses Redis Lists as the queue backbone",
+      "Gaming leaderboards use Sorted Sets to rank millions of players in O(log N)"
     ]
   }
 }

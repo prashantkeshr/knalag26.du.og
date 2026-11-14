@@ -1,83 +1,184 @@
 {
   "id": "04-arduino-setup",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino IDE 2.3+",
   "technology": "embedded",
   "module": "arduino",
   "title": "Getting Started with Arduino",
-  "subtitle": "IDE, sketch structure, and uploading code",
+  "subtitle": "IDE, sketch structure, uploading code, and non-blocking timing",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.gpio"
-  ],
-  "skillsTaught": [
-    "embedded.arduino-setup"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.gpio"],
+  "skillsTaught": ["embedded.arduino-setup"],
+  "whyItExists": {
+    "problem": "Writing embedded C/C++ from scratch requires setting up toolchains, linker scripts, and startup code. Beginners need a simpler on-ramp that hides that complexity without limiting what they can eventually build.",
+    "solution": "Arduino provides a beginner-friendly IDE, a cross-platform C++ wrapper (the Wire/Serial/Digital APIs), and one-click compile & upload — letting you focus on the application logic rather than toolchain setup.",
+    "whenToUse": "Prototyping, learning embedded, quick one-off projects, and any time the Arduino library ecosystem covers your needs.",
+    "whenNotToUse": "Mass-production or complex multi-task firmware where you need PlatformIO, bare-metal HAL drivers, or a proper RTOS."
+  },
+  "explainModes": {
+    "beginner": "Arduino is like a template for embedded programs. Every sketch has two boxes: setup() runs once when you plug it in, and loop() runs over and over forever. You write your code inside those boxes and click Upload to send it to the board.",
+    "simple": "An Arduino sketch is a C++ program with a simplified API. setup() initialises hardware once; loop() is an infinite while(true) loop. The IDE compiles your sketch to machine code and uploads it via USB. delay() pauses execution for milliseconds.",
+    "standard": "Arduino wraps avr-gcc / arm-gcc compilation, linking against the Arduino core library. main() is hidden — it calls setup() once, then loops calling loop() forever. Libraries are installed via the Library Manager and included with #include.",
+    "technical": "The Arduino build system invokes avr-g++ with -mmcu=atmega328p -DF_CPU=16000000UL -Os. The core provides digital/analog I/O via PORT register writes wrapped in digitalWrite() etc. HardwareSerial uses UART interrupt buffers; delay() uses Timer0 overflow counting millis().",
+    "deepDive": "The linker script places .text in flash at 0x0000, .data at SRAM start (copied from flash by startup code), .bss zeroed by startup code. The vector table occupies the first 52 bytes. F() macro uses __FlashStringHelper to prevent SRAM copying of string literals. PlatformIO offers the same toolchain with CMake-style project management, library dependency resolution, and unit testing."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "The Arduino Sketch"
+      "text": "The Arduino IDE and Sketch Structure"
     },
     {
       "type": "paragraph",
-      "text": "Every Arduino program (sketch) has two functions: setup() runs once at start; loop() runs continuously."
+      "text": "Every Arduino program is called a <strong>sketch</strong> (file extension <code>.ino</code>). The structure is rigid: two mandatory functions — <code>setup()</code> and <code>loop()</code>. Install Arduino IDE 2 from arduino.cc, select your board (Tools → Board → Arduino Uno), select your COM port, and click the Upload arrow."
     },
     {
       "type": "code",
       "lang": "cpp",
       "filename": "blink.ino",
-      "code": "// Classic Blink sketch\nconst int LED = 13;  // built-in LED\n\nvoid setup() {\n  pinMode(LED, OUTPUT);\n  Serial.begin(9600);  // open serial port for debug\n  Serial.println(\"Arduino ready!\");\n}\n\nvoid loop() {\n  digitalWrite(LED, HIGH);\n  Serial.println(\"LED on\");\n  delay(1000);\n\n  digitalWrite(LED, LOW);\n  Serial.println(\"LED off\");\n  delay(1000);\n}"
+      "code": "// Classic Blink — the Hello World of embedded systems\n// Works on Arduino Uno, Nano, Mega, ESP32, and most others\n\nconst int LED = 13;  // built-in LED on most Arduino boards\n\nvoid setup() {\n  // Called ONCE at power-on or after reset\n  pinMode(LED, OUTPUT);\n  Serial.begin(115200);  // open serial port at 115200 baud\n  Serial.println(F(\"Blink sketch started!\"));\n  // F() stores the string in flash instead of SRAM\n}\n\nvoid loop() {\n  // Called CONTINUOUSLY, forever\n  digitalWrite(LED, HIGH);         // 5V on pin\n  Serial.println(F(\"LED ON\"));\n  delay(1000);                     // pause 1000 ms\n\n  digitalWrite(LED, LOW);          // 0V on pin\n  Serial.println(F(\"LED OFF\"));\n  delay(1000);\n}"
     },
     {
-      "type": "definition",
-      "term": "Sketch",
-      "definition": "An Arduino program. Equivalent to a C++ file with the .ino extension."
+      "type": "heading",
+      "level": 2,
+      "text": "Installing Libraries"
+    },
+    {
+      "type": "paragraph",
+      "text": "Libraries extend Arduino with ready-made drivers for sensors, displays, and protocols. Install them via the <strong>Library Manager</strong> (Sketch → Include Library → Manage Libraries) or by placing a folder in your Arduino libraries directory. After installing, include with <code>#include &lt;LibraryName.h&gt;</code>."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "library_example.ino",
+      "code": "// Example: using the DHT sensor library\n// 1. Install: Tools → Library Manager → search \"DHT sensor library\" by Adafruit\n#include <DHT.h>\n\n#define DHT_PIN  4\n#define DHT_TYPE DHT22\nDHT dht(DHT_PIN, DHT_TYPE);\n\nvoid setup() {\n  Serial.begin(115200);\n  dht.begin();\n  Serial.println(F(\"DHT22 sensor initialised\"));\n}\n\nvoid loop() {\n  float humidity    = dht.readHumidity();\n  float temperature = dht.readTemperature();\n\n  if (isnan(humidity) || isnan(temperature)) {\n    Serial.println(F(\"Failed to read from DHT sensor!\"));\n    return;\n  }\n\n  Serial.print(F(\"Temp: \"));\n  Serial.print(temperature);\n  Serial.print(F(\"°C  Humidity: \"));\n  Serial.print(humidity);\n  Serial.println(F(\"%\"));\n  delay(2000);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Non-Blocking Timing with millis()"
+    },
+    {
+      "type": "paragraph",
+      "text": "<code>delay()</code> blocks everything — no sensor readings, no button checks, no serial data. For anything beyond the simplest blink, use <code>millis()</code> (milliseconds since boot) to track elapsed time without halting the program."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "millis_blink.ino",
+      "code": "const int LED_PIN = 13;\nconst long INTERVAL = 1000;  // ms between toggles\n\nunsigned long lastToggle = 0;\nbool ledState = false;\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  Serial.begin(115200);\n}\n\nvoid loop() {\n  unsigned long now = millis();\n\n  // Check if 1000ms has passed since last toggle\n  if (now - lastToggle >= INTERVAL) {\n    lastToggle = now;\n    ledState = !ledState;\n    digitalWrite(LED_PIN, ledState);\n    Serial.print(F(\"LED: \")); Serial.println(ledState ? F(\"ON\") : F(\"OFF\"));\n  }\n\n  // Other code here runs EVERY loop iteration\n  // — no blocking!\n}"
     },
     {
       "type": "tip",
-      "text": "Avoid delay() in production sketches — it blocks everything. Use millis() for non-blocking timing instead."
+      "text": "Avoid delay() in production sketches — it blocks everything for the duration. Use the millis() pattern above to run multiple tasks 'simultaneously'. The same pattern works for debouncing, sensor polling, and heartbeat LEDs."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Serial Monitor Debugging"
+    },
+    {
+      "type": "paragraph",
+      "text": "Arduino's <strong>Serial Monitor</strong> (Ctrl+Shift+M) is your primary debugging tool. It shows messages sent via <code>Serial.print()</code> and lets you send commands from your PC. Always ensure the Serial Monitor baud rate matches <code>Serial.begin()</code> — a mismatch shows garbled characters."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "serial_debug.ino",
+      "code": "void setup() {\n  Serial.begin(115200);           // set baud rate\n  while (!Serial) delay(10);     // wait for USB serial on Leonardo/Micro\n  Serial.println(F(\"=== Debug mode ===\"));\n}\n\nvoid loop() {\n  // Print multiple values on one line\n  Serial.print(F(\"A0=\")); Serial.print(analogRead(A0));\n  Serial.print(F(\" A1=\")); Serial.print(analogRead(A1));\n  Serial.print(F(\" uptime=\")); Serial.print(millis() / 1000);\n  Serial.println(F(\"s\"));\n\n  // Read command from Serial Monitor\n  if (Serial.available()) {\n    char c = Serial.read();\n    if (c == 'r') {               // type 'r' to reset\n      Serial.println(F(\"Resetting...\"));\n      asm volatile (\"jmp 0\");    // soft reset AVR\n    }\n  }\n  delay(500);\n}"
+    },
+    {
+      "type": "warning",
+      "text": "On Arduino Uno, pins 0 (RX) and 1 (TX) are shared with USB serial. Using them for other hardware while also using Serial.print() will corrupt both. Reserve pins 0/1 for USB debug; use SoftwareSerial on other pins for additional serial devices."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "How many times does setup() run?",
+          "question": "How many times does setup() run in a typical Arduino sketch?",
           "type": "multiple-choice",
           "options": [
             "Once per loop iteration",
-            "Once at startup",
-            "Continuously",
-            "Never"
+            "Once at power-on or after each reset",
+            "Continuously in an internal loop",
+            "Only when Serial is available"
           ],
           "correctAnswer": 1,
-          "explanation": "setup() runs exactly once when the Arduino powers on or resets."
+          "explanation": "setup() runs exactly once at power-on or after a reset. All hardware initialisation goes here. loop() then runs continuously."
+        },
+        {
+          "id": "q2",
+          "question": "Why should you prefer millis() over delay() in production code?",
+          "type": "multiple-choice",
+          "options": [
+            "millis() is more accurate for timing",
+            "delay() uses more power",
+            "delay() blocks all processing; millis() lets you do other work between events",
+            "millis() works on more boards"
+          ],
+          "correctAnswer": 2,
+          "explanation": "delay() freezes the CPU — no button reads, no sensor samples, no serial data processed. millis() checks elapsed time without blocking, enabling multiple independent timed tasks in one loop."
+        },
+        {
+          "id": "q3",
+          "question": "What does the F() macro do?",
+          "type": "multiple-choice",
+          "options": [
+            "Formats floating-point numbers with 2 decimal places",
+            "Stores string literals in flash memory instead of SRAM",
+            "Marks a function as fast-call",
+            "Converts an integer to a float"
+          ],
+          "correctAnswer": 1,
+          "explanation": "F(\"string\") stores the string literal in flash (program memory) instead of copying it to precious SRAM. Essential on 2 KB SRAM Arduino Uno to avoid running out of RAM with many strings."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "Can I write Arduino code in C++?",
-      "a": "Yes. Arduino sketches are essentially C++ with a wrapper. You can use all C++ features and standard libraries."
+      "q": "Can I write Arduino code in pure C++ without the .ino wrapper?",
+      "a": "Yes. Arduino sketches compile as C++. You can use all C++ features, STL (carefully — SRAM is limited), templates, classes, and namespaces. The .ino extension just means the IDE auto-adds #include <Arduino.h>."
+    },
+    {
+      "q": "What is PlatformIO and when should I use it instead of the Arduino IDE?",
+      "a": "PlatformIO is a professional IDE extension (VS Code) for embedded development. It supports 1000+ boards, dependency management (like npm for Arduino libraries), unit testing, and CI/CD. Use it for any project larger than a weekend prototype."
+    },
+    {
+      "q": "My millis() wraps around after 49 days — will that break my code?",
+      "a": "Only if you use ==, >, or < comparisons. The pattern `if (now - lastEvent >= interval)` is rollover-safe because unsigned subtraction handles the wrap correctly. Never compare with ==; always use >=."
     }
   ],
   "sources": [
     {
+      "name": "Arduino Reference — millis()",
+      "url": "https://www.arduino.cc/reference/en/language/functions/time/millis/",
+      "verified": "2026-11-12"
+    },
+    {
       "name": "Arduino Getting Started",
       "url": "https://www.arduino.cc/en/Guide/HomePage",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "prototyping",
-      "learning embedded"
+      "Rapid prototyping for hardware startups",
+      "Educational lab exercises (university + hobbyist)",
+      "One-off automation tools and test fixtures"
     ],
     "examples": [
-      "Uploading a Blink sketch as a first Arduino program"
+      "Using millis() to simultaneously blink an LED and poll a button without any blocking",
+      "Installing the DHT22 library via Library Manager and reading temperature in under 10 minutes"
     ]
   }
 }

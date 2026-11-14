@@ -1,19 +1,31 @@
 {
   "id": "05-classification",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "supervised-learning",
   "title": "Classification",
   "subtitle": "Logistic regression, decision boundaries, and class probabilities",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.regression"
-  ],
-  "skillsTaught": [
-    "ml.classification"
-  ],
+  "prerequisites": ["ml.regression"],
+  "skillsTaught": ["ml.classification", "ml.logistic-regression", "ml.class-imbalance"],
+  "whyItExists": {
+    "problem": "Many decisions are discrete: is this email spam or not? Will this customer churn? Is this tumour malignant? Linear regression outputs a number; we need a model that outputs a category.",
+    "solution": "Classification algorithms learn a decision boundary that separates classes. Logistic regression models the probability of belonging to each class and applies a threshold to produce a label.",
+    "whenToUse": "When the target is a category (binary or multi-class) and you need to either assign labels or estimate class probabilities.",
+    "whenNotToUse": "When the target is a continuous number (use regression) or when ordinal ranking matters more than class membership."
+  },
+  "explainModes": {
+    "beginner": "Classification teaches a computer to sort things into buckets. Show it thousands of emails labelled 'spam' or 'not spam'. It learns which words and patterns mark spam, and can sort new emails correctly.",
+    "simple": "Instead of predicting a number, classification predicts a category. Logistic regression first calculates a score (like linear regression), then squashes it to a probability between 0 and 1. If probability > 0.5, predict class 1.",
+    "standard": "Logistic regression applies the sigmoid function σ(z) to a linear combination of features, outputting P(y=1|x). The model is trained by minimising log-loss (binary cross-entropy). A threshold converts probability to class label.",
+    "technical": "Logistic regression maximises the conditional likelihood P(y|X;θ) via gradient descent on the cross-entropy loss. The decision boundary is the hyperplane where P(y=1|x)=0.5. The threshold can be adjusted to trade precision vs recall.",
+    "deepDive": "Logistic regression is a generalised linear model with Bernoulli likelihood and logit link function. The optimal threshold under different misclassification costs is found via the ROC curve. For multi-class targets, one-vs-rest or softmax (multinomial) extensions apply."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +34,67 @@
     },
     {
       "type": "paragraph",
-      "text": "Classification predicts a discrete label (spam/not-spam, cat/dog). Logistic regression outputs a probability that is thresholded to produce a class."
+      "text": "<strong>Classification</strong> predicts a discrete label (spam/not-spam, cat/dog, disease/healthy). <strong>Regression</strong> predicts a continuous number. The key difference: classification boundaries divide the feature space into regions; regression fits a continuous surface."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Logistic Regression"
+    },
+    {
+      "type": "paragraph",
+      "text": "Despite the name, logistic regression is a <strong>classifier</strong>. It computes a linear combination of features, passes it through the sigmoid function to get a probability, then applies a threshold (default 0.5) to assign a class label."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "classify.py",
-      "code": "from sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import classification_report\n\nmodel = LogisticRegression(max_iter=1000)\nmodel.fit(X_train, y_train)\n\npreds = model.predict(X_test)\nprobs = model.predict_proba(X_test)[:, 1]  # probability of class 1\n\nprint(classification_report(y_test, preds))"
+      "filename": "logistic_regression.py",
+      "code": "from sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import classification_report, confusion_matrix\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import StandardScaler\nimport numpy as np\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,\n                                                    stratify=y, random_state=42)\nscaler = StandardScaler()\nX_train_sc = scaler.fit_transform(X_train)\nX_test_sc  = scaler.transform(X_test)\n\nmodel = LogisticRegression(max_iter=1000, C=1.0)\nmodel.fit(X_train_sc, y_train)\n\npreds = model.predict(X_test_sc)\nprobs = model.predict_proba(X_test_sc)[:, 1]   # probability of class 1\n\nprint(classification_report(y_test, preds))\nprint(confusion_matrix(y_test, preds))"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Understanding the Confusion Matrix"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "confusion_matrix.py",
+      "code": "from sklearn.metrics import ConfusionMatrixDisplay\nimport matplotlib.pyplot as plt\n\n# confusion matrix: rows = actual, cols = predicted\n#               Predicted 0   Predicted 1\n# Actual 0      TN             FP\n# Actual 1      FN             TP\n\ncm = confusion_matrix(y_test, preds)\nTN, FP, FN, TP = cm.ravel()\n\nprint(f'True Positives:  {TP}  (correctly identified positives)')\nprint(f'True Negatives:  {TN}  (correctly identified negatives)')\nprint(f'False Positives: {FP}  (false alarms)')\nprint(f'False Negatives: {FN}  (missed positives)')\n\n# Visualise\nfig, ax = plt.subplots()\nConfusionMatrixDisplay(cm).plot(ax=ax)\nplt.show()"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Adjusting the Decision Threshold"
+    },
+    {
+      "type": "paragraph",
+      "text": "The default threshold of 0.5 is not always optimal. In fraud detection, you want to catch more fraud (high recall) even if it means more false alarms. In medical screening, you must minimise missed cases. Adjust the threshold based on the relative cost of false positives vs false negatives."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "threshold.py",
+      "code": "import numpy as np\nfrom sklearn.metrics import precision_recall_curve\n\n# Try different thresholds\nfor threshold in [0.3, 0.4, 0.5, 0.6, 0.7]:\n    preds_at_t = (probs >= threshold).astype(int)\n    tp = ((preds_at_t == 1) & (y_test == 1)).sum()\n    fp = ((preds_at_t == 1) & (y_test == 0)).sum()\n    fn = ((preds_at_t == 0) & (y_test == 1)).sum()\n    precision = tp / (tp + fp + 1e-9)\n    recall    = tp / (tp + fn + 1e-9)\n    print(f'Threshold {threshold:.1f}: Precision={precision:.3f} Recall={recall:.3f}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Handling Class Imbalance"
+    },
+    {
+      "type": "paragraph",
+      "text": "When one class is rare (e.g., 1% fraud in a dataset), a model that predicts 'not fraud' every time achieves 99% accuracy but is useless. Use <code>class_weight='balanced'</code> to give the minority class more influence during training."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "imbalance.py",
+      "code": "from sklearn.linear_model import LogisticRegression\nfrom imblearn.over_sampling import SMOTE\n\n# Option 1: class_weight='balanced' (simplest)\nmodel = LogisticRegression(class_weight='balanced', max_iter=1000)\nmodel.fit(X_train_sc, y_train)\n\n# Option 2: SMOTE oversampling (synthesises minority class examples)\nsmote = SMOTE(random_state=42)\nX_res, y_res = smote.fit_resample(X_train_sc, y_train)\nmodel.fit(X_res, y_res)"
     },
     {
       "type": "tip",
-      "text": "Adjust the classification threshold (default 0.5) based on the cost of false positives vs false negatives."
+      "text": "On imbalanced datasets, accuracy is a misleading metric. Use precision, recall, F1, or AUC-ROC instead. These metrics measure how well you find the minority class."
     },
     {
       "type": "quiz",
@@ -48,7 +110,33 @@
             "A cluster assignment"
           ],
           "correctAnswer": 1,
-          "explanation": "Logistic regression outputs a probability; the class label is determined by a threshold (usually 0.5)."
+          "explanation": "Logistic regression applies the sigmoid function to a linear combination of features, outputting a probability. The class label is then assigned by applying a threshold (default 0.5)."
+        },
+        {
+          "id": "q2",
+          "question": "In a fraud detection model, you get a False Negative. What does this mean?",
+          "type": "multiple-choice",
+          "options": [
+            "The model correctly identified fraud",
+            "The model predicted fraud where there was none",
+            "The model missed a real fraud case",
+            "The model predicted no fraud and was correct"
+          ],
+          "correctAnswer": 2,
+          "explanation": "A False Negative (FN) means the actual label was positive (fraud) but the model predicted negative (not fraud). The model missed a real fraud case."
+        },
+        {
+          "id": "q3",
+          "question": "What is the purpose of stratifying the train-test split?",
+          "type": "multiple-choice",
+          "options": [
+            "To make the split faster",
+            "To ensure both splits have the same class distribution",
+            "To prevent data leakage",
+            "To make the model converge faster"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Stratifying ensures the same proportion of each class appears in both train and test sets, which is especially important for imbalanced datasets."
         }
       ]
     }
@@ -56,24 +144,35 @@
   "faq": [
     {
       "q": "How do I handle imbalanced classes?",
-      "a": "Use class_weight=\"balanced\" in scikit-learn, or oversample the minority class with SMOTE."
+      "a": "Use class_weight='balanced' in sklearn to give more weight to the minority class during training. For more severe imbalance, try oversampling (SMOTE) or undersampling. Always evaluate using F1, precision-recall, or AUC-ROC rather than accuracy."
+    },
+    {
+      "q": "What is the difference between binary and multi-class classification?",
+      "a": "Binary classification has two classes (spam/not-spam). Multi-class has 3+ classes (cat/dog/bird). Logistic regression handles multi-class with one-vs-rest (OvR) or softmax (multinomial) strategies — set multi_class='ovr' or 'multinomial' in sklearn."
+    },
+    {
+      "q": "What is the C parameter in LogisticRegression?",
+      "a": "C is the inverse regularisation strength (1/λ). A smaller C applies stronger regularisation (simpler model). A larger C allows the model to fit the training data more closely. Default is C=1.0. Tune with cross-validation."
     }
   ],
   "sources": [
     {
-      "name": "Logistic Regression",
+      "name": "sklearn: Logistic Regression",
       "url": "https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: Classification metrics",
+      "url": "https://scikit-learn.org/stable/modules/model_evaluation.html#classification-metrics",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "spam detection",
-      "fraud classification",
-      "medical diagnosis"
-    ],
+    "usedIn": ["spam detection", "fraud classification", "medical diagnosis", "credit scoring", "image recognition"],
     "examples": [
-      "Email spam classifier with logistic regression"
+      "Email spam classifier: logistic regression on TF-IDF word features",
+      "Fraud detection: classifying transactions with class_weight='balanced'",
+      "Tumour classification: benign vs malignant from biopsy measurements"
     ]
   }
 }

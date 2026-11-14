@@ -1,54 +1,159 @@
 {
   "id": "08-uart",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino SoftwareSerial / TinyGPS++",
   "technology": "embedded",
   "module": "protocols",
   "title": "UART Deep Dive",
-  "subtitle": "Hardware and software serial, RS-232, and GPS modules",
+  "subtitle": "Hardware and software serial, GPS modules, and RS-232",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.i2c-spi"
-  ],
-  "skillsTaught": [
-    "embedded.uart"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.i2c-spi"],
+  "skillsTaught": ["embedded.uart"],
+  "whyItExists": {
+    "problem": "Many real-world peripherals use UART as their communication interface: GPS modules, GSM/4G modems, Bluetooth serial modules (HC-05), fingerprint scanners, and industrial sensors. Without understanding UART wiring and baud rate matching, you can't use these devices.",
+    "solution": "UART is a point-to-point asynchronous serial protocol using just TX and RX wires. Understanding frame format, baud rates, flow control, and the difference between hardware vs software UART lets you connect any UART-based device reliably.",
+    "whenToUse": "Connecting GPS modules, GSM modems, Bluetooth modules (HC-05/HC-06), RFID readers, fingerprint sensors, barcode scanners, and any device with a TTL serial interface.",
+    "whenNotToUse": "Multi-device buses (use I2C or SPI). Long distances in noisy industrial environments (use RS-485, CAN bus). High-speed streaming (use USB or Ethernet)."
+  },
+  "explainModes": {
+    "beginner": "UART is the most basic way two chips talk to each other. One wire goes from TX (transmit) on one chip to RX (receive) on the other, and vice versa. They agree on a speed (baud rate) in advance and that's it — no clock wire needed.",
+    "simple": "UART sends characters one bit at a time. The TX pin is normally HIGH; to send a byte, it pulls LOW (start bit), sends 8 data bits, then goes HIGH (stop bit). Both devices must be set to the same baud rate or you'll get garbage.",
+    "standard": "UART frame: 1 start bit (LOW), 5–8 data bits (LSB first), optional parity bit (even/odd), 1–2 stop bits (HIGH). The baud rate determines bit period (e.g., 9600 baud = 104 µs/bit). Devices must be within ±3% of each other. TX of one device connects to RX of the other.",
+    "technical": "The ATmega328P USART has a 16-bit baud rate generator: UBRR = F_CPU / (16 × baud) - 1. HardwareSerial uses 64-byte ring buffers and UART_RX / UART_TX interrupts. SoftwareSerial bit-bangs timing using delayMicroseconds(), disabling global interrupts during bit reception.",
+    "deepDive": "RS-232 (DB9 connector on old PCs) uses ±12V levels — a MAX232 converts to TTL 0/5V. RS-485 (balanced differential pair) extends to 1200 metres at 100 kbps and supports 32+ devices. ModBus RTU is an industrial protocol layered on RS-485. UART with hardware flow control (RTS/CTS) prevents buffer overflow on high-throughput connections."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "UART: Universal Asynchronous Receiver-Transmitter"
+      "text": "UART: The Universal Asynchronous Receiver-Transmitter"
     },
     {
       "type": "paragraph",
-      "text": "UART is the foundation of serial communication. It uses two wires: TX (transmit) and RX (receive). Devices communicate asynchronously at a matching baud rate."
+      "text": "UART is the foundation of serial communication — simple, robust, and ubiquitous. Unlike I2C or SPI, it needs no clock wire: devices agree on a speed (baud rate) in advance and each generates its own clock. The only wires needed are <strong>TX</strong> (transmit), <strong>RX</strong> (receive), and a shared <strong>GND</strong>. Always cross-connect: TX of device A → RX of device B."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "uart-frame.txt",
+      "code": "UART Frame Format (8N1 — most common)\n───────────────────────────────────────\n  Idle  │Start│ D0 │ D1 │ D2 │ D3 │ D4 │ D5 │ D6 │ D7 │Stop│  Idle\n  HIGH  │ LOW │ b0 │ b1 │ b2 │ b3 │ b4 │ b5 │ b6 │ b7 │HIGH│  HIGH\n\n8N1 = 8 data bits, No parity, 1 stop bit\nBaud 9600 = 1 bit every 104 µs → 1 byte = 10 bits = 1.04 ms\nBaud 115200 = 1 bit every 8.7 µs → 1 byte = 86.8 µs"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hardware vs Software UART"
+    },
+    {
+      "type": "comparison",
+      "title": "Hardware UART vs SoftwareSerial",
+      "a": {
+        "name": "Hardware UART",
+        "description": "Dedicated USART peripheral in the MCU",
+        "strengths": ["Runs in background — CPU-free", "Reliable at all baud rates up to 2 Mbps", "Interrupt-driven with 64-byte buffer", "No interference with other libraries"],
+        "weaknesses": ["Limited count: Uno has 1 (pins 0/1), shared with USB", "Mega has 4, ESP32 has 3"],
+        "useWhen": "Any UART device on a board with spare hardware UART pins"
+      },
+      "b": {
+        "name": "SoftwareSerial",
+        "description": "Bit-bangs UART timing on any GPIO pins",
+        "strengths": ["Uses any two pins", "Free up hardware UART for USB debug"],
+        "weaknesses": ["Disables interrupts during receive", "Max ~115200 baud reliably", "Conflicts with Servo, DHT, encoder libs"],
+        "useWhen": "Uno with no spare hardware UART — but prefer Mega or ESP32 for multi-serial"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "GPS Module: Reading NMEA Sentences"
+    },
+    {
+      "type": "paragraph",
+      "text": "GPS modules like the <strong>Neo-6M</strong> and <strong>Neo-M8N</strong> output NMEA sentences at 9600 baud over UART. Each line starts with a sentence identifier ($GPGGA, $GPRMC) containing latitude, longitude, altitude, and time. The <code>TinyGPS++</code> library parses these automatically."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "gps.ino",
-      "code": "#include <SoftwareSerial.h>\n#include <TinyGPS++.h>\n\nSoftwareSerial gpsSerial(4, 3);  // RX, TX\nTinyGPSPlus gps;\n\nvoid setup() {\n  Serial.begin(9600);\n  gpsSerial.begin(9600);\n}\n\nvoid loop() {\n  while (gpsSerial.available())\n    gps.encode(gpsSerial.read());\n\n  if (gps.location.isUpdated()) {\n    Serial.print(\"Lat: \"); Serial.print(gps.location.lat(), 6);\n    Serial.print(\" Lng: \"); Serial.println(gps.location.lng(), 6);\n  }\n}"
+      "filename": "gps_neo6m.ino",
+      "code": "#include <SoftwareSerial.h>\n#include <TinyGPS++.h>\n// Library Manager: search \"TinyGPS++\" by Mikal Hart\n\n// Neo-6M: TX → Arduino pin 4, RX → Arduino pin 3\nSoftwareSerial gpsSerial(4, 3);  // (RX, TX)\nTinyGPSPlus gps;\n\nvoid setup() {\n  Serial.begin(115200);\n  gpsSerial.begin(9600);  // Neo-6M default baud\n  Serial.println(F(\"GPS ready — waiting for fix...\"));\n}\n\nvoid loop() {\n  // Feed all available GPS bytes to the parser\n  while (gpsSerial.available()) {\n    gps.encode(gpsSerial.read());\n  }\n\n  // Print position when it updates\n  if (gps.location.isUpdated()) {\n    Serial.print(F(\"Lat: \"));  Serial.print(gps.location.lat(), 6);\n    Serial.print(F(\" Lng: \")); Serial.print(gps.location.lng(), 6);\n    Serial.print(F(\" Alt: \")); Serial.print(gps.altitude.meters(), 1); Serial.print(F(\"m\"));\n    Serial.print(F(\" Sats: \")); Serial.print(gps.satellites.value());\n    Serial.print(F(\" Speed: \")); Serial.print(gps.speed.kmph(), 1); Serial.println(F(\" km/h\"));\n  }\n\n  // Check if data is arriving\n  if (millis() > 10000 && gps.charsProcessed() < 10) {\n    Serial.println(F(\"Error: no GPS data! Check wiring.\"));\n  }\n}"
     },
     {
       "type": "tip",
-      "text": "Arduino Uno has one hardware UART (pins 0/1, shared with USB). Use SoftwareSerial for additional devices."
+      "text": "GPS modules need an unobstructed view of the sky to get a fix. Place the antenna near a window or outdoors. The first fix (cold start) can take 30–60 seconds. Once fixed, subsequent locks are faster (warm start ~5 s)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "UART Between Two Arduinos"
+    },
+    {
+      "type": "paragraph",
+      "text": "Two Arduinos can communicate directly over UART by connecting TX of one to RX of the other and sharing GND. This is useful for splitting a project across two boards."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "uart_sender.ino",
+      "code": "// Arduino SENDER: transmits sensor data every 500ms\n// Wiring: Sender TX (pin 1) → Receiver RX (pin 0)\n// IMPORTANT: disconnect TX pin when uploading new firmware!\n\nvoid setup() {\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  int sensorVal = analogRead(A0);\n  float voltage = sensorVal * 5.0 / 1023.0;\n\n  // Send as: VAL:value\\n\n  Serial.print(F(\"VAL:\"));\n  Serial.println(voltage, 2);\n  delay(500);\n}"
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "uart_receiver.ino",
+      "code": "// Arduino RECEIVER: reads sensor data from sender\n#include <SoftwareSerial.h>\nSoftwareSerial senderSerial(10, 11);  // RX=10 (← sender TX), TX=11\n\nvoid setup() {\n  Serial.begin(115200);    // USB debug\n  senderSerial.begin(9600); // must match sender\n}\n\nvoid loop() {\n  if (senderSerial.available()) {\n    String line = senderSerial.readStringUntil('\\n');\n    line.trim();\n    if (line.startsWith(\"VAL:\")) {\n      float voltage = line.substring(4).toFloat();\n      Serial.print(F(\"Received voltage: \"));\n      Serial.println(voltage, 2);\n    }\n  }\n}"
+    },
+    {
+      "type": "warning",
+      "text": "When connecting a 5V Arduino UART to a 3.3V device (ESP32, Raspberry Pi), the 5V TX signal from Arduino will damage the 3.3V device's RX pin. Use a voltage divider (1 kΩ + 2 kΩ) or a logic-level converter on the TX→RX line. The 3.3V TX → 5V RX direction is usually fine (3.3V exceeds the HIGH threshold on most 5V AVR inputs)."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the purpose of RX and TX pins in UART?",
+          "question": "How do you correctly wire two UART devices together?",
           "type": "multiple-choice",
           "options": [
-            "Power supply",
-            "Data receive and data transmit",
-            "Clock and data",
-            "I2C address lines"
+            "Connect TX of both devices together",
+            "Connect TX of device A to RX of device B, and TX of B to RX of A",
+            "Connect all four pins: TX-TX, RX-RX, SCK-SCK, SS-SS",
+            "Only one wire is needed — they share a common clock"
           ],
           "correctAnswer": 1,
-          "explanation": "TX is the transmit pin (output) and RX is the receive pin (input). Connect TX of one device to RX of the other."
+          "explanation": "UART is cross-connected: transmit (TX) from one device goes to receive (RX) of the other. Both devices also need a shared GND."
+        },
+        {
+          "id": "q2",
+          "question": "What is the key advantage of hardware UART over SoftwareSerial?",
+          "type": "multiple-choice",
+          "options": [
+            "Hardware UART supports 5V logic natively",
+            "Hardware UART runs in background using interrupts, without blocking other code",
+            "Hardware UART supports I2C addressing",
+            "Hardware UART has a longer range"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Hardware UART uses a dedicated USART peripheral with interrupt-driven ring buffers. It runs independently of the CPU. SoftwareSerial must disable interrupts during bit reception, potentially corrupting other time-sensitive operations."
+        },
+        {
+          "id": "q3",
+          "question": "A GPS module outputs data at 9600 baud but you read nothing. What should you check first?",
+          "type": "multiple-choice",
+          "options": [
+            "The GPS library version",
+            "Whether TX of the GPS is connected to RX of Arduino (not TX-to-TX)",
+            "The I2C address of the GPS",
+            "Whether the Serial Monitor is set to 9600 baud"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The most common UART wiring mistake is TX-to-TX or RX-to-RX. UART is cross-connected: GPS TX → Arduino RX, GPS RX → Arduino TX. Also verify baud rates match."
         }
       ]
     }
@@ -56,24 +161,40 @@
   "faq": [
     {
       "q": "What is RS-232?",
-      "a": "RS-232 is an older serial standard using ±12V logic levels (vs 0/3.3V or 0/5V for modern TTL UART). A MAX232 chip converts between them."
+      "a": "RS-232 is an older serial standard using ±12V logic levels (±12V for HIGH/LOW vs 0/5V TTL). It uses a DB9 or DB25 connector, common on older industrial equipment. A MAX232 chip converts between RS-232 and TTL levels. Modern microcontrollers use TTL UART; RS-232 is mainly for interfacing with legacy equipment."
+    },
+    {
+      "q": "How do I read a full line from UART without blocking?",
+      "a": "Build a character-by-character buffer: append each received character to a String or char[], and when you receive '\\n' (newline), process the complete line. Avoid readStringUntil('\\n') in time-sensitive code as it blocks until the delimiter arrives or timeout."
+    },
+    {
+      "q": "My GPS shows no fix after 10 minutes. What's wrong?",
+      "a": "Common causes: (1) indoors or obstructed sky — move near a window or outside; (2) no antenna connected; (3) cold start after long storage — may take up to 15 minutes; (4) UART wiring error — check TX→RX cross-connection. Use Serial.print(gps.charsProcessed()) to verify data is arriving."
     }
   ],
   "sources": [
     {
-      "name": "TinyGPS++",
+      "name": "TinyGPS++ Library",
       "url": "https://github.com/mikalhart/TinyGPSPlus",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Arduino SoftwareSerial",
+      "url": "https://www.arduino.cc/reference/en/libraries/softwareserial/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "GPS tracking",
-      "cellular modems",
-      "Bluetooth modules"
+      "GPS vehicle trackers (Neo-6M + GSM module + Arduino)",
+      "Bluetooth serial control (HC-05/HC-06)",
+      "RFID access systems (UART RFID reader)",
+      "Industrial sensor interfaces (Modbus RTU over RS-485)",
+      "4G/LTE IoT devices (SIM7600 modem via UART)"
     ],
     "examples": [
-      "Reading GPS coordinates from a Neo-6M module on Arduino"
+      "Vehicle GPS tracker sending latitude/longitude via GSM SMS using two UART ports on Arduino Mega",
+      "HC-05 Bluetooth module bridged over SoftwareSerial to control an Arduino robot from a phone app"
     ]
   }
 }

@@ -1,38 +1,118 @@
 {
   "id": "12-clustering",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-14",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "advanced-algorithms",
   "title": "Unsupervised Learning & Clustering",
   "subtitle": "K-means, DBSCAN, PCA, and finding hidden structure",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "ml.neural-networks"
-  ],
-  "skillsTaught": [
-    "ml.clustering"
-  ],
+  "prerequisites": ["ml.neural-networks"],
+  "skillsTaught": ["ml.clustering", "ml.kmeans", "ml.pca", "ml.dimensionality-reduction"],
+  "whyItExists": {
+    "problem": "Many datasets have no labels — you cannot know in advance how many natural groups exist or what they represent. You need to explore the data's hidden structure without a predefined target.",
+    "solution": "Clustering algorithms automatically group similar data points together without labels. PCA reduces high-dimensional data to 2-3 dimensions for visualisation and noise removal.",
+    "whenToUse": "Customer segmentation, anomaly detection, data exploration, compressing high-dimensional data before supervised learning, and discovering natural groups in biological or scientific data.",
+    "whenNotToUse": "When you have labels — supervised learning will always outperform clustering for classification tasks. Clustering is exploratory; don't use it when you have a defined prediction target."
+  },
+  "explainModes": {
+    "beginner": "Clustering is like sorting a bag of mixed sweets into groups by colour and shape, without anyone telling you how many groups there should be. The algorithm figures out which sweets are most similar and groups them together.",
+    "simple": "K-means picks K starting points, assigns every data point to its nearest centre, then moves each centre to the average of its group. It repeats until centres stop moving. DBSCAN groups points that are densely packed together.",
+    "standard": "K-means minimises within-cluster sum of squares by iteratively assigning points to their nearest centroid and recomputing centroids. DBSCAN defines clusters as dense regions separated by low-density areas, naturally identifying outliers. PCA finds orthogonal directions of maximum variance.",
+    "technical": "K-means solves a non-convex optimisation via Lloyd's algorithm — not guaranteed to find the global optimum. K-means++ initialisation improves stability. DBSCAN has time complexity O(n log n) with spatial indexing. PCA solves the eigenvalue decomposition of the covariance matrix.",
+    "deepDive": "K-means is equivalent to a Gaussian Mixture Model with equal, spherical covariances and hard assignment. GMMs use EM (Expectation-Maximisation) for soft assignment. UMAP and t-SNE are non-linear dimensionality reduction methods that preserve local structure better than PCA."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Clustering"
+      "text": "Unsupervised Learning"
     },
     {
       "type": "paragraph",
-      "text": "Clustering groups similar data points without labels. K-means partitions data into K clusters by minimising within-cluster variance."
+      "text": "Unsupervised learning finds <strong>hidden structure in unlabelled data</strong>. There is no target variable — the algorithm discovers patterns on its own. The two most important techniques are <strong>clustering</strong> (grouping similar points) and <strong>dimensionality reduction</strong> (compressing high-dimensional data)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "K-Means Clustering"
+    },
+    {
+      "type": "paragraph",
+      "text": "K-means partitions data into K clusters by minimising within-cluster variance. Each point belongs to the cluster with the nearest centroid. The algorithm iterates: assign → recompute centroids → reassign — until convergence."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "cluster.py",
-      "code": "from sklearn.cluster import KMeans, DBSCAN\nfrom sklearn.decomposition import PCA\nimport matplotlib.pyplot as plt\n\n# K-means\nkmeans = KMeans(n_clusters=4, random_state=42)\nlabels = kmeans.fit_predict(X)\n\n# DBSCAN (density-based, handles arbitrary shapes)\ndb = DBSCAN(eps=0.5, min_samples=10)\ndb_labels = db.fit_predict(X)\n\n# PCA for visualisation\npca = PCA(n_components=2)\nX_2d = pca.fit_transform(X)\nplt.scatter(X_2d[:,0], X_2d[:,1], c=labels)\nplt.show()"
+      "filename": "kmeans.py",
+      "code": "from sklearn.cluster import KMeans\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.metrics import silhouette_score\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Always scale before clustering\nscaler = StandardScaler()\nX_sc = scaler.fit_transform(X)\n\n# Fit K-means\nkmeans = KMeans(n_clusters=4, init='k-means++', n_init=10, random_state=42)\nlabels = kmeans.fit_predict(X_sc)\n\nprint(f'Inertia (within-cluster SS): {kmeans.inertia_:.2f}')\nprint(f'Silhouette score: {silhouette_score(X_sc, labels):.3f}')  # -1 to 1, higher is better\nprint(f'Cluster sizes: {np.bincount(labels)}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Choosing K: The Elbow Method"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "elbow_method.py",
+      "code": "from sklearn.cluster import KMeans\nfrom sklearn.metrics import silhouette_score\nimport matplotlib.pyplot as plt\n\ninertias = []\nsilhouettes = []\nK_range = range(2, 12)\n\nfor k in K_range:\n    km = KMeans(n_clusters=k, init='k-means++', n_init=10, random_state=42)\n    labels = km.fit_predict(X_sc)\n    inertias.append(km.inertia_)\n    silhouettes.append(silhouette_score(X_sc, labels))\n\n# Plot elbow — look for the 'kink'\nfig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))\nax1.plot(K_range, inertias, 'bx-')\nax1.set_xlabel('K')\nax1.set_ylabel('Inertia')\nax1.set_title('Elbow Method')\n\nax2.plot(K_range, silhouettes, 'rx-')\nax2.set_xlabel('K')\nax2.set_ylabel('Silhouette Score')\nax2.set_title('Silhouette Analysis')\nplt.tight_layout()\nplt.show()\n\nbest_k = K_range[np.argmax(silhouettes)]\nprint(f'Best K by silhouette: {best_k}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "DBSCAN: Density-Based Clustering"
+    },
+    {
+      "type": "paragraph",
+      "text": "DBSCAN finds clusters as <strong>dense regions separated by low-density areas</strong>. It doesn't require specifying K in advance. Points in sparse regions are labelled as outliers (label = -1). It handles arbitrary cluster shapes that K-means cannot."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "dbscan.py",
+      "code": "from sklearn.cluster import DBSCAN\nfrom sklearn.neighbors import NearestNeighbors\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Find good eps using k-NN distance plot\nk = 4\nnbrs = NearestNeighbors(n_neighbors=k).fit(X_sc)\ndistances, _ = nbrs.kneighbors(X_sc)\ndistances = np.sort(distances[:, k-1])  # k-th nearest neighbour distance\n# Look for the 'knee' in this plot — that's your eps\nplt.plot(distances)\nplt.xlabel('Points (sorted)')\nplt.ylabel(f'{k}-NN distance')\nplt.title('K-NN Distance Plot (find the knee for eps)')\nplt.show()\n\n# Fit DBSCAN\ndb = DBSCAN(eps=0.5, min_samples=5)\nlabels = db.fit_predict(X_sc)\n\nn_clusters = len(set(labels)) - (1 if -1 in labels else 0)\nn_outliers = (labels == -1).sum()\nprint(f'Found {n_clusters} clusters, {n_outliers} outliers')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "PCA: Dimensionality Reduction"
+    },
+    {
+      "type": "paragraph",
+      "text": "Principal Component Analysis projects high-dimensional data into fewer dimensions while retaining as much variance as possible. Use it for visualisation (reduce to 2D/3D), noise removal, or to speed up downstream models."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pca.py",
+      "code": "from sklearn.decomposition import PCA\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Fit PCA\npca = PCA(n_components=0.95)  # keep 95% of variance\nX_pca = pca.fit_transform(X_sc)\nprint(f'Reduced from {X_sc.shape[1]} to {pca.n_components_} components')\nprint(f'Explained variance ratio: {pca.explained_variance_ratio_.cumsum()[-1]:.3f}')\n\n# Visualise in 2D\npca2d = PCA(n_components=2)\nX_2d = pca2d.fit_transform(X_sc)\nplt.figure(figsize=(8, 6))\nplt.scatter(X_2d[:, 0], X_2d[:, 1], c=labels, cmap='tab10', alpha=0.6, s=10)\nplt.xlabel(f'PC1 ({pca2d.explained_variance_ratio_[0]*100:.1f}% variance)')\nplt.ylabel(f'PC2 ({pca2d.explained_variance_ratio_[1]*100:.1f}% variance)')\nplt.title('PCA Projection')\nplt.colorbar(label='Cluster')\nplt.show()"
+    },
+    {
+      "type": "comparison",
+      "title": "K-Means vs DBSCAN",
+      "a": {
+        "name": "K-Means",
+        "description": "Partition-based — assigns every point to exactly one of K clusters",
+        "strengths": ["Fast and scalable (O(nKt))", "Easy to understand and implement", "Works well for spherical, equal-sized clusters"],
+        "weaknesses": ["Must specify K in advance", "Assumes spherical clusters of similar size", "Sensitive to outliers (they distort centroids)"],
+        "useWhen": "You know roughly how many clusters to expect and clusters are roughly spherical"
+      },
+      "b": {
+        "name": "DBSCAN",
+        "description": "Density-based — groups dense regions, marks sparse points as outliers",
+        "strengths": ["Finds clusters of arbitrary shape", "Automatically detects outliers", "No need to specify K"],
+        "weaknesses": ["Sensitive to eps and min_samples parameters", "Struggles with varying density clusters", "Slower on very large datasets"],
+        "useWhen": "You don't know K, clusters have irregular shapes, or outlier detection matters"
+      }
     },
     {
       "type": "tip",
-      "text": "Use the elbow method (inertia vs K) to choose K for K-means."
+      "text": "Always standardise features before clustering. K-means uses Euclidean distance — features with large numeric ranges will dominate the distance calculation if not scaled."
     },
     {
       "type": "quiz",
@@ -42,13 +122,39 @@
           "question": "What is a key advantage of DBSCAN over K-means?",
           "type": "multiple-choice",
           "options": [
-            "DBSCAN is always faster",
-            "DBSCAN finds clusters of arbitrary shape and identifies outliers",
-            "DBSCAN requires fewer hyperparameters",
+            "DBSCAN is always faster than K-means",
+            "DBSCAN finds clusters of arbitrary shape and identifies outliers automatically",
+            "DBSCAN requires fewer parameters",
             "DBSCAN works better on high-dimensional data"
           ],
           "correctAnswer": 1,
-          "explanation": "DBSCAN can find clusters of any shape and labels outliers as noise, unlike K-means which assumes spherical clusters."
+          "explanation": "DBSCAN identifies clusters as dense regions of arbitrary shape and labels sparse points as outliers, unlike K-means which assumes spherical clusters and must assign every point to a cluster."
+        },
+        {
+          "id": "q2",
+          "question": "What does the silhouette score measure?",
+          "type": "multiple-choice",
+          "options": [
+            "How fast the algorithm converges",
+            "How similar each point is to its own cluster compared to other clusters",
+            "The total number of clusters found",
+            "The percentage of outliers in the dataset"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Silhouette score measures cohesion (similarity within cluster) vs separation (similarity to other clusters). Values near 1.0 indicate well-separated, tight clusters."
+        },
+        {
+          "id": "q3",
+          "question": "What is PCA primarily used for in machine learning?",
+          "type": "multiple-choice",
+          "options": [
+            "Classification of images",
+            "Reducing the number of features while retaining most of the variance",
+            "Improving precision and recall of classifiers",
+            "Generating synthetic training data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "PCA reduces dimensionality by projecting data onto the directions of maximum variance (principal components). This compresses data, removes noise, and enables 2D/3D visualisation."
         }
       ]
     }
@@ -56,23 +162,35 @@
   "faq": [
     {
       "q": "How do I evaluate clustering quality without labels?",
-      "a": "Use the Silhouette score (how similar a point is to its cluster vs other clusters). Values near 1 are good."
+      "a": "Use the Silhouette Score (how similar a point is to its cluster vs other clusters — values near 1.0 are good) or the Davies-Bouldin Index (lower is better). The Elbow Method uses inertia (within-cluster sum of squares) to suggest a good K."
+    },
+    {
+      "q": "Should I use PCA before clustering?",
+      "a": "Often yes for high-dimensional data. PCA removes noise dimensions and speeds up K-means. Keep enough components to explain 90-95% of variance (n_components=0.95). Don't use PCA if the number of features is small (< 20)."
+    },
+    {
+      "q": "What is the difference between PCA and t-SNE?",
+      "a": "PCA is a linear transform that preserves global variance — it's fast and reproducible. t-SNE is a non-linear transform that preserves local neighbourhood structure — it's better for visualisation but very slow on large datasets and results depend on the perplexity parameter."
     }
   ],
   "sources": [
     {
-      "name": "Clustering",
+      "name": "sklearn: Clustering",
       "url": "https://scikit-learn.org/stable/modules/clustering.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "sklearn: PCA",
+      "url": "https://scikit-learn.org/stable/modules/decomposition.html#pca",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "customer segmentation",
-      "anomaly detection"
-    ],
+    "usedIn": ["customer segmentation", "anomaly detection", "document clustering", "gene expression analysis"],
     "examples": [
-      "Segmenting customers by purchase behaviour"
+      "Segmenting 1M customers by purchase behaviour into 5 groups for targeted marketing campaigns",
+      "Using PCA to reduce 500 sensor readings to 20 components before training a failure predictor",
+      "DBSCAN for detecting fraudulent transactions as outliers in a payment network"
     ]
   }
 }

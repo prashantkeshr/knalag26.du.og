@@ -1,79 +1,198 @@
 {
   "id": "14-edge-computing",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Python 3.11 / TensorFlow Lite / Node-RED",
   "technology": "embedded",
   "module": "iot-projects",
   "title": "Edge Computing",
-  "subtitle": "Processing data on the device vs sending to the cloud",
+  "subtitle": "Local data processing, anomaly detection, and TinyML on devices",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.mqtt"
-  ],
-  "skillsTaught": [
-    "embedded.edge"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.mqtt"],
+  "skillsTaught": ["embedded.edge"],
+  "whyItExists": {
+    "problem": "Sending every raw sensor reading to the cloud is expensive ($bandwidth), slow (100+ ms latency), and fragile (depends on internet connectivity). An IoT network with 100 sensors sending 1-second data generates 8.6 million cloud requests per day.",
+    "solution": "Edge computing moves processing to the device or local gateway. The device filters, aggregates, and analyses data locally — only sending meaningful events, summaries, or anomalies to the cloud. Latency drops to milliseconds; cloud costs drop by 10–100×.",
+    "whenToUse": "Any IoT system with high data volume, latency requirements, intermittent connectivity, or significant cloud bandwidth/compute costs.",
+    "whenNotToUse": "Simple one-sensor systems with reliable internet and no cost pressure. Historical analysis requiring months of raw data (keep raw in cloud if storage allows)."
+  },
+  "explainModes": {
+    "beginner": "Instead of sending every sensor reading to the internet, edge computing lets your Raspberry Pi think for itself. It can average readings, detect abnormal values, and only call home when something interesting happens — saving bandwidth and working even when the internet is down.",
+    "simple": "Edge computing means your local device (Pi, ESP32) does the data processing instead of the cloud. It can aggregate 60 readings into one average, detect outliers with statistics, run a simple ML model, and decide what's worth sending upstream. Cloud only gets the highlights.",
+    "standard": "Edge processing patterns: windowed aggregation (mean/min/max over N readings), statistical anomaly detection (z-score, IQR), threshold alerting, local storage during outage with upload on reconnect, and ML inference with TensorFlow Lite models deployed to Raspberry Pi or even microcontrollers.",
+    "technical": "A rolling window in a deque(maxlen=N) gives O(1) append with automatic eviction. NumPy operations (mean, std, percentile) are vectorised and fast enough on Pi. TensorFlow Lite Interpreter runs pre-trained .tflite models on ARM CPU. For MCUs, TensorFlow Lite Micro runs on 256+ KB SRAM (Arduino Nano 33 BLE Sense, ESP32-S3).",
+    "deepDive": "Real-time anomaly detection options: CUSUM (cumulative sum) detects slow drift; EMA (exponential moving average) with dynamic thresholds adapts to seasonal patterns; isolation forest and autoencoders run offline inference on Pi. For TinyML model deployment: train on desktop with Keras, export to .tflite with post-training quantization (INT8 models are 4× smaller and 3× faster). Edge-to-cloud patterns: AWS Greengrass, Azure IoT Edge, and balena.io provide container-based edge orchestration."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Why Process at the Edge?"
+      "text": "Why Process Data at the Edge?"
     },
     {
       "type": "paragraph",
-      "text": "Sending all raw sensor data to the cloud is expensive and slow. Edge computing processes data locally on the device, sending only summaries or alerts."
+      "text": "Imagine a factory with 500 vibration sensors reading at 100 Hz each. That's <strong>50,000 data points per second</strong> — 4.3 billion per day. Sending all of that to the cloud is prohibitively expensive and introduces 100+ ms latency for local decisions. Edge computing moves intelligence to the device: detect anomalies locally in <1 ms, only upload summaries or alerts."
+    },
+    {
+      "type": "comparison",
+      "title": "Cloud-only vs Edge-first Architecture",
+      "a": {
+        "name": "Cloud-only",
+        "description": "Every raw reading sent to cloud for processing",
+        "strengths": ["No local compute needed", "Full historical data available", "Easy to update processing logic"],
+        "weaknesses": ["High bandwidth cost", "100+ ms latency for decisions", "Fails when internet down", "Privacy concerns with raw data"],
+        "useWhen": "Low data rate, cheap connectivity, non-realtime applications"
+      },
+      "b": {
+        "name": "Edge-first",
+        "description": "Process and filter locally, send summaries/alerts",
+        "strengths": ["Millisecond local decisions", "90%+ bandwidth reduction", "Works offline", "Privacy (raw data stays local)"],
+        "weaknesses": ["More local compute needed", "Harder to update logic (OTA required)", "Less raw data for retrospective analysis"],
+        "useWhen": "High data rate, latency-sensitive, unreliable connectivity, cost constraints"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Pattern 1: Rolling Window Aggregation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Instead of uploading every reading, compute statistics over a time window (e.g., last 60 seconds) and upload the summary once per window. This reduces cloud writes by 60× while preserving meaningful information."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "edge_process.py",
-      "code": "import statistics\nfrom collections import deque\n\n# Keep a rolling window of 60 readings (5 mins @ 5s interval)\nwindow = deque(maxlen=60)\n\ndef process_reading(raw_temp: float):\n    window.append(raw_temp)\n\n    # Only send data to cloud if anomaly detected\n    if len(window) >= 10:\n        avg = statistics.mean(window)\n        stdev = statistics.stdev(window)\n\n        if abs(raw_temp - avg) > 2 * stdev:\n            # Anomaly: send immediately\n            cloud_send({\"alert\": \"anomaly\", \"value\": raw_temp, \"avg\": avg})\n        elif len(window) == 60:\n            # Normal: send 5-minute summary once per window\n            cloud_send({\"avg\": avg, \"min\": min(window), \"max\": max(window)})"
+      "filename": "edge_aggregation.py",
+      "code": "from collections import deque\nfrom statistics import mean, stdev\nimport json\nimport time\nimport paho.mqtt.client as mqtt\n\nWINDOW_SIZE = 60     # 60 readings = 1 minute at 1/second\nUPLOAD_EVERY = 60   # upload summary every 60 readings\n\nwindow = deque(maxlen=WINDOW_SIZE)\nclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, \"edge-01\")\nclient.connect(\"localhost\", 1883)\nclient.loop_start()\n\ndef read_temperature():\n    \"\"\"Replace with actual sensor read.\"\"\"\n    import random\n    return 22.0 + random.gauss(0, 0.5)\n\ndef upload_summary():\n    if len(window) < 2:\n        return\n    summary = {\n        \"count\":  len(window),\n        \"mean\":   round(mean(window), 2),\n        \"min\":    round(min(window), 2),\n        \"max\":    round(max(window), 2),\n        \"stdev\":  round(stdev(window), 3),\n        \"window\": WINDOW_SIZE,\n        \"ts\":     int(time.time())\n    }\n    client.publish(\"edge/01/summary\", json.dumps(summary), qos=1)\n    print(f\"Uploaded summary: {summary}\")\n\ncounter = 0\nwhile True:\n    temp = read_temperature()\n    window.append(temp)\n    counter += 1\n\n    if counter >= UPLOAD_EVERY:\n        upload_summary()\n        counter = 0\n\n    time.sleep(1)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Pattern 2: Statistical Anomaly Detection"
+    },
+    {
+      "type": "paragraph",
+      "text": "Detect anomalies locally using the <strong>z-score</strong>: how many standard deviations a reading is from the recent mean. A z-score > 2.5 indicates an unusual event worth alerting. This costs zero cloud requests for normal data."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "edge_anomaly.py",
+      "code": "from collections import deque\nfrom statistics import mean, stdev\nimport json, time\nimport paho.mqtt.client as mqtt\n\nWINDOW  = deque(maxlen=60)   # rolling 60-reading baseline\nZ_ALERT = 2.5                # z-score threshold for alert\n\nclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, \"anomaly-01\")\nclient.connect(\"localhost\", 1883)\nclient.loop_start()\n\ndef process_reading(value: float) -> None:\n    WINDOW.append(value)\n\n    if len(WINDOW) < 10:\n        return  # not enough data yet\n\n    avg = mean(WINDOW)\n    sd  = stdev(WINDOW)\n\n    if sd == 0:\n        return  # constant signal, no anomaly possible\n\n    z = abs(value - avg) / sd\n\n    if z > Z_ALERT:\n        # Anomaly: send real-time alert\n        alert = {\n            \"type\":    \"anomaly\",\n            \"value\":   round(value, 2),\n            \"mean\":    round(avg, 2),\n            \"z_score\": round(z, 2),\n            \"ts\":      int(time.time())\n        }\n        client.publish(\"edge/01/alert\", json.dumps(alert), qos=1, retain=False)\n        print(f\"ALERT: {alert}\")\n    else:\n        # Normal: just print locally\n        print(f\"Normal: {value:.2f} (z={z:.2f})\")\n\nimport random\nwhile True:\n    reading = 25.0 + random.gauss(0, 0.5)\n    # Simulate an occasional spike\n    if random.random() < 0.02:\n        reading += random.uniform(5, 10)\n    process_reading(reading)\n    time.sleep(1)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "TinyML: Running ML Models on the Device"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>TinyML</strong> runs pre-trained machine learning models directly on microcontrollers or the Raspberry Pi — no cloud needed for inference. TensorFlow Lite models run on Pi in milliseconds; TensorFlow Lite Micro runs on Arduino Nano 33 BLE Sense (256 KB SRAM) for keyword detection, gesture recognition, and anomaly detection."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tflite_inference.py",
+      "code": "# Running a TensorFlow Lite model on Raspberry Pi\n# Install: pip install tflite-runtime  (lighter than full TF)\nimport numpy as np\ntry:\n    import tflite_runtime.interpreter as tflite\nexcept ImportError:\n    import tensorflow as tf\n    tflite = tf.lite\n\n# Load the model (trained on desktop, deployed as .tflite)\ninterpreter = tflite.Interpreter(model_path=\"anomaly_detector.tflite\")\ninterpreter.allocate_tensors()\n\ninput_details  = interpreter.get_input_details()\noutput_details = interpreter.get_output_details()\n\ndef predict(sensor_readings: list) -> float:\n    \"\"\"Returns anomaly score 0.0 (normal) to 1.0 (anomaly).\"\"\"\n    # Reshape to model's expected input shape\n    input_data = np.array(sensor_readings, dtype=np.float32).reshape(input_details[0]['shape'])\n    interpreter.set_tensor(input_details[0]['index'], input_data)\n    interpreter.invoke()\n    output = interpreter.get_tensor(output_details[0]['index'])\n    return float(output[0][0])\n\n# Example: predict on a window of 10 readings\nreadings = [23.1, 23.3, 23.0, 22.9, 23.2, 23.1, 23.4, 23.0, 35.0, 23.1]\nscore = predict(readings)\nprint(f\"Anomaly score: {score:.3f}  {'ANOMALY' if score > 0.5 else 'Normal'}\")"
     },
     {
       "type": "tip",
-      "text": "Classify data at the edge: only send anomalies in real time; batch aggregate normal data to reduce cloud costs by 10-100x."
+      "text": "For edge deployments: use NumPy for fast statistical processing (10–100× faster than pure Python loops on Pi), store data in SQLite for local buffering during internet outages, and use a background thread for MQTT communication so sensor reading never blocks."
+    },
+    {
+      "type": "warning",
+      "text": "Edge ML models drift over time as real-world conditions change (seasonal temperature shifts, sensor aging). Implement a retraining pipeline: collect new labeled examples periodically, retrain offline, deploy updated .tflite via OTA update. A model that was 95% accurate in January may be 70% accurate in July without retraining."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the main benefit of edge processing?",
+          "question": "What is the primary benefit of edge computing in IoT?",
           "type": "multiple-choice",
           "options": [
-            "Faster internet speeds",
-            "Reduced data volume to the cloud, lower latency for decisions",
-            "More accurate sensors",
-            "Longer battery life of the broker"
+            "It makes sensors more accurate",
+            "It reduces cloud bandwidth and latency by processing data locally on the device",
+            "It increases internet connection speed",
+            "It allows devices to run without batteries"
           ],
           "correctAnswer": 1,
-          "explanation": "Processing data locally reduces the volume sent to the cloud, cutting bandwidth costs and enabling faster local decisions."
+          "explanation": "Edge computing processes data locally, sending only summaries or anomalies to the cloud. This reduces bandwidth by 10–100× and enables millisecond-level local decisions without cloud round-trips."
+        },
+        {
+          "id": "q2",
+          "question": "In the z-score anomaly detection approach, what does a z-score of 3.0 indicate?",
+          "type": "multiple-choice",
+          "options": [
+            "The reading is exactly average",
+            "The reading is 3 standard deviations from the mean — likely an anomaly",
+            "The sensor has failed",
+            "The window buffer is full"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Z-score = (value - mean) / stdev. A z-score of 3.0 means the reading is 3 standard deviations from the recent mean. Under a normal distribution, this occurs only 0.3% of the time — a strong anomaly signal."
+        },
+        {
+          "id": "q3",
+          "question": "What is TinyML?",
+          "type": "multiple-choice",
+          "options": [
+            "A tiny version of the MQTT protocol",
+            "Machine learning inference running on microcontrollers or edge devices without cloud connectivity",
+            "A lightweight Python framework for IoT",
+            "A compression algorithm for sensor data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TinyML runs pre-trained ML models directly on constrained devices (Raspberry Pi, Arduino Nano, ESP32-S3). TensorFlow Lite Micro can run on devices with as little as 256 KB RAM for tasks like keyword spotting, gesture recognition, and anomaly detection."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "What is TinyML?",
-      "a": "Running small machine learning models directly on microcontrollers. TensorFlow Lite Micro can run on devices with as little as 256 KB RAM for tasks like wake-word detection."
+      "q": "What is TinyML and what can it run on?",
+      "a": "TinyML is ML inference on constrained hardware. TensorFlow Lite runs on Raspberry Pi (all models) and Python single-board computers. TensorFlow Lite Micro runs on microcontrollers with ≥256 KB SRAM: Arduino Nano 33 BLE Sense, ESP32-S3, STM32H7, and Raspberry Pi RP2040. Use cases: keyword detection, gesture classification, anomaly detection, predictive maintenance."
+    },
+    {
+      "q": "How do I handle sensor data during internet outages?",
+      "a": "Buffer locally in SQLite: insert each reading to a local database with an 'uploaded' flag. A background thread periodically checks internet connectivity, queries un-uploaded rows, sends them in batches, and marks them uploaded. This gives you resilience without losing data during outages."
+    },
+    {
+      "q": "What's the difference between edge computing and fog computing?",
+      "a": "Edge computing processes data on the device itself (Pi, ESP32, sensor node). Fog computing is a layer between edge devices and the cloud — typically a local gateway server (e.g., industrial PC or on-premise server) that aggregates data from many edge nodes before sending to cloud. The terms are often used interchangeably in practice."
     }
   ],
   "sources": [
     {
-      "name": "Edge Computing",
+      "name": "TensorFlow Lite on Raspberry Pi",
+      "url": "https://www.tensorflow.org/lite/guide/python",
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Edge Computing Patterns",
       "url": "https://www.raspberrypi.com/tutorials/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "industrial monitoring",
-      "smart cameras",
-      "agriculture"
+      "Industrial predictive maintenance (vibration anomaly detection on-device)",
+      "Smart agriculture (soil + weather analysis at field gateway)",
+      "Retail computer vision (edge inference for shelf inventory)",
+      "Smart factory quality control (defect detection on camera edge node)",
+      "Healthcare monitoring (wearable ECG anomaly detection)"
     ],
     "examples": [
-      "Pi detecting machine vibration anomalies locally before alerting"
+      "Factory Pi gateway collecting vibration data from 20 sensors, running z-score anomaly detection locally, sending only alerts to cloud — reduces cloud calls from 86,400/day to <50/day",
+      "Keyword detection ('Hey device') running TensorFlow Lite Micro on Arduino Nano 33 BLE Sense with 100% offline operation"
     ]
   }
 }

@@ -1,19 +1,31 @@
 {
   "id": "15-mlops",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-14",
+  "technologyVersion": "MLflow 2.14 / DVC 3.x",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-production",
   "title": "MLOps",
   "subtitle": "Tracking experiments, CI/CD for ML, and monitoring",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "ml.deployment"
-  ],
-  "skillsTaught": [
-    "ml.mlops"
-  ],
+  "prerequisites": ["ml.deployment"],
+  "skillsTaught": ["ml.mlops", "ml.experiment-tracking", "ml.mlflow", "ml.model-monitoring"],
+  "whyItExists": {
+    "problem": "Without systematic practices, ML projects become chaotic: you can't reproduce a past experiment, you don't know which code version trained the model in production, different team members run conflicting experiments, and production models silently degrade.",
+    "solution": "MLOps applies DevOps principles to machine learning: version experiments and data, automate testing and deployment, monitor models in production, and retrain when performance drops.",
+    "whenToUse": "As soon as you have more than one model in production, more than one person working on ML, or when reproducibility and audit trails matter.",
+    "whenNotToUse": "For pure one-off exploratory analysis or proof-of-concept notebooks that will never go to production."
+  },
+  "explainModes": {
+    "beginner": "MLOps is like having a lab notebook for your ML experiments, automated tests for your models, and a system that watches your deployed models to make sure they still work well. It's DevOps but for machine learning.",
+    "simple": "MLOps means: track every experiment (what data, what model, what metrics), version your data and code together, automate testing before deployment, and monitor production models for quality degradation.",
+    "standard": "MLOps covers experiment tracking (MLflow), data versioning (DVC), ML pipelines, CI/CD for model deployment, and production monitoring. The maturity model goes from manual experiments → automated training → continuous deployment.",
+    "technical": "MLOps stack: MLflow for experiment tracking and model registry, DVC for data versioning, GitHub Actions for CI/CD, Evidently/Prometheus for monitoring. Reproducibility requires pinned dependencies, versioned data, and tracked random seeds.",
+    "deepDive": "MLOps maturity levels (Google/Microsoft): Level 0 — manual ML; Level 1 — automated ML pipeline; Level 2 — CI/CD for ML with automated retraining triggers. Feature stores (Feast, Hopsworks) decouple feature computation from model training, enabling consistent feature serving at training and inference time."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,38 +34,126 @@
     },
     {
       "type": "paragraph",
-      "text": "MLOps applies DevOps principles to ML: version experiments, automate retraining, and monitor models in production."
+      "text": "MLOps (<strong>ML + DevOps</strong>) is the practice of applying software engineering discipline to machine learning systems. It covers experiment tracking, data versioning, automated testing, CI/CD pipelines for model deployment, and monitoring in production."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Reproducibility — anyone can recreate any past experiment exactly",
+        "Automation — retraining and deployment happen without manual steps",
+        "Monitoring — production models are watched for quality degradation",
+        "Collaboration — team members can share, compare, and build on each other's work",
+        "Auditability — full history of which data trained which model in production"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Experiment Tracking with MLflow"
+    },
+    {
+      "type": "paragraph",
+      "text": "MLflow records every experiment run: parameters used, metrics achieved, and model artefacts saved. The MLflow UI lets you compare runs visually, pick the best model, and register it for deployment."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "mlops.py",
-      "code": "import mlflow\n\nwith mlflow.start_run():\n    model = RandomForestClassifier(n_estimators=100, max_depth=10)\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n\n    # Log parameters and metrics\n    mlflow.log_param(\"n_estimators\", 100)\n    mlflow.log_param(\"max_depth\", 10)\n    mlflow.log_metric(\"accuracy\", acc)\n\n    # Log the model\n    mlflow.sklearn.log_model(model, \"model\")\n\n# Compare runs in the MLflow UI\n# mlflow ui"
+      "filename": "mlflow_tracking.py",
+      "code": "import mlflow\nimport mlflow.sklearn\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.metrics import f1_score, roc_auc_score\nimport pandas as pd\n\nmlflow.set_experiment('churn-prediction')  # group runs by experiment\n\nparams = {\n    'n_estimators': 200,\n    'max_depth': 10,\n    'min_samples_leaf': 5\n}\n\nwith mlflow.start_run(run_name='rf-baseline'):\n    # Log parameters\n    mlflow.log_params(params)\n    mlflow.log_param('training_rows', len(X_train))\n\n    # Train\n    model = RandomForestClassifier(**params, random_state=42)\n    model.fit(X_train, y_train)\n\n    # Evaluate and log metrics\n    preds = model.predict(X_test)\n    probs = model.predict_proba(X_test)[:, 1]\n    metrics = {\n        'f1': f1_score(y_test, preds),\n        'auc': roc_auc_score(y_test, probs),\n        'accuracy': model.score(X_test, y_test)\n    }\n    mlflow.log_metrics(metrics)\n\n    # Save model\n    mlflow.sklearn.log_model(model, 'model')\n\n    print(f'F1: {metrics[\"f1\"]:.3f}  AUC: {metrics[\"auc\"]:.3f}')\n\n# View all runs: mlflow ui   (opens at http://localhost:5000)"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Model Registry and Versioning"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "model_registry.py",
+      "code": "import mlflow\nfrom mlflow.tracking import MlflowClient\n\nclient = MlflowClient()\n\n# Register a model from a run\nrun_id = 'your-run-id'\nmlflow.register_model(\n    model_uri=f'runs:/{run_id}/model',\n    name='churn-classifier'\n)\n\n# Promote to 'Staging' after review\nclient.transition_model_version_stage(\n    name='churn-classifier',\n    version=1,\n    stage='Staging'\n)\n\n# Load from registry for serving\nmodel_uri = 'models:/churn-classifier/Production'\nmodel = mlflow.sklearn.load_model(model_uri)\nprint(f'Loaded from Production registry')\npreds = model.predict(X_new)"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Data Versioning with DVC"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "dvc_workflow.py",
+      "code": "# DVC commands (run in terminal, not Python)\n# pip install dvc\n\n# Initialise DVC in a git repo\n# dvc init\n\n# Track a dataset file\n# dvc add data/train.csv\n# git add data/train.csv.dvc .gitignore\n# git commit -m 'Track training data with DVC'\n\n# Store data remotely (S3, GCS, local)\n# dvc remote add -d myremote s3://my-bucket/dvc\n# dvc push\n\n# Later — reproduce the exact dataset used in a past commit\n# git checkout abc1234\n# dvc pull\n# (now data/train.csv is the exact version from that commit)\n\n# DVC pipeline — define stages as code\n# dvc run -n train \\\n#   -d src/train.py -d data/train.csv \\\n#   -o models/model.joblib \\\n#   python src/train.py\n\nprint('DVC commands should be run in a terminal')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Production Monitoring"
+    },
+    {
+      "type": "paragraph",
+      "text": "Models degrade over time as the world changes. <strong>Data drift</strong> means the input distribution has changed. <strong>Concept drift</strong> means the relationship between inputs and the target has changed. Both require retraining."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "monitoring.py",
+      "code": "from evidently import ColumnMapping\nfrom evidently.report import Report\nfrom evidently.metric_preset import DataDriftPreset, ClassificationPreset\nimport pandas as pd\n\n# Load reference data (what training data looked like)\nreference_df = pd.read_parquet('data/train.parquet')\n# Load current production data (last week of predictions)\ncurrent_df = pd.read_parquet('data/production_last_week.parquet')\n\n# Data drift report\nreport = Report(metrics=[DataDriftPreset(), ClassificationPreset()])\nreport.run(\n    reference_data=reference_df,\n    current_data=current_df,\n    column_mapping=ColumnMapping(target='churn', prediction='prediction')\n)\nreport.save_html('drift_report.html')\n\n# Check for drift programmatically\nresult = report.as_dict()\ndrift_detected = result['metrics'][0]['result']['dataset_drift']\nif drift_detected:\n    print('DATA DRIFT DETECTED — consider retraining')"
     },
     {
       "type": "definition",
       "term": "MLflow",
-      "definition": "Open-source platform for tracking experiments, packaging code, and deploying models."
+      "definition": "Open-source platform for tracking ML experiments, packaging code reproducibly, and deploying models. Provides a UI for comparing runs and a model registry for managing production versions."
+    },
+    {
+      "type": "definition",
+      "term": "Feature Store",
+      "definition": "A centralised repository for computed features that ensures consistency between training and serving. Prevents training-serving skew — the same features computed the same way. Tools: Feast, Hopsworks."
     },
     {
       "type": "tip",
-      "text": "Version your training data as well as your code. A model is only reproducible if you can recreate the exact dataset."
+      "text": "Version your training data as well as your code. A model is only reproducible if you can recreate the exact dataset used to train it. Use DVC to store data versioning metadata in git."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What does MLflow track?",
+          "question": "What does MLflow track in an experiment run?",
           "type": "multiple-choice",
           "options": [
-            "Only model weights",
-            "Parameters, metrics, and artifacts across experiment runs",
-            "Database schemas",
-            "User sessions"
+            "Only the final model weights",
+            "Parameters, metrics, and artefacts (model, plots) across runs for comparison",
+            "Database schemas and query plans",
+            "HTTP request logs from the API server"
           ],
           "correctAnswer": 1,
-          "explanation": "MLflow tracks parameters, metrics, and artifacts (models, plots) for each experiment run, enabling comparison."
+          "explanation": "MLflow tracks all parameters (hyperparameters), metrics (accuracy, F1), and artefacts (model files, plots) for each experiment run, enabling systematic comparison and reproducibility."
+        },
+        {
+          "id": "q2",
+          "question": "What is data drift in an MLOps context?",
+          "type": "multiple-choice",
+          "options": [
+            "When training data files are accidentally deleted",
+            "When the statistical distribution of production inputs changes compared to the training distribution",
+            "When the model's weights drift during long training runs",
+            "When different team members use different datasets"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Data drift occurs when the statistical properties of real-world inputs change over time, causing a model trained on historical data to become less accurate on current data."
+        },
+        {
+          "id": "q3",
+          "question": "What is a Feature Store in MLOps?",
+          "type": "multiple-choice",
+          "options": [
+            "A Git repository for storing feature engineering code",
+            "A centralised repository that ensures consistent feature computation between training and serving",
+            "A storage system for raw training data",
+            "A database that stores model predictions"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A Feature Store centralises feature computation so that features are computed identically during training and at prediction time (serving). This prevents training-serving skew, a common source of degraded production performance."
         }
       ]
     }
@@ -61,23 +161,40 @@
   "faq": [
     {
       "q": "What is a feature store?",
-      "a": "A centralised repository for computed features, ensuring consistency between training and serving. Tools include Feast and Hopsworks."
+      "a": "A centralised repository for computed features that ensures consistency between training and serving. Training-serving skew (features computed differently at serving time vs training time) is a major cause of production ML failures. Tools include Feast (open-source) and Hopsworks."
+    },
+    {
+      "q": "When should I retrain my model?",
+      "a": "Retrain when: (1) monitored metrics drop below a threshold, (2) data drift is detected, (3) new labelled data is available, or (4) on a fixed schedule (weekly, monthly). Automated retraining pipelines trigger on these conditions automatically."
+    },
+    {
+      "q": "What is the difference between DVC and MLflow?",
+      "a": "DVC focuses on data and pipeline versioning — it tracks which dataset and code produced which model, integrated with git. MLflow focuses on experiment tracking and model management — logging parameters, metrics, and comparing runs. They complement each other well."
     }
   ],
   "sources": [
     {
-      "name": "MLflow",
+      "name": "MLflow Documentation",
       "url": "https://mlflow.org/docs/latest/index.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "DVC Documentation",
+      "url": "https://dvc.org/doc",
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Evidently: ML Monitoring",
+      "url": "https://docs.evidentlyai.com/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "ML platform teams",
-      "automated retraining pipelines"
-    ],
+    "usedIn": ["ML platform teams", "automated retraining pipelines", "enterprise ML governance", "regulated industries (finance, healthcare)"],
     "examples": [
-      "Tracking model accuracy over weekly retraining runs with MLflow"
+      "Tracking model accuracy across weekly retraining runs with MLflow — alert when AUC drops below 0.85",
+      "DVC pipeline that reproducibly generates training data, trains a model, and evaluates it — triggered on each data update",
+      "Evidently dashboard monitoring feature drift weekly for a production credit scoring model"
     ]
   }
 }

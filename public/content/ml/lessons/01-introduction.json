@@ -1,17 +1,31 @@
 {
   "id": "01-introduction",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-foundations",
   "title": "Introduction to Machine Learning",
   "subtitle": "Types of ML, the ML workflow, and when to use ML",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
   "prerequisites": [],
-  "skillsTaught": [
-    "ml.basics"
-  ],
+  "skillsTaught": ["ml.basics", "ml.workflow", "ml.types"],
+  "whyItExists": {
+    "problem": "Writing explicit rules for every situation (email spam, image recognition, loan approval) is impossible — there are too many edge cases and patterns humans cannot articulate.",
+    "solution": "Machine Learning lets a computer discover patterns from data automatically. You supply labelled examples; the algorithm finds the mapping.",
+    "whenToUse": "When you have enough labelled data, the pattern is too complex to hand-code, or the rules change over time (like fraud patterns).",
+    "whenNotToUse": "When rules are simple and well-understood, data is scarce, or the decision requires strict explainability and auditability (some regulatory domains)."
+  },
+  "explainModes": {
+    "beginner": "Machine Learning teaches a computer by example, just like you teach a child. Show it thousands of cat photos with the label 'cat' and it figures out what a cat looks like.",
+    "simple": "Instead of coding rules like 'if this then that', you give the program lots of examples. It finds the statistical patterns and uses those to handle new examples it has never seen.",
+    "standard": "ML algorithms fit a mathematical model to training data by minimising a loss function. The trained model can then generalise to unseen data by applying the learned parameters.",
+    "technical": "An ML model parameterises a hypothesis class h: X→Y. Training minimises empirical risk E[L(h(x),y)] over a labelled dataset via optimisation. Generalisation is bounded by complexity (VC dimension / Rademacher complexity).",
+    "deepDive": "Statistical learning theory frames ML as empirical risk minimisation. PAC learning bounds tell us how many samples are needed to generalise. The bias-variance decomposition and regularisation theory constrain hypothesis complexity to close the gap between training and test error."
+  },
   "content": [
     {
       "type": "heading",
@@ -20,28 +34,96 @@
     },
     {
       "type": "paragraph",
-      "text": "Machine Learning is the field of building systems that learn from data rather than being explicitly programmed. The model finds patterns; you supply the data."
+      "text": "Machine Learning is the field of building systems that <strong>learn from data</strong> rather than being explicitly programmed. You supply labelled examples; the algorithm discovers the mapping from inputs to outputs and can apply it to new, unseen data."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "The Three Types of Machine Learning"
     },
     {
       "type": "definition",
       "term": "Supervised Learning",
-      "definition": "Learning from labelled examples: input → known output. Used for classification and regression."
+      "definition": "Training on labelled examples where both input <code>X</code> and desired output <code>y</code> are known. Used for classification (discrete labels) and regression (continuous values). Examples: spam detection, house price prediction."
     },
     {
       "type": "definition",
       "term": "Unsupervised Learning",
-      "definition": "Learning from unlabelled data to find hidden structure, like clustering."
+      "definition": "Finding hidden structure in unlabelled data. The algorithm groups, reduces, or generates data without being told the 'right answer'. Examples: customer segmentation, anomaly detection, dimensionality reduction."
     },
     {
       "type": "definition",
       "term": "Reinforcement Learning",
-      "definition": "Learning by trial and error with rewards and penalties."
+      "definition": "An agent learns by interacting with an environment and receiving reward signals. It maximises cumulative reward over time. Examples: game-playing AI, robotics, recommendation systems."
+    },
+    {
+      "type": "comparison",
+      "title": "Supervised vs Unsupervised Learning",
+      "a": {
+        "name": "Supervised",
+        "description": "Learns from labelled input-output pairs to make predictions",
+        "strengths": ["Clear target to optimise towards", "Easy to evaluate with known labels", "Works for classification and regression"],
+        "weaknesses": ["Requires labelled data (expensive to obtain)", "Labels can contain human bias"],
+        "useWhen": "You have labelled data and want to predict a specific outcome"
+      },
+      "b": {
+        "name": "Unsupervised",
+        "description": "Discovers hidden patterns in data without labels",
+        "strengths": ["No labelling cost", "Can reveal unexpected structure", "Useful for exploration"],
+        "weaknesses": ["Hard to evaluate objectively", "Results need human interpretation"],
+        "useWhen": "You want to explore data structure or don't have labels"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "The ML Workflow"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Collect & clean data — quality data beats fancy algorithms",
+        "Exploratory data analysis (EDA) — understand distributions and relationships",
+        "Feature engineering — create informative inputs from raw data",
+        "Choose and train a model — fit parameters to minimise loss",
+        "Evaluate on held-out data — measure real-world performance",
+        "Tune hyperparameters — systematically improve performance",
+        "Deploy and monitor — serve predictions and watch for drift"
+      ]
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "ml_types.py",
-      "code": "# The ML workflow\n# 1. Collect & clean data\n# 2. Choose a model\n# 3. Train (fit) the model\n# 4. Evaluate on held-out data\n# 5. Tune hyperparameters\n# 6. Deploy\n\nfrom sklearn.linear_model import LinearRegression\nmodel = LinearRegression()\nmodel.fit(X_train, y_train)\nprint(model.score(X_test, y_test))"
+      "filename": "ml_workflow.py",
+      "code": "import pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import classification_report\n\n# 1. Load data\ndf = pd.read_csv('dataset.csv')\nX = df.drop('target', axis=1)\ny = df['target']\n\n# 2. Split: 80% train, 20% test — always before any preprocessing\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.2, random_state=42, stratify=y\n)\n\n# 3. Scale (fit on train ONLY to prevent data leakage)\nscaler = StandardScaler()\nX_train_sc = scaler.fit_transform(X_train)\nX_test_sc  = scaler.transform(X_test)\n\n# 4. Train\nmodel = LogisticRegression(max_iter=1000)\nmodel.fit(X_train_sc, y_train)\n\n# 5. Evaluate\npreds = model.predict(X_test_sc)\nprint(classification_report(y_test, preds))"
+    },
+    {
+      "type": "tip",
+      "text": "Split your data before any preprocessing. Fitting a scaler on the full dataset leaks test-set information into training, making your results look better than they really are."
+    },
+    {
+      "type": "info",
+      "text": "The 80/20 rule is a common starting split. For small datasets (< 1 000 rows) use cross-validation instead of a single split to get a reliable performance estimate."
+    },
+    {
+      "type": "warning",
+      "text": "More data almost always beats a better algorithm. Before tuning models, check whether you can collect more or higher-quality data."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "When NOT to Use Machine Learning"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The problem is solvable with simple rules or a lookup table",
+        "You have fewer than a few hundred labelled examples",
+        "The model's decision must be fully explainable to regulators",
+        "The cost of a wrong prediction is catastrophic and unrecoverable"
+      ]
     },
     {
       "type": "quiz",
@@ -51,13 +133,39 @@
           "question": "What is supervised learning?",
           "type": "multiple-choice",
           "options": [
-            "Learning from rewards",
+            "Learning by receiving reward signals from an environment",
             "Learning from labelled input-output pairs",
-            "Learning by clustering",
-            "Learning without any data"
+            "Finding hidden clusters in unlabelled data",
+            "Learning without any training data"
           ],
           "correctAnswer": 1,
-          "explanation": "Supervised learning uses labelled examples where both input and desired output are known."
+          "explanation": "Supervised learning trains on examples where both input and desired output are known, learning a mapping the model can apply to new data."
+        },
+        {
+          "id": "q2",
+          "question": "Why do you split data into train and test sets?",
+          "type": "multiple-choice",
+          "options": [
+            "To make training faster",
+            "To use less memory",
+            "To measure how the model performs on data it has never seen",
+            "Because sklearn requires it"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The test set acts as a proxy for real-world data. Training accuracy is always optimistic — only held-out test performance is an honest estimate of generalisation."
+        },
+        {
+          "id": "q3",
+          "question": "Which of the following is NOT a type of machine learning?",
+          "type": "multiple-choice",
+          "options": [
+            "Supervised learning",
+            "Unsupervised learning",
+            "Reinforcement learning",
+            "Deterministic learning"
+          ],
+          "correctAnswer": 3,
+          "explanation": "The three main paradigms are supervised, unsupervised, and reinforcement learning. 'Deterministic learning' is not a recognised ML category."
         }
       ]
     }
@@ -65,24 +173,35 @@
   "faq": [
     {
       "q": "Do I need a PhD to do ML?",
-      "a": "No. With Python, scikit-learn, and good data, you can build useful models. Deep learning at scale requires more specialised knowledge."
+      "a": "No. With Python, scikit-learn, and a good dataset you can build useful models. Deep learning at scale (training large models from scratch) requires more specialised knowledge, but applied ML is accessible to any programmer."
+    },
+    {
+      "q": "How much data do I need?",
+      "a": "It depends on the complexity of the problem. Simple classifiers can work with hundreds of examples; image models often need tens of thousands. As a rule of thumb, you need at least 10× more samples than features."
+    },
+    {
+      "q": "What is the difference between AI and ML?",
+      "a": "AI is the broad field of making machines behave intelligently. ML is a subset that focuses on systems that learn from data. Deep learning is a further subset of ML using neural networks with many layers."
     }
   ],
   "sources": [
     {
-      "name": "scikit-learn intro",
+      "name": "scikit-learn: Getting Started",
       "url": "https://scikit-learn.org/stable/getting_started.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Google ML Crash Course",
+      "url": "https://developers.google.com/machine-learning/crash-course",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "fraud detection",
-      "recommendation engines",
-      "image recognition"
-    ],
+    "usedIn": ["fraud detection", "recommendation engines", "image recognition", "natural language processing", "medical diagnosis"],
     "examples": [
-      "Predicting house prices from size and location"
+      "Predicting house prices from size, location, and number of rooms",
+      "Classifying customer emails as spam or not-spam",
+      "Netflix recommending films based on your watch history"
     ]
   }
 }

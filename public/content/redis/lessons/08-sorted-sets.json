@@ -1,65 +1,122 @@
 {
   "id": "08-sorted-sets",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "advanced-structures",
   "title": "Sorted Sets",
   "subtitle": "Leaderboards, rate limiting, and range queries",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "redis.lists-sets"
-  ],
-  "skillsTaught": [
-    "redis.sorted-sets"
-  ],
+  "prerequisites": ["redis.lists-sets"],
+  "skillsTaught": ["redis.sorted-sets"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Many features require ordered, ranked data: leaderboards, rate limit windows, priority queues, autocomplete, and time-based queries. Building these with sorted arrays requires O(N log N) re-sorting on every update.",
+    "solution": "Sorted Sets maintain member-to-score mappings in a skip list. ZADD is O(log N), range queries are O(log N + M). The score-ordered structure makes real-time leaderboards and sliding-window rate limits trivial.",
+    "whenToUse": "Leaderboards, rate limiting with sliding windows, priority queues, time-series range queries, autocomplete prefix indices.",
+    "whenNotToUse": "If order doesn't matter, use a Set (simpler). If you need insertion-order access, use a List."
+  },
+  "explainModes": {
+    "beginner": "Sorted Sets are like a scoreboard where each player has a score and players are always ranked from lowest to highest. Add a player with a score, ask for the top 10, or find where a specific player ranks.",
+    "simple": "Every member in a Sorted Set has a floating-point score. Redis always keeps members sorted by score. ZADD adds/updates, ZRANGE queries by rank, ZRANGEBYSCORE queries by score, ZRANK tells you a member's position.",
+    "standard": "Sorted Sets combine a skip list (for O(log N) sorted access) with a hash table (for O(1) score lookup). ZADD is O(log N). Range queries are O(log N + M) where M is the number of results. Use ZRANGE ... REV for descending order. ZRANGEBYSCORE and ZRANGEBYLEX enable score and lexicographic ranges.",
+    "technical": "The skip list is a probabilistic data structure with O(log N) insert, delete, and range. The hash table maps member → score for O(1) ZSCORE. For small sorted sets (≤128 members, ≤64 bytes/member), Redis uses a listpack encoding that's cache-friendly. ZPOPMIN/ZPOPMAX atomically pop the min/max element — perfect for priority queues.",
+    "deepDive": "Sorted sets enable the sliding-window rate limiter without Lua: ZREMRANGEBYSCORE removes old entries, ZADD adds the current timestamp as both key and score, ZCARD counts the window. This is O(log N) per request — far cheaper than SET/INCR with multiple keys. ZRANGEBYLEX implements autocomplete: add all indexed terms with score 0, then ZRANGEBYLEX leaderboard '[alice' '[alice\\xff' returns all entries starting with 'alice'."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Sorted Sets"
+      "text": "Sorted Set Fundamentals"
     },
     {
       "type": "paragraph",
-      "text": "Sorted Sets store members with a floating-point score. Members are always returned in score order."
+      "text": "Sorted Sets store unique members, each with a <strong>floating-point score</strong>. Members are always returned in score order. They combine a hash table (O(1) score lookup) with a skip list (O(log N) range queries)."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Leaderboard\nZADD scores 1500 \"alice\" 2000 \"bob\" 1800 \"carol\"\n\n# Top 3\nZRANGE scores 0 2 WITHSCORES REV\n\n# Rank of a player (0-based)\nZRANK scores \"alice\"\n\n# Range by score\nZRANGEBYSCORE scores 1700 2000"
+      "filename": "sorted-sets.sh",
+      "code": "# Add members with scores\nZADD scores 1500 \"alice\" 2000 \"bob\" 1800 \"carol\"\n\n# Update score (ZADD is upsert)\nZADD scores 2200 \"alice\"   # alice now has 2200\n\n# Get score of a member\nZSCORE scores \"alice\"   # \"2200\"\n\n# Rank (0-indexed, lowest score = rank 0)\nZRANK scores \"alice\"     # 1 (second lowest)\nZREVRANK scores \"alice\"  # 1 (second highest)\n\n# Range by rank (ascending)\nZRANGE scores 0 2 WITHSCORES        # bottom 3\nZRANGE scores 0 2 WITHSCORES REV    # top 3 (descending)\n\n# Range by score\nZRANGEBYSCORE scores 1700 2500      # between 1700 and 2500\nZRANGEBYSCORE scores -inf +inf      # all members\n\n# Count members in score range\nZCOUNT scores 1700 2500             # count in range\n\n# Remove members\nZREM scores \"carol\"                 # remove one\nZREMRANGEBYRANK scores 0 1          # remove bottom 2"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Rate Limiting"
-    },
-    {
-      "type": "paragraph",
-      "text": "Sorted Sets can implement sliding-window rate limits by storing timestamps as scores."
+      "text": "Building a Real-Time Leaderboard"
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "rate-limit.js",
-      "code": "const now = Date.now();\nconst window = 60000;\nawait redis.zremRangeByScore(`rl:${ip}`, 0, now - window);\nawait redis.zAdd(`rl:${ip}`, { score: now, value: `${now}` });\nconst count = await redis.zCard(`rl:${ip}`);\nif (count > 100) throw new Error(\"Rate limit exceeded\");"
+      "filename": "leaderboard.js",
+      "code": "// Add or update a player's score\nasync function addScore(playerId, points) {\n  await redis.zIncrBy('leaderboard:global', points, playerId);\n}\n\n// Get top N players\nasync function getTopPlayers(n) {\n  // ZRANGE with REV returns highest scores first\n  const result = await redis.zRangeWithScores('leaderboard:global', 0, n - 1, { REV: true });\n  return result.map((entry, i) => ({\n    rank: i + 1,\n    playerId: entry.value,\n    score: entry.score,\n  }));\n}\n\n// Get a player's rank and score\nasync function getPlayerStats(playerId) {\n  const [rank, score] = await Promise.all([\n    redis.zRevRank('leaderboard:global', playerId),  // 0-indexed from top\n    redis.zScore('leaderboard:global', playerId),\n  ]);\n  return { rank: rank + 1, score };\n}\n\n// Get players around a rank\nasync function getNeighbours(playerId, range = 5) {\n  const rank = await redis.zRevRank('leaderboard:global', playerId);\n  const start = Math.max(0, rank - range);\n  const end = rank + range;\n  return redis.zRangeWithScores('leaderboard:global', start, end, { REV: true });\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sliding-Window Rate Limiter"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sorted Sets implement a precise sliding-window rate limiter by storing request timestamps as scores. Only requests within the last N seconds count."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "rate-limiter.js",
+      "code": "async function isRateLimited(userId, limit = 100, windowMs = 60000) {\n  const now = Date.now();\n  const windowStart = now - windowMs;\n  const key = `rate:${userId}`;\n\n  const pipeline = redis.pipeline();\n  // 1. Remove requests outside the window\n  pipeline.zRemRangeByScore(key, 0, windowStart);\n  // 2. Add current request\n  pipeline.zAdd(key, { score: now, value: `${now}-${Math.random()}` });\n  // 3. Count requests in window\n  pipeline.zCard(key);\n  // 4. Reset TTL\n  pipeline.expire(key, Math.ceil(windowMs / 1000));\n\n  const results = await pipeline.exec();\n  const requestCount = results[2][1];  // zCard result\n\n  return requestCount > limit;\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Priority Queue"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "priority-queue.js",
+      "code": "// Priority queue: lower score = higher priority\nasync function enqueue(task, priority) {\n  await redis.zAdd('tasks:priority', { score: priority, value: JSON.stringify(task) });\n}\n\n// Dequeue highest priority task (lowest score)\nasync function dequeue() {\n  const result = await redis.zPopMin('tasks:priority');\n  return result ? JSON.parse(result.value) : null;\n}\n\n// Blocking dequeue\nasync function dequeueBlocking(timeout = 30) {\n  const result = await redis.bzPopMin('tasks:priority', timeout);\n  return result ? JSON.parse(result.value) : null;\n}"
+    },
+    {
+      "type": "tip",
+      "text": "Use <code>ZINCRBY</code> instead of <code>ZADD</code> to add to a score atomically. This is perfect for vote counts, page view tallies, and leaderboard point additions."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What command returns members of a sorted set by rank?",
+          "question": "What command returns members of a sorted set by rank, highest first?",
+          "type": "multiple-choice",
+          "options": ["LRANGE", "ZRANGE ... REV", "SMEMBERS", "HGETALL"],
+          "correctAnswer": 1,
+          "explanation": "ZRANGE key 0 N WITHSCORES REV returns members from highest to lowest score (reverse rank order). Without REV, it returns lowest to highest."
+        },
+        {
+          "id": "q2",
+          "question": "Can sorted set scores be negative?",
           "type": "multiple-choice",
           "options": [
-            "LRANGE",
-            "SMEMBERS",
-            "ZRANGE",
-            "HGETALL"
+            "No, scores must be positive",
+            "Only with ZADD NX",
+            "Yes, scores are double-precision floats and can be any value",
+            "Only in Redis 7+"
           ],
           "correctAnswer": 2,
-          "explanation": "ZRANGE returns members by their rank (position) in a sorted set."
+          "explanation": "Scores are double-precision floating-point numbers, so they can be negative, zero, positive, or even infinity (-inf/+inf for range queries)."
+        },
+        {
+          "id": "q3",
+          "question": "What is the time complexity of ZADD on a sorted set?",
+          "type": "multiple-choice",
+          "options": ["O(1)", "O(log N)", "O(N)", "O(N log N)"],
+          "correctAnswer": 1,
+          "explanation": "ZADD is O(log N) because Redis uses a skip list internally. The skip list keeps elements sorted, and insertion into a skip list is O(log N)."
         }
       ]
     }
@@ -67,24 +124,26 @@
   "faq": [
     {
       "q": "Can sorted set scores be negative?",
-      "a": "Yes. Scores are double-precision floats and can be any value including negative numbers."
+      "a": "Yes. Scores are double-precision floats and can be any value including negative numbers or ±infinity."
+    },
+    {
+      "q": "What is ZRANGEBYLEX?",
+      "a": "ZRANGEBYLEX returns members in lexicographic order when all members have the same score. It's used for autocomplete and prefix searches."
+    },
+    {
+      "q": "How do I implement weekly leaderboards that reset?",
+      "a": "Create a key like leaderboard:2026-W45 with an expiry set to the end of the week. Each week gets a fresh key; old ones auto-expire."
     }
   ],
   "sources": [
-    {
-      "name": "Sorted Sets",
-      "url": "https://redis.io/docs/data-types/sorted-sets/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Sorted Sets", "url": "https://redis.io/docs/data-types/sorted-sets/", "verified": "2026-11-04" },
+    { "name": "ZADD", "url": "https://redis.io/commands/zadd/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "leaderboards",
-      "rate limiting",
-      "priority queues"
-    ],
+    "usedIn": ["gaming leaderboards", "API rate limiting", "priority job queues", "time-series range queries"],
     "examples": [
-      "Game leaderboard updating in real time"
+      "Real-time game leaderboard updating millions of scores per second with ZINCRBY",
+      "Sliding-window rate limiter that counts requests in the last 60 seconds exactly"
     ]
   }
 }

@@ -1,19 +1,31 @@
 {
   "id": "03-feature-engineering",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "pandas 2.2 / scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-foundations",
   "title": "Feature Engineering",
   "subtitle": "Creating and selecting features that improve model performance",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.data-prep"
-  ],
-  "skillsTaught": [
-    "ml.features"
-  ],
+  "prerequisites": ["ml.data-prep"],
+  "skillsTaught": ["ml.features", "ml.encoding", "ml.feature-engineering"],
+  "whyItExists": {
+    "problem": "Raw data rarely contains the signal an algorithm needs directly. A date column carries day-of-week, is-holiday, days-since-last-event — but as a raw timestamp, the model cannot see any of that.",
+    "solution": "Feature engineering transforms raw data into informative representations that expose the patterns an algorithm can learn from.",
+    "whenToUse": "Before trying any complex model. Well-engineered features with a simple linear model often outperform a neural network on poorly-engineered features.",
+    "whenNotToUse": "Deep learning on images and text performs feature extraction automatically; manual feature engineering is less critical there. But for tabular data it remains essential."
+  },
+  "explainModes": {
+    "beginner": "Imagine predicting ice cream sales. The raw data has 'date'. But what the model really needs is 'is it summer?' and 'is it a weekend?' Feature engineering creates those useful clues from raw data.",
+    "simple": "Feature engineering means creating new columns from existing ones — like splitting a full name into first/last, or computing price-per-square-foot from price and area. Good features make models smarter.",
+    "standard": "Feature engineering transforms raw inputs into representations that better expose target-relevant variance. Techniques include derived features, binning, polynomial interactions, encoding, and decompositions.",
+    "technical": "Good features reduce the VC dimension needed to solve the problem. Interaction features capture non-linear relationships that linear models cannot learn alone. PCA and embeddings are learned feature transforms.",
+    "deepDive": "Feature engineering is implicit inductive bias injection. By encoding domain knowledge as features, you bias the hypothesis space toward solutions that generalise. AutoML feature synthesis (FeatureTools, TSFresh) automates some of this, but domain understanding remains essential."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +34,71 @@
     },
     {
       "type": "paragraph",
-      "text": "Feature engineering is transforming raw data into informative inputs (features) that help the model learn."
+      "text": "Feature engineering is the craft of <strong>transforming raw data into informative inputs</strong> (features) that help the model learn. It is where domain knowledge and ML skill intersect — and it is typically the single biggest lever on model performance."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Derived Features"
+    },
+    {
+      "type": "paragraph",
+      "text": "Create new columns by combining or transforming existing ones. The goal is to expose relationships that the algorithm cannot discover on its own (especially for linear models)."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "features.py",
-      "code": "import pandas as pd\nfrom sklearn.preprocessing import OneHotEncoder\n\n# Create a new feature\ndf[\"price_per_sqft\"] = df[\"price\"] / df[\"sqft\"]\n\n# Bin a continuous variable\ndf[\"age_group\"] = pd.cut(df[\"age\"], bins=[0,18,35,60,100], labels=[\"child\",\"young\",\"adult\",\"senior\"])\n\n# One-hot encode a categorical column\nenc = OneHotEncoder(sparse_output=False)\ncity_encoded = enc.fit_transform(df[[\"city\"]])\n\n# Log-transform a skewed feature\nimport numpy as np\ndf[\"log_income\"] = np.log1p(df[\"income\"])"
+      "filename": "derived_features.py",
+      "code": "import pandas as pd\nimport numpy as np\n\n# --- Ratio feature ---\ndf['price_per_sqft'] = df['price'] / df['sqft']\n\n# --- Interaction feature ---\ndf['income_x_age'] = df['income'] * df['age']\n\n# --- Date decomposition ---\ndf['date'] = pd.to_datetime(df['date'])\ndf['day_of_week']   = df['date'].dt.dayofweek   # 0=Mon, 6=Sun\ndf['month']         = df['date'].dt.month\ndf['is_weekend']    = df['day_of_week'] >= 5\ndf['days_since_launch'] = (df['date'] - df['date'].min()).dt.days\n\n# --- Log transform for skewed target ---\ndf['log_revenue'] = np.log1p(df['revenue'])"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Encoding Categorical Features"
+    },
+    {
+      "type": "paragraph",
+      "text": "Most algorithms need numbers. Use <strong>one-hot encoding</strong> for unordered categories (city, colour). Use <strong>ordinal encoding</strong> for ordered categories (small &lt; medium &lt; large). For high-cardinality categoricals (1000+ unique values), use target encoding or embeddings."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "encoding.py",
+      "code": "import pandas as pd\nfrom sklearn.preprocessing import OneHotEncoder, OrdinalEncoder\n\n# One-hot encoding (unordered categories)\nohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False)\ncity_enc = ohe.fit_transform(X_train[['city']])\n\n# Ordinal encoding (ordered categories)\nordinal = OrdinalEncoder(categories=[['low', 'medium', 'high']])\nrisk_enc = ordinal.fit_transform(X_train[['risk_level']])\n\n# Target encoding for high-cardinality (mean of target per category)\ntarget_means = X_train.groupby('category')['target'].mean()\nX_train['cat_encoded'] = X_train['category'].map(target_means)\nX_test['cat_encoded']  = X_test['category'].map(target_means).fillna(target_means.mean())"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Binning Continuous Variables"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "binning.py",
+      "code": "import pandas as pd\nimport numpy as np\nfrom sklearn.preprocessing import KBinsDiscretizer\n\n# Manual bins with meaningful labels\ndf['age_group'] = pd.cut(\n    df['age'],\n    bins=[0, 18, 35, 60, 100],\n    labels=['child', 'young_adult', 'adult', 'senior']\n)\n\n# Quantile bins (equal frequency)\ndf['income_quartile'] = pd.qcut(df['income'], q=4, labels=['Q1', 'Q2', 'Q3', 'Q4'])\n\n# Automated binning with sklearn\nkbins = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='quantile')\ndf['age_bin'] = kbins.fit_transform(df[['age']])"
     },
     {
       "type": "tip",
-      "text": "Domain knowledge beats fancy algorithms. A well-engineered feature often improves accuracy more than switching models."
+      "text": "Domain knowledge beats fancy algorithms. A well-engineered feature often improves accuracy more than switching from logistic regression to a gradient boosted tree."
+    },
+    {
+      "type": "warning",
+      "text": "<strong>Avoid feature leakage</strong>: never include a feature that directly encodes the target label (e.g., using tomorrow's stock price to predict today's). The model will learn a spurious pattern and fail completely in production."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Polynomial Features"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "polynomial.py",
+      "code": "from sklearn.preprocessing import PolynomialFeatures\n\n# Generate x, x^2, x1*x2 interactions\npoly = PolynomialFeatures(degree=2, include_bias=False)\nX_poly = poly.fit_transform(X_train)\n\nprint(f'Original features: {X_train.shape[1]}')\nprint(f'Polynomial features: {X_poly.shape[1]}')\nprint(f'Feature names: {poly.get_feature_names_out()[:10]}')"
+    },
+    {
+      "type": "info",
+      "text": "Polynomial features grow quickly: 10 original features → 65 degree-2 features. Only use them when the dataset is not high-dimensional, or combine with regularisation (Lasso) to remove unimportant ones."
     },
     {
       "type": "quiz",
@@ -44,11 +110,37 @@
           "options": [
             "Scales values to 0-1",
             "Converts each category value into a binary column",
-            "Fills missing values",
-            "Removes outliers"
+            "Fills missing values with the mode",
+            "Removes duplicate rows"
           ],
           "correctAnswer": 1,
-          "explanation": "One-hot encoding creates a binary column for each category, so models can use categorical variables."
+          "explanation": "One-hot encoding creates a binary column for each unique category value, so the model receives numeric inputs without implying false ordinal relationships."
+        },
+        {
+          "id": "q2",
+          "question": "What is feature leakage?",
+          "type": "multiple-choice",
+          "options": [
+            "Using too many features",
+            "Including a feature derived from the target or future information",
+            "Having correlated features",
+            "Using features with missing values"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Feature leakage means including information the model couldn't have at prediction time, such as a feature computed from the target label or a future timestamp."
+        },
+        {
+          "id": "q3",
+          "question": "When should you use ordinal encoding instead of one-hot encoding?",
+          "type": "multiple-choice",
+          "options": [
+            "When there are many unique values",
+            "When the categories have a natural order (e.g., low < medium < high)",
+            "When the model is logistic regression",
+            "When you want to reduce memory usage"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Ordinal encoding preserves the meaningful order between category values, which helps the model learn ordinal relationships correctly."
         }
       ]
     }
@@ -56,23 +148,35 @@
   "faq": [
     {
       "q": "What is feature leakage?",
-      "a": "Including a feature that directly encodes the target label (e.g., using tomorrow's price to predict today's). It makes the model look accurate but it won't generalise."
+      "a": "Including a feature that directly encodes the target label (e.g., using tomorrow's price to predict today's). It makes the model look accurate but it won't generalise — it has memorised the target, not learned a pattern."
+    },
+    {
+      "q": "Should I always do feature engineering before trying a model?",
+      "a": "Start with a simple baseline model on raw features first. This gives you a performance floor. Then engineer features and see if they improve it. This prevents over-engineering features that don't help."
+    },
+    {
+      "q": "How do I know which features to create?",
+      "a": "Talk to domain experts, look at correlations with the target, and think about which combinations are physically or logically meaningful. Automated tools like FeatureTools can help explore interaction features systematically."
     }
   ],
   "sources": [
     {
-      "name": "Feature Engineering",
+      "name": "sklearn: Feature Extraction",
       "url": "https://scikit-learn.org/stable/modules/feature_extraction.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "pandas: Time series",
+      "url": "https://pandas.pydata.org/docs/user_guide/timeseries.html",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "predictive analytics",
-      "NLP pipelines"
-    ],
+    "usedIn": ["predictive analytics", "NLP pipelines", "time series forecasting", "fraud detection"],
     "examples": [
-      "Deriving day-of-week from a timestamp for a sales forecast"
+      "Deriving day-of-week and is-holiday from a timestamp for a sales forecast model",
+      "Computing price-per-square-foot and walk-score for a house price prediction model",
+      "Extracting word count, punctuation ratio, and uppercase ratio for spam detection"
     ]
   }
 }

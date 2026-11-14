@@ -1,17 +1,34 @@
 {
   "id": "01-introduction",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-basics",
   "title": "Introduction to Redis",
   "subtitle": "What Redis is, its use cases, and architecture",
   "difficulty": "beginner",
-  "estimatedMinutes": 8,
+  "estimatedMinutes": 12,
   "status": "published",
   "prerequisites": [],
-  "skillsTaught": [
-    "redis.basics"
-  ],
+  "skillsTaught": ["redis.basics"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Databases like PostgreSQL are great for structured queries but require disk I/O. For use cases like session storage, counters, and caching, hitting the database on every request creates latency and load.",
+    "solution": "Redis stores data in RAM, delivering sub-millisecond reads and writes. It supports rich data structures beyond simple key-value, so it handles queues, leaderboards, pub/sub, and rate limiting natively.",
+    "whenToUse": "Caching, session management, real-time leaderboards, rate limiting, job queues, pub/sub notifications, and any workload requiring very high throughput.",
+    "whenNotToUse": "Primary data store for large datasets that must outlive memory, complex relational queries, or when you need ACID transactions across many entities."
+  },
+  "explainModes": {
+    "beginner": "Redis is like a super-fast sticky note board. Instead of writing to a heavy notebook (your database), you stick notes on a whiteboard (RAM) for quick answers.",
+    "simple": "Redis is an in-memory key-value store. Think of it as a dictionary that lives in RAM — blazing fast, but needs to be backed up to survive restarts.",
+    "standard": "Redis is an in-memory data structure server. It stores data as key-value pairs in RAM, delivering microsecond latency. It supports strings, lists, sets, sorted sets, hashes, and streams as native types.",
+    "technical": "Redis is a single-threaded, event-loop-based in-memory data store. Data lives in RAM, with optional persistence via RDB snapshots or AOF logging. It exposes a command-based protocol (RESP) over TCP, achieves >1M ops/sec on commodity hardware, and supports atomic operations, Lua scripting, and cluster mode for horizontal scale.",
+    "deepDive": "Redis uses a reactor pattern with an epoll/kqueue event loop. The single-thread model eliminates lock contention. Memory is managed via jemalloc. Persistence uses a background fork() for RDB and a write-ahead log for AOF. Cluster mode uses consistent hashing over 16384 slots with gossip-based failure detection. Redis 7+ added multi-part AOF to reduce atomic rename overhead at AOF rewrite time."
+  },
   "content": [
     {
       "type": "heading",
@@ -20,22 +37,96 @@
     },
     {
       "type": "paragraph",
-      "text": "Redis (Remote Dictionary Server) is an in-memory key-value store. Because it stores data in RAM, it is extremely fast — capable of millions of operations per second."
+      "text": "<strong>Redis</strong> (Remote Dictionary Server) is an open-source, in-memory data structure store. Because it stores data in <strong>RAM</strong> rather than on disk, it delivers sub-millisecond response times and can handle millions of operations per second on a single node."
     },
     {
       "type": "definition",
       "term": "In-memory",
-      "definition": "Data is stored in RAM rather than on disk, making access nanoseconds instead of milliseconds."
+      "definition": "Data is stored in RAM rather than on disk. Access is nanoseconds instead of milliseconds, but data may be lost on restart unless persistence is configured."
+    },
+    {
+      "type": "definition",
+      "term": "Key-Value Store",
+      "definition": "Every piece of data is stored and retrieved by a unique string key. The value can be a string, list, set, hash, sorted set, stream, and more."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Installing and Connecting"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Install Redis (macOS)\nbrew install redis\nbrew services start redis\n\n# Connect\nredis-cli\n127.0.0.1:6379> PING\nPONG"
+      "filename": "install-redis.sh",
+      "code": "# macOS\nbrew install redis\nbrew services start redis\n\n# Ubuntu / Debian\nsudo apt update && sudo apt install redis-server -y\nsudo systemctl start redis\n\n# Docker (easiest for local dev)\ndocker run -d --name redis -p 6379:6379 redis:7-alpine\n\n# Connect with redis-cli\nredis-cli\n127.0.0.1:6379> PING\nPONG\n127.0.0.1:6379> SET hello world\nOK\n127.0.0.1:6379> GET hello\n\"world\""
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Why Redis is Fast"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis achieves its speed from three design decisions: data lives in <strong>RAM</strong> (no disk I/O), Redis is <strong>single-threaded</strong> (no lock contention), and it uses a <strong>non-blocking I/O event loop</strong> (thousands of concurrent connections without threads)."
+    },
+    {
+      "type": "comparison",
+      "title": "Redis vs a SQL Database for Caching",
+      "a": {
+        "name": "Redis",
+        "description": "In-memory, microsecond latency",
+        "strengths": ["Sub-millisecond reads and writes", "Built-in TTL/expiry", "Supports rich data structures", "Handles 1M+ ops/sec"],
+        "weaknesses": ["Data must fit in RAM", "Eventual consistency in cluster", "No complex joins or transactions across keys"],
+        "useWhen": "Caching, sessions, counters, queues, real-time features"
+      },
+      "b": {
+        "name": "PostgreSQL",
+        "description": "Disk-based, millisecond latency",
+        "strengths": ["Unlimited storage", "ACID transactions", "Complex queries and joins", "Authoritative source of truth"],
+        "weaknesses": ["10-100x slower for simple reads", "Higher CPU under heavy load", "No built-in TTL"],
+        "useWhen": "Primary data store, complex queries, financial data"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Common Use Cases"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>Caching</strong> — Store database query results or API responses with a TTL to reduce load",
+        "<strong>Session storage</strong> — Keep user sessions in Redis instead of a database for fast auth",
+        "<strong>Rate limiting</strong> — Use atomic counters to limit requests per user per second",
+        "<strong>Leaderboards</strong> — Sorted sets maintain ranked lists automatically",
+        "<strong>Job queues</strong> — Lists support blocking push/pop for background workers",
+        "<strong>Pub/Sub</strong> — Broadcast events to multiple subscribers in real time",
+        "<strong>Distributed locks</strong> — SET NX EX implements a lightweight mutex"
+      ]
     },
     {
       "type": "tip",
-      "text": "Redis is single-threaded for command execution, which eliminates race conditions without locks."
+      "text": "Redis is single-threaded for command execution. This eliminates race conditions on data structures without needing locks — a INCR is always atomic."
+    },
+    {
+      "type": "warning",
+      "text": "Redis stores everything in RAM. Without persistence configured, a restart means data loss. Enable RDB snapshots or AOF before going to production."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Key Naming Conventions"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis keys are just strings, but a good naming convention prevents collisions and makes debugging easy. Use colon-separated namespaces: <code>object:id:field</code>."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "key-conventions.sh",
+      "code": "# Good key naming patterns\nuser:1001:profile       # user object\nuser:1001:sessions      # list of session IDs\nsession:abc123          # session data\nrate:api:192.168.1.1    # rate limit counter\ncache:product:42        # cached product\nleaderboard:weekly      # sorted set\n\n# Avoid:\nuser1001profile         # no separator\nUSER:1001               # inconsistent case"
     },
     {
       "type": "quiz",
@@ -44,14 +135,35 @@
           "id": "q1",
           "question": "Where does Redis primarily store data?",
           "type": "multiple-choice",
+          "options": ["On disk (SSD)", "In RAM", "In a distributed file system", "In SQLite"],
+          "correctAnswer": 1,
+          "explanation": "Redis stores all data in RAM for maximum speed. This is why it can serve millions of operations per second."
+        },
+        {
+          "id": "q2",
+          "question": "Why is Redis single-threaded?",
+          "type": "multiple-choice",
           "options": [
-            "On disk (SSD)",
-            "In RAM",
-            "In a distributed file system",
-            "In SQLite"
+            "To save CPU cores",
+            "To eliminate lock contention and race conditions on data structures",
+            "Because it uses JavaScript",
+            "To reduce memory usage"
           ],
           "correctAnswer": 1,
-          "explanation": "Redis stores data in RAM for maximum speed."
+          "explanation": "Single-threading means commands execute atomically without needing locks, simplifying the data model and eliminating deadlocks."
+        },
+        {
+          "id": "q3",
+          "question": "Which use case is Redis NOT typically the best choice for?",
+          "type": "multiple-choice",
+          "options": [
+            "Storing user sessions",
+            "Rate limiting API requests",
+            "Primary store for a 10TB financial database",
+            "Real-time game leaderboards"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Redis data must fit in RAM. A 10TB financial database would require enormous (and expensive) RAM. Use PostgreSQL or a disk-based database for primary data storage at that scale."
         }
       ]
     }
@@ -59,24 +171,26 @@
   "faq": [
     {
       "q": "Can Redis persist data?",
-      "a": "Yes. Redis supports RDB snapshots and AOF (Append-Only File) persistence to survive restarts."
+      "a": "Yes. Redis supports RDB (periodic snapshots to disk) and AOF (append-only log of every write). The recommended setup is hybrid: AOF with RDB preamble."
+    },
+    {
+      "q": "How much data can Redis hold?",
+      "a": "Limited only by available RAM. A single Redis instance can hold tens of GBs. Use Redis Cluster for datasets that exceed a single machine's memory."
+    },
+    {
+      "q": "Is Redis open source?",
+      "a": "Redis was open source under BSD until 2024. Redis 7.4+ uses a dual license (RSALv2 / SSPLv1). Valkey is the community fork that remains BSD-licensed."
     }
   ],
   "sources": [
-    {
-      "name": "Redis Introduction",
-      "url": "https://redis.io/docs/about/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Redis Introduction", "url": "https://redis.io/docs/about/", "verified": "2026-11-04" },
+    { "name": "Redis Data Structures", "url": "https://redis.io/docs/data-types/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "session stores",
-      "rate limiting",
-      "leaderboards"
-    ],
+    "usedIn": ["Twitter (social graph)", "GitHub (caching)", "Snapchat (leaderboards)", "Stack Overflow (sessions)"],
     "examples": [
-      "Caching API responses to reduce database load"
+      "Caching database query results with a 5-minute TTL to reduce PostgreSQL load by 80%",
+      "Storing 100M user sessions at high-traffic sites where a database would be a bottleneck"
     ]
   }
 }

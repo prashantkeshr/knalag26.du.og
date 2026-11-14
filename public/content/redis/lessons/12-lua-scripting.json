@@ -1,38 +1,109 @@
 {
   "id": "12-lua-scripting",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "messaging",
   "title": "Lua Scripting",
   "subtitle": "EVAL, EVALSHA, and atomic multi-command operations",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "redis.streams"
-  ],
-  "skillsTaught": [
-    "redis.lua"
-  ],
+  "prerequisites": ["redis.streams"],
+  "skillsTaught": ["redis.lua"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "Some operations require reading a value and conditionally writing based on it — a classic read-modify-write pattern. Without atomicity, a concurrent request can change the value between your read and write, causing race conditions.",
+    "solution": "Redis executes Lua scripts atomically. No other command runs while a script is executing. This lets you combine GET + conditional SET + INCR + EXPIRE into one atomic operation without risk of interleaving.",
+    "whenToUse": "Atomic conditional updates (compare-and-swap), complex rate limiters, distributed lock acquire/release, deduplication logic, any multi-step operation that must be atomic.",
+    "whenNotToUse": "Simple operations already covered by native Redis commands. Lua scripts block the server — keep them short and fast. Redis 7.0 Functions are the modern replacement for persistent scripts."
+  },
+  "explainModes": {
+    "beginner": "Sometimes you need to do several things in a row in Redis without anyone interrupting you in the middle. Lua scripting is like asking Redis to run a little program for you, all at once, with no interruptions.",
+    "simple": "EVAL script numkeys key1 key2 arg1 arg2 runs a Lua script on Redis. The script can call Redis commands via redis.call(). It runs atomically — no other Redis command runs until the script finishes.",
+    "standard": "Redis executes Lua via the embedded LuaJIT interpreter. Scripts run in the single-threaded event loop — atomically, with no interleaving. KEYS and ARGV arrays receive keys and arguments. redis.call() runs Redis commands; redis.pcall() catches errors. EVALSHA runs a previously cached script by its SHA1 hash.",
+    "technical": "Lua scripts must declare all accessed keys in the KEYS argument for cluster compatibility — Redis uses them to determine the hash slot. Scripts run in a sandboxed environment with no network, file, or system access. Time limit: 5 seconds (lua-time-limit in redis.conf) before Redis logs a warning and starts accepting SHUTDOWN and SCRIPT KILL. SCRIPT LOAD caches a script server-side; EVALSHA uses the cached version without retransmitting the script text.",
+    "deepDive": "Redis 7.0 introduced Redis Functions (FUNCTION LOAD / FCALL) as a replacement for EVAL. Functions are named, persistent across restarts, and can have libraries. They support both Lua and future engines. Scripts loaded with EVAL are ephemeral — they're cached by SHA1 but not persisted in RDB/AOF by default. Use SCRIPT EXISTS to check if a script is cached before EVALSHA."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Lua Scripts in Redis"
+      "text": "Why Atomicity Matters"
     },
     {
       "type": "paragraph",
-      "text": "Redis executes Lua scripts atomically. This lets you combine multiple commands without race conditions."
+      "text": "Consider a rate limiter: GET counter, increment it, check the limit, SET it back. Between the GET and SET, another request could increment the counter too — causing a race condition. Lua scripts execute as a single atomic unit, eliminating this problem."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "basic-eval.sh",
+      "code": "# EVAL script numkeys [key ...] [arg ...]\n# KEYS[1] = 'counter:page1', ARGV[1] = '1'\n\nEVAL \"\n  local val = redis.call('GET', KEYS[1])\n  if not val then val = 0 end\n  local newval = tonumber(val) + tonumber(ARGV[1])\n  redis.call('SET', KEYS[1], newval)\n  return newval\n\" 1 counter:page1 1\n\n# Returns the new value: (integer) 1"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "KEYS and ARGV"
+    },
+    {
+      "type": "paragraph",
+      "text": "Scripts receive two arrays: <code>KEYS</code> for Redis key names, and <code>ARGV</code> for other arguments. Always pass key names through KEYS — this is required for Redis Cluster to route correctly."
     },
     {
       "type": "code",
       "lang": "javascript",
-      "filename": "lua.js",
-      "code": "// Atomic \"get and increment\" with Lua\nconst script = `\n  local val = redis.call(\"GET\", KEYS[1])\n  if not val then val = 0 end\n  redis.call(\"SET\", KEYS[1], tonumber(val) + ARGV[1])\n  return tonumber(val) + ARGV[1]\n`;\n\nconst result = await redis.eval(script, 1, \"counter:page1\", 1);\n\n// Cache the script SHA for efficiency\nconst sha = await redis.scriptLoad(script);\nconst val = await redis.evalsha(sha, 1, \"counter:page1\", 1);"
+      "filename": "lua-basics.js",
+      "code": "import Redis from 'ioredis';\nconst redis = new Redis();\n\n// Script: get a value and multiply it\nconst script = `\n  local val = redis.call('GET', KEYS[1])\n  if not val then return 0 end\n  return tonumber(val) * tonumber(ARGV[1])\n`;\n\n// EVAL: numkeys=1, key='counter:hits', argv='10'\nconst result = await redis.eval(script, 1, 'counter:hits', '10');\nconsole.log(result);  // current value * 10\n\n// Cache script by SHA for efficiency\nconst sha = await redis.script('LOAD', script);\n// Use EVALSHA on subsequent calls (no retransmit of script text)\nconst result2 = await redis.evalsha(sha, 1, 'counter:hits', '10');"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Real-World: Atomic Rate Limiter"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "rate-limiter-lua.js",
+      "code": "// Atomic rate limiter: increment counter, set expiry if first request\nconst rateLimitScript = `\n  local current = redis.call('INCR', KEYS[1])\n  if current == 1 then\n    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))\n  end\n  return current\n`;\n\nasync function checkRateLimit(userId, limit = 100, windowSecs = 60) {\n  const key = `rate:${userId}:${Math.floor(Date.now() / (windowSecs * 1000))}`;\n  const count = await redis.eval(rateLimitScript, 1, key, windowSecs);\n  return count > limit;  // true = rate limited\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Real-World: Distributed Lock"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "distributed-lock.js",
+      "code": "// Acquire lock: SET NX EX (native command, no Lua needed for acquire)\nasync function acquireLock(resource, ttlSecs = 30) {\n  const token = crypto.randomUUID();\n  const acquired = await redis.set(\n    `lock:${resource}`, token,\n    'NX', 'EX', ttlSecs\n  );\n  return acquired ? token : null;\n}\n\n// Release lock: MUST check token matches before deleting (Lua!)\nconst releaseLockScript = `\n  if redis.call('GET', KEYS[1]) == ARGV[1] then\n    return redis.call('DEL', KEYS[1])\n  else\n    return 0\n  end\n`;\n\nasync function releaseLock(resource, token) {\n  // Atomic check-and-delete: only delete if token matches\n  // Without Lua, another process could acquire the lock between our GET and DEL\n  return redis.eval(releaseLockScript, 1, `lock:${resource}`, token);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Redis Functions (Modern Alternative)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis 7.0 introduced <strong>Redis Functions</strong> as a named, persistent alternative to EVAL scripts. Functions survive restarts and are stored in RDB/AOF."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "redis-functions.sh",
+      "code": "# Load a named function library\nFUNCTION LOAD \"#!lua name=mylib\\nredis.register_function('myfunc', function(keys, args) return redis.call('GET', keys[1]) end)\"\n\n# Call the function\nFCALL myfunc 1 mykey\n\n# List functions\nFUNCTION LIST\n\n# Delete a library\nFUNCTION DELETE mylib"
     },
     {
       "type": "tip",
-      "text": "Scripts run atomically and block the server. Keep them short and fast."
+      "text": "Scripts run atomically and block the entire Redis server. Keep Lua scripts short — aim for microseconds, not milliseconds. Any Lua that takes >5 seconds triggers a warning and can be killed with SCRIPT KILL."
+    },
+    {
+      "type": "warning",
+      "text": "Always declare all Redis key names in the KEYS argument. Hardcoding keys inside the script breaks Redis Cluster routing — the cluster can't determine which shard to route to."
     },
     {
       "type": "quiz",
@@ -42,13 +113,39 @@
           "question": "Why are Redis Lua scripts atomic?",
           "type": "multiple-choice",
           "options": [
-            "Redis locks the key",
-            "Redis is single-threaded and runs the script without interruption",
-            "Lua has built-in locks",
-            "Redis uses transactions"
+            "Redis locks all keys used by the script",
+            "Redis is single-threaded and runs the script without interruption from other commands",
+            "Lua has built-in locking primitives",
+            "Redis uses transactions internally"
           ],
           "correctAnswer": 1,
-          "explanation": "Redis's single-threaded execution model means no other commands run while a Lua script is executing."
+          "explanation": "Redis's single-threaded event loop means no other commands execute while a Lua script runs. Atomicity is a consequence of single-threading, not explicit locking."
+        },
+        {
+          "id": "q2",
+          "question": "What is the advantage of EVALSHA over EVAL?",
+          "type": "multiple-choice",
+          "options": [
+            "EVALSHA is faster at runtime",
+            "EVALSHA runs the script without retransmitting its full text — only the SHA1 hash is sent",
+            "EVALSHA supports more Lua features",
+            "EVALSHA works in Redis Cluster; EVAL does not"
+          ],
+          "correctAnswer": 1,
+          "explanation": "EVALSHA references a script previously cached with SCRIPT LOAD by its SHA1 hash, avoiding retransmission of the script text on every call. This saves bandwidth for large scripts called frequently."
+        },
+        {
+          "id": "q3",
+          "question": "Why should key names always be passed through KEYS and not hardcoded in the script?",
+          "type": "multiple-choice",
+          "options": [
+            "It's just a convention",
+            "Redis Cluster uses KEYS to determine which node to route the script to",
+            "ARGV only accepts strings, not key names",
+            "Hardcoded keys are slower"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis Cluster needs to know which hash slots a script accesses to route it to the correct node. Only keys declared in the KEYS parameter are visible to the cluster router."
         }
       ]
     }
@@ -56,23 +153,26 @@
   "faq": [
     {
       "q": "What is EVALSHA?",
-      "a": "EVALSHA runs a previously loaded script by its SHA1 hash, avoiding resending the script text on every call."
+      "a": "EVALSHA runs a previously loaded script by its SHA1 hash, avoiding resending the script text on every call. Use SCRIPT LOAD to cache the script first."
+    },
+    {
+      "q": "How do I handle errors in Lua scripts?",
+      "a": "Use redis.pcall() instead of redis.call() to catch errors — it returns a Lua table with an 'err' field instead of raising. redis.call() propagates errors to the caller."
+    },
+    {
+      "q": "What is the time limit for Lua scripts?",
+      "a": "5 seconds by default (lua-time-limit in redis.conf). After that, Redis logs a warning but lets the script continue. Use SCRIPT KILL to terminate a running script (only works if no writes have been done yet)."
     }
   ],
   "sources": [
-    {
-      "name": "Scripting",
-      "url": "https://redis.io/docs/manual/programmability/eval-intro/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Scripting", "url": "https://redis.io/docs/manual/programmability/eval-intro/", "verified": "2026-11-04" },
+    { "name": "Redis Functions", "url": "https://redis.io/docs/manual/programmability/functions-intro/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "atomic counters",
-      "conditional updates"
-    ],
+    "usedIn": ["atomic rate limiters", "distributed locks", "deduplication logic", "conditional updates"],
     "examples": [
-      "Atomic check-and-set for distributed locks"
+      "Distributed lock release using Lua to atomically check-and-delete (prevents releasing another process's lock)",
+      "Atomic rate limiter: INCR + EXPIRE in one script to prevent race conditions on the first request"
     ]
   }
 }

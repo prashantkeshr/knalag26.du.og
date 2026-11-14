@@ -1,19 +1,35 @@
 {
   "id": "02-microcontrollers",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "AVR ATmega328P / ARM Cortex-M",
   "technology": "embedded",
   "module": "embedded-basics",
   "title": "Microcontroller Architecture",
   "subtitle": "CPU, memory, registers, interrupts, and peripherals",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.basics"
-  ],
-  "skillsTaught": [
-    "embedded.mcu-arch"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.basics"],
+  "skillsTaught": ["embedded.mcu-arch"],
+  "whyItExists": {
+    "problem": "Writing effective embedded firmware requires understanding the hardware you're programming. Without knowing what flash, SRAM, EEPROM, and peripherals are, you'll make mistakes like storing large strings in RAM and running out of memory, or misunderstanding why the Arduino crashes randomly.",
+    "solution": "Understanding MCU architecture — how flash stores the program, SRAM holds variables, and peripherals like ADC and UART work — enables you to write lean, bug-free firmware and diagnose issues systematically.",
+    "whenToUse": "Before starting any Arduino or embedded project — this knowledge prevents the most common beginner bugs (SRAM overflow, flash overflow, timer conflicts).",
+    "whenNotToUse": "You don't need this depth for high-level Raspberry Pi Linux projects — the OS manages memory and peripherals for you."
+  },
+  "explainModes": {
+    "beginner": "Inside an Arduino chip there are three kinds of memory: flash (like a hard drive, keeps your program), SRAM (like RAM, holds variables while running), and EEPROM (a tiny area that survives power-off). The chip also has built-in features like a clock counter, analog reader, and serial ports.",
+    "simple": "An MCU is like a tiny computer where everything — CPU, storage, and I/O — is on one chip. The CPU reads instructions from flash, stores working data in SRAM, and talks to the outside world through GPIO, UART, I2C, and SPI peripherals.",
+    "standard": "AVR MCUs use a modified Harvard architecture: separate buses for program (flash) and data (SRAM) allow instruction fetch and data access to happen simultaneously. Peripherals are memory-mapped registers. Interrupts allow the CPU to respond to events without polling.",
+    "technical": "The ATmega328P pipeline fetches and executes most instructions in one clock cycle. SFRs (Special Function Registers) at addresses 0x00–0xFF control every peripheral. The interrupt vector table at address 0x0000 maps IRQ numbers to ISR addresses. The SP (Stack Pointer) starts at the top of SRAM and grows downward; stack overflow into heap is silent corruption.",
+    "deepDive": "AVR uses a two-stage pipeline with 131 instructions. PROGMEM (flash) access from C++ requires the pgm_read_* macros because the data bus only addresses SRAM. The watchdog timer (WDT) resets the MCU if firmware hangs — critical for reliability. Power reduction registers let you gate clocks to unused peripherals, cutting active current from ~12 mA to ~6 mA."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,27 +38,80 @@
     },
     {
       "type": "paragraph",
-      "text": "A microcontroller contains a CPU, program flash (non-volatile), data SRAM (volatile), timers, ADC, and digital I/O all on one chip."
+      "text": "A microcontroller packages everything a computer needs onto a single chip. The <strong>ATmega328P</strong> inside an Arduino Uno is a good reference: 8-bit AVR CPU running at 16 MHz, 32 KB of flash (program storage), 2 KB of SRAM (runtime variables), and 1 KB of EEPROM (persistent small data)."
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "arch.txt",
-      "code": "ATmega328P (Arduino Uno) architecture:\n  CPU:    8-bit AVR @ 16 MHz\n  Flash:  32 KB (stores your program)\n  SRAM:   2 KB  (runtime data — use carefully!)\n  EEPROM: 1 KB  (persistent small data)\n  Timers: 3 (Timer0/1/2)\n  ADC:    10-bit, 6 channels\n  UART, SPI, I2C built in"
+      "filename": "atmega328p-arch.txt",
+      "code": "ATmega328P — Arduino Uno Architecture\n──────────────────────────────────────\nCPU:    8-bit AVR @ 16 MHz (most instructions 1 clock cycle)\nFlash:  32 KB  — stores your compiled program (non-volatile)\nSRAM:   2 KB   — runtime stack + heap + globals (volatile)\nEEPROM: 1 KB   — survives power-off, ~100k write cycles\nTimers: 3 (Timer0 8-bit, Timer1 16-bit, Timer2 8-bit)\nADC:    10-bit, 6 channels (A0-A5)\nPWM:    6 channels (pins 3,5,6,9,10,11)\nUART:   1 hardware (pins 0,1 — shared with USB)\nI2C:    1 (pins A4=SDA, A5=SCL)\nSPI:    1 (pins 10=SS, 11=MOSI, 12=MISO, 13=SCK)\nInterrupt pins: 2 hardware (pins 2, 3), all pins via PCINT"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Three Memory Types"
     },
     {
       "type": "definition",
-      "term": "ADC",
-      "definition": "Analog-to-Digital Converter: reads an analog voltage (0-5V) and converts it to a digital number (0-1023 for 10-bit)."
+      "term": "Flash (Program Memory)",
+      "definition": "Non-volatile storage for your compiled program. The ATmega328P has 32 KB. It survives power-off, but can only be written ~10,000 times (don't write to it at runtime). Your .ino sketch compiles to AVR machine code stored here."
     },
     {
       "type": "definition",
-      "term": "Interrupt",
-      "definition": "A signal that pauses the main program to handle an urgent event (button press, timer tick, data received)."
+      "term": "SRAM (Static RAM)",
+      "definition": "Volatile runtime memory for variables, the call stack, and heap. The ATmega328P has 2 KB — enough for about 500 integers. It disappears when power is removed. SRAM overflow is the #1 cause of mysterious Arduino crashes."
+    },
+    {
+      "type": "definition",
+      "term": "EEPROM",
+      "definition": "1 KB of non-volatile storage for small persistent values (calibration data, device ID, WiFi credentials on larger MCUs). Limited to ~100,000 write cycles — don't write to it in a tight loop."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "memory_demo.ino",
+      "code": "#include <EEPROM.h>\n#include <avr/pgmspace.h>\n\n// BAD: This string eats SRAM\nconst char msg1[] = \"Booting sensor system v1.0.0...\";\n\n// GOOD: Store string in flash with F() macro\n// void setup() { Serial.println(F(\"Booting sensor system v1.0.0...\")); }\n\n// Store a constant table in flash (not SRAM) with PROGMEM\nconst PROGMEM uint8_t LOOKUP[16] = {0,1,4,9,16,25,36,49,64,81,100,121,144,169,196,225};\n\n// Read EEPROM — persistent config\nvoid loadConfig() {\n  byte deviceId = EEPROM.read(0);  // address 0\n  if (deviceId == 0xFF) {          // 0xFF = unprogrammed\n    deviceId = 42;\n    EEPROM.write(0, deviceId);     // write once\n  }\n  Serial.print(\"Device ID: \"); Serial.println(deviceId);\n}\n\n// Check free SRAM\nint freeMemory() {\n  extern int __heap_start, *__brkval;\n  int v;\n  return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int)__brkval);\n}\n\nvoid setup() {\n  Serial.begin(115200);\n  loadConfig();\n  Serial.print(\"Free SRAM: \"); Serial.println(freeMemory());\n}"
+    },
+    {
+      "type": "warning",
+      "text": "On Arduino Uno, SRAM is only 2 KB. String concatenation, large arrays, and recursive functions eat SRAM fast. Use F(\"literal\") for Serial.print strings, and PROGMEM for constant tables. Watch free SRAM with freeMemory() — below 200 bytes, your sketch will crash unpredictably."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Interrupts: Responding to Events Instantly"
+    },
+    {
+      "type": "paragraph",
+      "text": "An <strong>interrupt</strong> is a hardware signal that pauses the main program, runs an ISR (Interrupt Service Routine), then resumes exactly where it left off. This lets you respond to button presses, timer ticks, or serial data instantly — without polling. The ATmega328P has two external interrupt pins (2 and 3) and 23 internal interrupt sources."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "interrupt_demo.ino",
+      "code": "volatile bool buttonPressed = false;  // volatile: modified in ISR\n\n// ISR — keep it SHORT, no Serial, no delay\nvoid IRAM_ATTR onButtonPress() {\n  buttonPressed = true;  // just set a flag\n}\n\nvoid setup() {\n  Serial.begin(115200);\n  pinMode(2, INPUT_PULLUP);\n  // Attach interrupt: pin 2, ISR, trigger on FALLING edge\n  attachInterrupt(digitalPinToInterrupt(2), onButtonPress, FALLING);\n}\n\nvoid loop() {\n  if (buttonPressed) {\n    buttonPressed = false;        // clear flag\n    Serial.println(\"Button pressed!\");\n  }\n  // Other work happens here uninterrupted\n}"
     },
     {
       "type": "tip",
-      "text": "SRAM is precious on Arduino. Store large constant data in flash with PROGMEM; prefer local variables over global."
+      "text": "ISRs must be as short as possible — set a flag, then handle it in loop(). Never call Serial, delay(), or malloc() inside an ISR. Use the `volatile` keyword for any variable shared between an ISR and main code."
+    },
+    {
+      "type": "comparison",
+      "title": "Polling vs Interrupts",
+      "a": {
+        "name": "Polling",
+        "description": "Continuously check a pin or register in the main loop",
+        "strengths": ["Simple code", "No ISR complexity", "Deterministic timing"],
+        "weaknesses": ["Burns CPU cycles", "May miss fast events", "Slows down loop"],
+        "useWhen": "Slow events checked every few ms"
+      },
+      "b": {
+        "name": "Interrupts",
+        "description": "Hardware notifies CPU when event occurs",
+        "strengths": ["CPU free for other work", "Catches every event instantly", "Enables low-power sleep"],
+        "weaknesses": ["ISR complexity", "Race conditions with volatile variables", "Limited pin support"],
+        "useWhen": "Fast or infrequent events needing immediate response"
+      }
     },
     {
       "type": "quiz",
@@ -52,13 +121,39 @@
           "question": "Where is a running Arduino program stored?",
           "type": "multiple-choice",
           "options": [
-            "SRAM",
-            "EEPROM",
-            "Flash",
-            "SD card"
+            "SRAM — runtime data memory",
+            "EEPROM — persistent storage",
+            "Flash — non-volatile program memory",
+            "On the SD card"
           ],
           "correctAnswer": 2,
-          "explanation": "Program code is stored in flash (non-volatile). SRAM holds runtime variables and disappears when power is lost."
+          "explanation": "Compiled program code lives in flash (non-volatile). SRAM holds runtime variables and disappears on power-off. Flash survives power cycles."
+        },
+        {
+          "id": "q2",
+          "question": "What happens when Arduino SRAM is exhausted?",
+          "type": "multiple-choice",
+          "options": [
+            "The IDE shows a compile error",
+            "The LED blinks an error code",
+            "Stack and heap collide causing silent data corruption and crashes",
+            "The program moves data to EEPROM automatically"
+          ],
+          "correctAnswer": 2,
+          "explanation": "SRAM overflow is silent — the CPU keeps running but reads garbage values. Use freeMemory() to monitor SRAM and the F() macro to keep strings in flash."
+        },
+        {
+          "id": "q3",
+          "question": "What keyword must you use for variables shared between an ISR and main code?",
+          "type": "multiple-choice",
+          "options": [
+            "static",
+            "volatile",
+            "extern",
+            "register"
+          ],
+          "correctAnswer": 1,
+          "explanation": "`volatile` tells the compiler not to cache the variable in a register — it forces a fresh memory read every access, ensuring the ISR's write is visible in main code."
         }
       ]
     }
@@ -66,23 +161,38 @@
   "faq": [
     {
       "q": "What happens when SRAM runs out?",
-      "a": "Stack and heap collide, causing random crashes or data corruption. This is a common Arduino bug. Monitor free SRAM with freeMemory()."
+      "a": "Stack and heap collide, causing random crashes or data corruption. This is a common Arduino bug. Monitor free SRAM with freeMemory() — keep at least 200 bytes free. Use the F() macro for string literals."
+    },
+    {
+      "q": "How many interrupts can Arduino Uno handle simultaneously?",
+      "a": "Only one ISR executes at a time. If a second interrupt fires while an ISR is running, it queues until the first ISR returns. For this reason, keep ISRs extremely short."
+    },
+    {
+      "q": "What is the difference between EEPROM and flash?",
+      "a": "Both are non-volatile (survive power-off). Flash stores your program and can hold 32 KB; EEPROM is a tiny (1 KB) byte-addressable area for persistent config data. EEPROM has ~100,000 write cycles; flash supports ~10,000 full erase cycles."
     }
   ],
   "sources": [
     {
-      "name": "AVR Architecture",
+      "name": "ATmega328P Datasheet",
       "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Arduino Memory Guide",
+      "url": "https://docs.arduino.cc/learn/programming/memory-guide/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "microcontroller selection",
-      "debugging"
+      "debugging SRAM overflow in Arduino data loggers",
+      "microcontroller selection for new product designs",
+      "optimising firmware for 8-bit AVR devices"
     ],
     "examples": [
-      "Profiling SRAM usage on a data-logging Arduino sketch"
+      "Using PROGMEM to store 256-byte lookup tables in flash instead of SRAM on a small Arduino",
+      "Detecting SRAM overflow using freeMemory() during prototype testing"
     ]
   }
 }

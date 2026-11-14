@@ -1,53 +1,122 @@
 {
   "id": "15-redis-in-production",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "redis-production",
   "title": "Redis in Production",
   "subtitle": "Monitoring, security, and operational best practices",
   "difficulty": "advanced",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "redis.clustering"
-  ],
-  "skillsTaught": [
-    "redis.production"
-  ],
+  "prerequisites": ["redis.clustering"],
+  "skillsTaught": ["redis.production"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "Redis is deceptively simple to run in development but has critical production pitfalls: open by default with no authentication, dangerous commands like FLUSHALL available to anyone, and performance issues that only manifest under load.",
+    "solution": "A production Redis checklist: enable authentication, bind to a private network, disable dangerous commands, set memory limits with eviction, enable persistence, monitor memory and latency, and use slow log for diagnostics.",
+    "whenToUse": "Before launching any Redis instance accessible from the internet or shared infrastructure. These practices prevent security breaches, data loss, and production incidents.",
+    "whenNotToUse": "Local development Redis (localhost only) doesn't need all of this — but build good habits early."
+  },
+  "explainModes": {
+    "beginner": "Running Redis in production is like running a restaurant. You need locks on the doors (authentication), smoke alarms (monitoring), rules about how much food to keep (memory limits), and a backup generator (persistence). Without these, things go wrong in expensive ways.",
+    "simple": "Production checklist: set a strong password (requirepass), bind to private IP, rename or disable dangerous commands (FLUSHALL, DEBUG), set maxmemory with an eviction policy, enable persistence, monitor INFO memory and slow log.",
+    "standard": "Security: requirepass, bind to private IP, TLS, rename/disable dangerous commands with rename-command. Performance: maxmemory + eviction, slow log, latency monitoring. Ops: INFO ALL metrics, MONITOR for debugging (not in production), keyspace notifications for event-driven patterns. Sizing: set maxmemory to 70% of RAM to leave headroom for fork() and OS buffers.",
+    "technical": "Redis AUTH (password) and ACLs (Access Control Lists, Redis 6+) control access. ACLs let you grant per-command and per-keyspace permissions per user. TLS is natively supported since Redis 6.0. Rename-command in redis.conf aliases or disables commands at the protocol level. Latency monitoring (LATENCY HISTORY, LATENCY LATEST) tracks event latency. MEMORY USAGE key returns bytes for a specific key.",
+    "deepDive": "Redis 6+ ACL system supports fine-grained rules: ACLS with ~keypattern and &channelpattern and +command -command. Redis 7.0 added ACL LOG for audit trails. For high-performance production, disable Transparent Huge Pages (THP) on Linux — Redis's memory allocation pattern causes THP to fragment and slow down fork(). Set vm.overcommit_memory=1 to allow Redis to safely fork even when not all pages are physical. Use numactl to pin Redis to a single NUMA node."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Securing Redis"
+      "text": "Security First"
     },
     {
       "type": "paragraph",
-      "text": "Redis has no authentication by default. In production, enable requirepass, bind to localhost, and use TLS."
-    },
-    {
-      "type": "code",
-      "lang": "text",
-      "filename": "redis.conf",
-      "code": "requirepass \"strongsecretpassword\"\nbind 127.0.0.1\ntls-port 6380\ntls-cert-file /path/to/redis.crt\ntls-key-file /path/to/redis.key"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "Monitoring Redis"
-    },
-    {
-      "type": "paragraph",
-      "text": "Use INFO ALL to see metrics and monitor slowlog for slow commands."
+      "text": "Redis has <strong>no authentication by default</strong>. An internet-exposed Redis is a critical vulnerability — attackers can read all data, overwrite keys, or achieve remote code execution via config manipulation. Always secure before deploying."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "redis-cli INFO memory\nredis-cli INFO stats\nredis-cli SLOWLOG GET 10\nredis-cli MONITOR   # real-time command log (dev only)"
+      "filename": "redis-security.conf",
+      "code": "# redis.conf — Security settings\n\n# 1. Bind to private/localhost only (NOT 0.0.0.0)\nbind 127.0.0.1\n# Or bind to private IP only: bind 10.0.1.5\n\n# 2. Require password\nrequirepass \"use-a-long-random-password-here\"\n\n# 3. Enable TLS (Redis 6+)\ntls-port 6380\ntls-cert-file /etc/redis/redis.crt\ntls-key-file /etc/redis/redis.key\ntls-ca-cert-file /etc/redis/ca.crt\n\n# 4. Disable dangerous commands\nrename-command FLUSHALL \"\"\nrename-command FLUSHDB  \"\"\nrename-command DEBUG    \"\"\nrename-command CONFIG   \"CONFIG-ADMIN-ONLY-SECRET\"\n\n# 5. Disable protected-mode if binding explicitly\nprotected-mode yes  # keep enabled if bind not set"
     },
     {
-      "type": "tip",
-      "text": "Never run MONITOR in production — it logs every command and significantly impacts performance."
+      "type": "heading",
+      "level": 2,
+      "text": "Access Control Lists (ACLs)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis 6+ supports <strong>ACLs</strong> — per-user permissions on commands and key patterns. This lets you give the app only what it needs, not full admin access."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "acl-setup.sh",
+      "code": "# Create a restricted app user\nredis-cli ACL SETUSER appuser on >app-password ~* +GET +SET +DEL +EXPIRE +TTL\n# on = enabled\n# > = password\n# ~* = access all keys\n# + = allow these commands only\n\n# Create a read-only user\nredis-cli ACL SETUSER readonly on >readonly-password ~* +@read\n\n# List ACL users\nredis-cli ACL LIST\n\n# Check current user\nredis-cli ACL WHOAMI\n\n# ACLs in redis.conf\n# user appuser on >password ~cache:* +GET +SET +EXPIRE"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Memory Management"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "memory-config.conf",
+      "code": "# redis.conf — Memory settings\n\n# Set to 70-80% of available RAM\nmaxmemory 3gb\n\n# Eviction policy for cache workloads\nmaxmemory-policy allkeys-lru\n\n# LRU sample accuracy (higher = more accurate, more CPU)\nmaxmemory-samples 10\n\n# Check memory usage\nredis-cli INFO memory\n# used_memory_human: 1.50G\n# mem_fragmentation_ratio: 1.08  (ideal: 1.0-1.5)\n\n# Check memory for a specific key\nredis-cli MEMORY USAGE mykey SAMPLES 5\n\n# Find big keys\nredis-cli --bigkeys"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Monitoring and Diagnostics"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "monitoring.sh",
+      "code": "# Key metrics via INFO\nredis-cli INFO memory     # memory usage\nredis-cli INFO stats      # commands/sec, hits/misses\nredis-cli INFO keyspace   # key count per database\nredis-cli INFO replication # replication status\nredis-cli INFO clients    # connected clients, blocked\n\n# Cache hit rate (from INFO stats)\n# keyspace_hits / (keyspace_hits + keyspace_misses)\n\n# Slow log — commands taking > 10ms\nredis-cli SLOWLOG GET 10\nredis-cli CONFIG SET slowlog-log-slower-than 10000  # microseconds\n\n# Latency monitoring\nredis-cli LATENCY LATEST\nredis-cli LATENCY HISTORY event\n\n# Real-time command stream (dev/debug only!)\n# redis-cli MONITOR   # DO NOT run in production — huge performance impact"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Linux System Tuning"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "linux-tuning.sh",
+      "code": "# 1. Disable Transparent Huge Pages (causes latency spikes)\necho never > /sys/kernel/mm/transparent_hugepage/enabled\n\n# 2. Allow overcommit memory (required for fork/RDB)\nsysctl vm.overcommit_memory=1\necho 'vm.overcommit_memory = 1' >> /etc/sysctl.conf\n\n# 3. Increase max connections\nsysctl -w net.core.somaxconn=65535\n\n# 4. Add to /etc/rc.local for persistence\necho 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' >> /etc/rc.local\n\n# Redis will warn about these in startup log if not set"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Production Checklist"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Set <code>requirepass</code> with a strong password (or use ACLs)",
+        "Bind to private IP only — never <code>0.0.0.0</code> in production",
+        "Enable TLS for in-transit encryption",
+        "Disable <code>FLUSHALL</code>, <code>FLUSHDB</code>, and <code>DEBUG</code> with <code>rename-command</code>",
+        "Set <code>maxmemory</code> to 70% of RAM and choose an eviction policy",
+        "Enable persistence (hybrid AOF recommended)",
+        "Set up Sentinel or Cluster for HA",
+        "Monitor hit rate, memory, and slow log continuously",
+        "Disable Transparent Huge Pages and set <code>vm.overcommit_memory=1</code> on Linux",
+        "Never run <code>MONITOR</code> or <code>KEYS *</code> in production"
+      ]
+    },
+    {
+      "type": "warning",
+      "text": "Never run <code>MONITOR</code> in production — it logs every command and significantly degrades performance. Use <code>SLOWLOG GET</code> for identifying slow commands instead."
     },
     {
       "type": "quiz",
@@ -56,14 +125,30 @@
           "id": "q1",
           "question": "What command shows the slowest recent Redis commands?",
           "type": "multiple-choice",
-          "options": [
-            "SLOWLOG GET",
-            "INFO slow",
-            "DEBUG SLEEP",
-            "LATENCY HISTORY"
-          ],
+          "options": ["SLOWLOG GET", "INFO slow", "DEBUG SLEEP", "LATENCY HISTORY"],
           "correctAnswer": 0,
-          "explanation": "SLOWLOG GET returns the most recent commands that exceeded the slowlog threshold."
+          "explanation": "SLOWLOG GET returns recent commands that exceeded the slowlog-log-slower-than threshold (default 10ms). Use it to identify performance bottlenecks."
+        },
+        {
+          "id": "q2",
+          "question": "Why should you disable Transparent Huge Pages on Linux for Redis?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis doesn't support large memory pages",
+            "THP causes memory fragmentation and latency spikes during Redis fork() for RDB saves",
+            "THP conflicts with Redis's password authentication",
+            "THP is only for database workloads, not caches"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Redis's fork-based RDB save uses copy-on-write memory. THP (Transparent Huge Pages) causes the OS to split huge pages on copy, adding significant latency and memory fragmentation. Disabling THP is a standard Redis production recommendation."
+        },
+        {
+          "id": "q3",
+          "question": "What is the recommended maxmemory setting relative to available RAM?",
+          "type": "multiple-choice",
+          "options": ["100% (use all RAM)", "50% (conservative)", "70-80% (leave headroom)", "90% (maximize use)"],
+          "correctAnswer": 2,
+          "explanation": "Set maxmemory to 70-80% of available RAM. Leave headroom for the fork() child process during RDB saves (copy-on-write can temporarily double memory), OS page cache, and other system processes."
         }
       ]
     }
@@ -71,22 +156,26 @@
   "faq": [
     {
       "q": "What is a good maxmemory setting?",
-      "a": "Set maxmemory to 70-80% of available RAM to leave headroom for fork() during RDB saves and OS buffers."
+      "a": "Set maxmemory to 70-80% of available RAM to leave headroom for fork() during RDB saves, OS page cache, and OS buffers. With 8GB RAM, set maxmemory to 5-6GB."
+    },
+    {
+      "q": "How do I find which keys are using the most memory?",
+      "a": "Run redis-cli --bigkeys (scans keyspace, reports largest per type). For a specific key: MEMORY USAGE key SAMPLES 5. For the whole instance: INFO memory shows used_memory and fragmentation."
+    },
+    {
+      "q": "Should I use Redis AUTH or ACLs?",
+      "a": "Redis 6+ ACLs are more powerful: they allow per-user command and key-pattern restrictions. For new deployments, prefer ACLs over the single global requirepass password. Use requirepass for compatibility with older Redis versions."
     }
   ],
   "sources": [
-    {
-      "name": "Production Checklist",
-      "url": "https://redis.io/docs/management/security/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Security", "url": "https://redis.io/docs/management/security/", "verified": "2026-11-04" },
+    { "name": "Redis Admin", "url": "https://redis.io/docs/management/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "production Redis deployments"
-    ],
+    "usedIn": ["production API caches", "managed Redis (ElastiCache, Upstash, Redis Cloud)", "session stores at scale"],
     "examples": [
-      "Redis behind a TLS proxy on AWS"
+      "Locking down Redis at a startup: requirepass + bind to VPC subnet + rename FLUSHALL to '' prevented a data wipe during a misconfiguration incident",
+      "Using ACLs to give the app only +GET +SET +EXPIRE and a read-only user for analytics"
     ]
   }
 }

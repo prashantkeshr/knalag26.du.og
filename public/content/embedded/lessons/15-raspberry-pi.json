@@ -1,84 +1,190 @@
 {
   "id": "15-raspberry-pi",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Raspberry Pi OS Bookworm / Mosquitto 2 / InfluxDB 2.x / Grafana 10",
   "technology": "embedded",
   "module": "iot-projects",
-  "title": "Raspberry Pi IoT Project",
-  "subtitle": "Building an end-to-end sensor dashboard project",
+  "title": "Raspberry Pi IoT Capstone Project",
+  "subtitle": "End-to-end sensor dashboard: DHT22 → MQTT → InfluxDB → Grafana",
   "difficulty": "intermediate",
-  "estimatedMinutes": 18,
+  "estimatedMinutes": 25,
   "status": "published",
-  "prerequisites": [
-    "embedded.edge"
-  ],
-  "skillsTaught": [
-    "embedded.iot-project"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.edge"],
+  "skillsTaught": ["embedded.iot-project"],
+  "whyItExists": {
+    "problem": "Individual skills — GPIO, MQTT, Python services — are only useful when they come together in a real, working system. Without building an end-to-end project, the connections between components remain abstract.",
+    "solution": "This capstone project assembles everything into a production-quality IoT dashboard: a physical sensor, a Python data collector, MQTT for messaging, InfluxDB for time-series storage, and Grafana for live visualisation — all running on a single Raspberry Pi.",
+    "whenToUse": "As a reference architecture for any IoT monitoring system: home environment, industrial equipment, server room, greenhouse, weather station.",
+    "whenNotToUse": "This stack (Mosquitto + InfluxDB + Grafana) needs a Pi 3 or Pi 4 with ≥1 GB RAM. It's too heavy for a Pi Zero. For simple local display, skip InfluxDB/Grafana and use a small OLED directly."
+  },
+  "explainModes": {
+    "beginner": "This project connects a temperature sensor to your Pi, stores the readings in a database, and shows them on a beautiful live chart in a web browser. After this, you'll understand how every professional IoT dashboard works under the hood.",
+    "simple": "The pipeline: DHT22 sensor → Python script reads it every 10 seconds → publishes JSON to MQTT broker → Telegraf agent receives MQTT and writes to InfluxDB time-series database → Grafana queries InfluxDB and draws live charts. Each piece is replaceable with alternatives.",
+    "standard": "This follows the standard IoT stack: sensor → edge collector (Python/paho-mqtt) → message bus (MQTT/Mosquitto) → time-series database (InfluxDB 2.x) → visualisation (Grafana). Telegraf is the bridge between MQTT and InfluxDB. The entire stack runs on one Pi or can be distributed across multiple nodes.",
+    "technical": "InfluxDB 2.x uses a bucket/measurement/tag/field model. Telegraf's MQTT consumer input subscribes to topics and parses JSON payload to InfluxDB line protocol. Grafana connects via the InfluxDB data source plugin using Flux query language. Each component exposes health endpoints for monitoring.",
+    "deepDive": "For production scale: use Docker Compose for reproducible deployment and easy upgrades. InfluxDB retention policies automatically purge data older than N days (configure per bucket). Grafana alerting sends notifications to Telegram, Slack, PagerDuty, or email when thresholds are crossed. For multi-Pi setups: Telegraf on each Pi with a central InfluxDB; use InfluxDB's multi-tenancy (organisations + buckets) to separate device streams."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "End-to-End IoT Project"
+      "text": "Project Architecture"
     },
     {
       "type": "paragraph",
-      "text": "This lesson ties everything together: a Raspberry Pi reads sensors, publishes via MQTT, and a simple web dashboard shows live data."
+      "text": "This capstone project builds a complete IoT monitoring system on a single Raspberry Pi. The data flows through five stages: <strong>Sensor → Collector → MQTT → Database → Dashboard</strong>. Each stage is a separate process, communicating via standard protocols — making each component replaceable."
     },
     {
       "type": "code",
-      "lang": "python",
-      "filename": "full_project.py",
-      "code": "# Full stack: sensor → MQTT → InfluxDB → Grafana\n# 1. Read sensors (DHT22 for temp/humidity)\nfrom gpiozero import PWMLED\nfrom adafruit_dht import DHT22\nimport board, paho.mqtt.client as mqtt, json, time\n\nsensor = DHT22(board.D4)\nclient = mqtt.Client()\nclient.connect(\"localhost\", 1883)\n\nwhile True:\n    try:\n        temp = sensor.temperature\n        hum  = sensor.humidity\n        payload = json.dumps({\"temp\": temp, \"humidity\": hum, \"timestamp\": time.time()})\n        client.publish(\"home/sensors/dht22\", payload, qos=1)\n    except RuntimeError:\n        pass  # DHT occasionally misreads\n    time.sleep(10)"
+      "lang": "text",
+      "filename": "architecture.txt",
+      "code": "IoT Dashboard Architecture\n──────────────────────────────────────────────\n\n  [DHT22 Sensor]\n       │ GPIO4 (physical pin 7)\n       ▼\n  [Python Collector]          sensor_collector.py\n    - reads DHT22 every 10s\n    - publishes JSON to MQTT\n       │ paho-mqtt\n       ▼\n  [Mosquitto MQTT Broker]     port 1883\n    - routes messages\n       │\n       ▼\n  [Telegraf Agent]            MQTT consumer plugin\n    - subscribes to sensor/#\n    - writes to InfluxDB\n       │ HTTP line protocol\n       ▼\n  [InfluxDB 2.x]              port 8086  (time-series DB)\n    - stores readings\n       │ Flux queries\n       ▼\n  [Grafana]                   port 3000  (dashboard UI)\n    - live charts, alerts\n    - accessible from browser"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Step 1: Install the Stack"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Install stack\nsudo apt install mosquitto mosquitto-clients influxdb grafana\nsudo systemctl enable --now mosquitto influxdb grafana-server\n\n# Telegraf reads MQTT and writes to InfluxDB\n# Grafana dashboard reads from InfluxDB"
+      "filename": "install-stack.sh",
+      "code": "# Update system\nsudo apt update && sudo apt upgrade -y\n\n# Install Mosquitto MQTT broker\nsudo apt install -y mosquitto mosquitto-clients\nsudo systemctl enable --now mosquitto\n\n# Install InfluxDB 2.x (ARM64 — Pi 4/5 or Pi 3 64-bit OS)\ncurl -s https://repos.influxdata.com/influxdata-archive_compat.key | sudo tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg\necho 'deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdata.list\nsudo apt update && sudo apt install -y influxdb2\nsudo systemctl enable --now influxd\n\n# Install Telegraf (InfluxDB agent)\nsudo apt install -y telegraf\n\n# Install Grafana\nsudo apt install -y apt-transport-https software-properties-common wget\nsudo mkdir -p /etc/apt/keyrings/\nwget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null\necho \"deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main\" | sudo tee /etc/apt/sources.list.d/grafana.list\nsudo apt update && sudo apt install -y grafana\nsudo systemctl enable --now grafana-server\n\necho \"Stack installed!\"\necho \"InfluxDB: http://$(hostname -I | awk '{print $1}'):8086\"\necho \"Grafana:  http://$(hostname -I | awk '{print $1}'):3000\""
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Step 2: Python Sensor Collector"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "sensor_collector.py",
+      "code": "#!/home/pi/iot-dashboard/venv/bin/python\n\"\"\"DHT22 sensor collector — reads every 10s, publishes to MQTT.\"\"\"\nimport adafruit_dht\nimport board\nimport paho.mqtt.client as mqtt\nimport json\nimport time\nimport logging\n\nlogging.basicConfig(\n    level=logging.INFO,\n    format='%(asctime)s %(levelname)s %(message)s'\n)\n\nDEVICE_ID = \"pi-01\"\nBROKER    = \"localhost\"\nINTERVAL  = 10  # seconds between readings\n\n# DHT22 on GPIO4 (physical pin 7)\ndht = adafruit_dht.DHT22(board.D4)\n\nclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, f\"collector-{DEVICE_ID}\")\nclient.will_set(f\"sensors/{DEVICE_ID}/status\",\n                json.dumps({\"online\": False, \"device\": DEVICE_ID}), qos=1, retain=True)\nclient.connect(BROKER, 1883, keepalive=60)\nclient.loop_start()\n\n# Announce online\nclient.publish(f\"sensors/{DEVICE_ID}/status\",\n               json.dumps({\"online\": True, \"device\": DEVICE_ID}), qos=1, retain=True)\n\nlogging.info(f\"Collector started — device={DEVICE_ID}, interval={INTERVAL}s\")\n\nwhile True:\n    try:\n        temperature = dht.temperature\n        humidity    = dht.humidity\n\n        if temperature is not None and humidity is not None:\n            payload = {\n                \"device\":      DEVICE_ID,\n                \"temperature\": round(float(temperature), 1),\n                \"humidity\":    round(float(humidity), 1),\n                \"ts\":          int(time.time())\n            }\n            topic = f\"sensors/{DEVICE_ID}/data\"\n            client.publish(topic, json.dumps(payload), qos=1)\n            logging.info(f\"Published: {payload}\")\n        else:\n            logging.warning(\"DHT22 returned None — skipping\")\n\n    except RuntimeError as e:\n        logging.warning(f\"DHT read error: {e}\")\n    except Exception as e:\n        logging.error(f\"Unexpected error: {e}\")\n\n    time.sleep(INTERVAL)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Step 3: Configure Telegraf to Bridge MQTT → InfluxDB"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "telegraf-mqtt.conf",
+      "code": "# /etc/telegraf/telegraf.d/mqtt-sensors.conf\n\n[[inputs.mqtt_consumer]]\n  servers  = [\"tcp://localhost:1883\"]\n  topics   = [\"sensors/+/data\"]\n  qos      = 1\n  data_format = \"json\"\n\n  # Map JSON fields to InfluxDB tags and fields\n  json_string_fields = [\"device\"]\n  tag_keys = [\"device\"]\n\n  # Measurement name in InfluxDB\n  name_override = \"environment\"\n\n[[outputs.influxdb_v2]]\n  urls   = [\"http://localhost:8086\"]\n  token  = \"YOUR_INFLUXDB_TOKEN\"   # from InfluxDB UI → Load Data → API Tokens\n  org    = \"home\"\n  bucket = \"sensors\""
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Step 4: Deploy as systemd Service"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "deploy-service.sh",
+      "code": "# Create project and virtual environment\nmkdir -p /home/pi/iot-dashboard\ncd /home/pi/iot-dashboard\npython3 -m venv venv\nsource venv/bin/activate\npip install adafruit-circuitpython-dht paho-mqtt adafruit-blinka\n\n# Copy sensor_collector.py here\ncp sensor_collector.py /home/pi/iot-dashboard/\n\n# Create systemd service\nsudo tee /etc/systemd/system/sensor-collector.service << 'EOF'\n[Unit]\nDescription=DHT22 Sensor Collector\nAfter=network.target mosquitto.service\nWants=mosquitto.service\n\n[Service]\nType=simple\nUser=pi\nGroup=pi\nWorkingDirectory=/home/pi/iot-dashboard\nExecStart=/home/pi/iot-dashboard/venv/bin/python sensor_collector.py\nRestart=always\nRestartSec=5\nEnvironment=PYTHONUNBUFFERED=1\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\nsudo systemctl daemon-reload\nsudo systemctl enable --now sensor-collector.service\nsudo systemctl enable --now telegraf\n\n# Check everything is running\nfor svc in mosquitto influxd telegraf sensor-collector grafana-server; do\n  echo -n \"$svc: \"\n  systemctl is-active $svc\ndone"
     },
     {
       "type": "tip",
-      "text": "Use Docker Compose to run the full stack (Mosquitto, Telegraf, InfluxDB, Grafana) on a Pi 4 for a clean IoT platform."
+      "text": "Open Grafana at http://your-pi-ip:3000 (default login: admin/admin — change immediately). Add InfluxDB as a data source (Connections → Data sources → InfluxDB, Flux language). Create a new dashboard with a Time series panel using this Flux query: `from(bucket: \"sensors\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"environment\") |> filter(fn: (r) => r._field == \"temperature\")`"
+    },
+    {
+      "type": "warning",
+      "text": "InfluxDB 2.x and Grafana each require ~200–400 MB RAM at idle. The full stack (Mosquitto + InfluxDB + Telegraf + Grafana) needs a Raspberry Pi 3B or Pi 4 with ≥1 GB RAM. On a Pi Zero W (512 MB RAM), only run Mosquitto + the Python collector — use a separate machine for InfluxDB and Grafana."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
+          "question": "What is Telegraf's role in this IoT stack?",
+          "type": "multiple-choice",
+          "options": [
+            "It is the MQTT broker that routes sensor messages",
+            "It bridges MQTT messages to InfluxDB by subscribing to topics and writing data",
+            "It provides the Grafana dashboards",
+            "It is the Python script that reads the DHT22 sensor"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Telegraf is an agent that collects metrics from many sources. Here it uses the mqtt_consumer input plugin to subscribe to MQTT topics and the influxdb_v2 output plugin to write data to InfluxDB — no custom code needed."
+        },
+        {
+          "id": "q2",
           "question": "What role does Grafana play in this IoT stack?",
           "type": "multiple-choice",
           "options": [
-            "Publishing sensor data",
-            "Storing time-series data",
-            "Visualising metrics in dashboards",
-            "Routing MQTT messages"
+            "It publishes MQTT messages from sensor data",
+            "It stores time-series data permanently",
+            "It provides live dashboard visualisation by querying InfluxDB",
+            "It runs the Python sensor collector"
           ],
           "correctAnswer": 2,
-          "explanation": "Grafana queries InfluxDB and renders live charts and dashboards for the sensor data."
+          "explanation": "Grafana is a visualisation tool. It queries InfluxDB using Flux queries and renders live charts, graphs, and gauges. It doesn't store data itself — InfluxDB does that."
+        },
+        {
+          "id": "q3",
+          "question": "Why is a Raspberry Pi Zero W not recommended for running the full stack (InfluxDB + Grafana)?",
+          "type": "multiple-choice",
+          "options": [
+            "Pi Zero W doesn't support WiFi",
+            "InfluxDB and Grafana require ~400–800 MB RAM total — Pi Zero W has only 512 MB",
+            "Pi Zero W can't install Python packages",
+            "The GPIO pins on Pi Zero W are incompatible with DHT22"
+          ],
+          "correctAnswer": 1,
+          "explanation": "InfluxDB and Grafana each idle at 200–400 MB RAM. The Pi Zero W has only 512 MB total. Running both would leave almost no memory for the OS and sensor scripts, causing swapping, slowness, and crashes."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "Can a Raspberry Pi Zero W run this stack?",
-      "a": "The Zero W (1 core, 512 MB RAM) can handle the Python sensor publisher and Mosquitto broker. InfluxDB + Grafana need a Pi 3 or 4."
+      "q": "Can a Raspberry Pi Zero W run this full stack?",
+      "a": "Only partially. The Pi Zero W (1 core, 512 MB RAM) can handle the Python sensor collector and Mosquitto broker. InfluxDB + Grafana together need ~400–800 MB RAM and Pi 3 or Pi 4. For a Zero W deployment, run only Mosquitto on the Pi and use a cloud InfluxDB + Grafana instance."
+    },
+    {
+      "q": "How do I add Grafana alerting to get notified when temperature spikes?",
+      "a": "In Grafana: open the panel → Edit → Alert tab → Create alert rule. Set threshold (e.g., temperature > 30°C for 2 minutes). Configure a notification channel (Alerting → Contact points) for Telegram, Email, Slack, or PagerDuty. Grafana evaluates the alert every 10–60 seconds and sends notifications on state change."
+    },
+    {
+      "q": "How much disk space does InfluxDB use over time?",
+      "a": "With 10-second readings and 2 fields: ~100 MB per year per sensor after compression. InfluxDB 2.x supports retention policies per bucket (Buckets → Edit → Set retention period) to automatically delete data older than N days, keeping disk usage bounded."
     }
   ],
   "sources": [
     {
-      "name": "InfluxDB + Grafana on Pi",
+      "name": "InfluxDB 2.x Documentation",
+      "url": "https://docs.influxdata.com/influxdb/v2/",
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Grafana on Raspberry Pi",
       "url": "https://grafana.com/docs/grafana/latest/setup-grafana/installation/raspberry-pi/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Telegraf MQTT Consumer",
+      "url": "https://docs.influxdata.com/telegraf/v1/plugins/#input-mqtt_consumer",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "home sensor dashboards",
-      "factory floor monitoring"
+      "Home environment monitoring dashboards",
+      "Server room temperature/humidity alerting",
+      "Greenhouse climate control systems",
+      "Factory floor sensor aggregation",
+      "Data centre infrastructure monitoring (DCIM)"
     ],
     "examples": [
-      "Live temperature and humidity dashboard on a Pi 4 with Grafana"
+      "Home sensor dashboard: Pi 4 running full TIG stack (Telegraf + InfluxDB + Grafana) for 8 rooms, accessible on local network with Grafana alerts to Telegram",
+      "Server room monitoring: Pi Zero W per rack → Mosquitto → central Pi 4 InfluxDB + Grafana with cooling alerts"
     ]
   }
 }

@@ -1,19 +1,31 @@
 {
   "id": "04-linear-regression",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "supervised-learning",
   "title": "Linear Regression",
   "subtitle": "Fitting a line, coefficients, and predicting continuous values",
   "difficulty": "beginner",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.features"
-  ],
-  "skillsTaught": [
-    "ml.regression"
-  ],
+  "prerequisites": ["ml.features"],
+  "skillsTaught": ["ml.regression", "ml.linear-models", "ml.model-interpretation"],
+  "whyItExists": {
+    "problem": "Many real-world outcomes (house prices, temperature, revenue) are continuous numbers. We need a model that can predict any numeric value, not just discrete categories.",
+    "solution": "Linear regression models the relationship between inputs and a continuous target as a weighted sum of features, finding the best-fit line (or hyperplane) through the data.",
+    "whenToUse": "When the relationship between features and target is roughly linear, you need interpretable coefficients, or you want a fast and simple baseline.",
+    "whenNotToUse": "When the relationship is strongly non-linear (use tree models or neural nets), when the target is categorical (use logistic regression or classifiers), or when features have extreme multicollinearity."
+  },
+  "explainModes": {
+    "beginner": "Linear regression draws the best straight line through your data points. If you plot house size on the x-axis and price on the y-axis, linear regression finds the line that best predicts price from size.",
+    "simple": "Linear regression says: each feature contributes a fixed amount to the prediction. 'Each extra square foot adds £200 to the price.' It finds the best multipliers (coefficients) so the total prediction is as close to the real answer as possible.",
+    "standard": "Linear regression minimises the sum of squared residuals (OLS). The learned coefficients represent the marginal contribution of each feature to the target. RMSE and R² measure prediction quality.",
+    "technical": "OLS computes coefficients as β = (XᵀX)⁻¹Xᵀy analytically. Gradient descent is used for large datasets. Assumptions: linearity, homoscedasticity, normality of residuals, low multicollinearity. Violations require transformations or regularised variants (Ridge/Lasso).",
+    "deepDive": "The Gauss-Markov theorem proves OLS is BLUE (Best Linear Unbiased Estimator) under classical assumptions. Regularised regression (Ridge, Lasso, ElasticNet) adds a penalty term λ||β||² or λ||β||₁ to the loss, introducing bias to reduce variance and improve out-of-sample performance."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,18 +34,84 @@
     },
     {
       "type": "paragraph",
-      "text": "Linear regression models the relationship between inputs and a continuous output as a straight line (or hyperplane)."
+      "text": "Linear regression models the relationship between inputs and a <strong>continuous output</strong> as a weighted sum of features. The model learns a coefficient (weight) for each feature and an intercept."
+    },
+    {
+      "type": "paragraph",
+      "text": "The prediction formula is: <code>ŷ = β₀ + β₁x₁ + β₂x₂ + ... + βₙxₙ</code>. Training finds the β values that minimise the difference between predicted <code>ŷ</code> and actual <code>y</code>."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Training and Evaluating a Linear Regression Model"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "linear.py",
-      "code": "from sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error\nimport numpy as np\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = LinearRegression()\nmodel.fit(X_train, y_train)\n\npreds = model.predict(X_test)\nrmse = np.sqrt(mean_squared_error(y_test, preds))\nprint(f\"RMSE: {rmse:.2f}\")\nprint(f\"Coefficients: {model.coef_}\")"
+      "filename": "linear_regression.py",
+      "code": "import numpy as np\nimport pandas as pd\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score\nfrom sklearn.preprocessing import StandardScaler\n\n# Load data\ndf = pd.read_csv('houses.csv')\nX = df[['sqft', 'bedrooms', 'bathrooms', 'age']]\ny = df['price']\n\n# Split and scale\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nscaler = StandardScaler()\nX_train_sc = scaler.fit_transform(X_train)\nX_test_sc  = scaler.transform(X_test)\n\n# Train\nmodel = LinearRegression()\nmodel.fit(X_train_sc, y_train)\n\n# Predict\npreds = model.predict(X_test_sc)\n\n# Evaluate\nrmse = np.sqrt(mean_squared_error(y_test, preds))\nmae  = mean_absolute_error(y_test, preds)\nr2   = r2_score(y_test, preds)\n\nprint(f'RMSE: {rmse:,.0f}')   # error in same units as target\nprint(f'MAE:  {mae:,.0f}')    # average absolute error\nprint(f'R²:   {r2:.3f}')      # 1.0 = perfect, 0 = predicts mean"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Understanding Coefficients"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "coefficients.py",
+      "code": "# After fitting with scaled features\ncoef_df = pd.DataFrame({\n    'feature': X.columns,\n    'coefficient': model.coef_\n}).sort_values('coefficient', ascending=False)\n\nprint(coef_df)\nprint(f'Intercept: {model.intercept_:,.0f}')\n\n# A positive coefficient means increasing that feature raises the predicted price.\n# With scaled features, coefficient magnitude tells you relative importance."
     },
     {
       "type": "definition",
       "term": "RMSE",
-      "definition": "Root Mean Squared Error — the average prediction error in the same units as the target."
+      "definition": "Root Mean Squared Error — the square root of the average squared difference between predictions and actual values. In the same units as the target. Penalises large errors more than MAE."
+    },
+    {
+      "type": "definition",
+      "term": "R² (R-squared)",
+      "definition": "The proportion of variance in the target explained by the model. R²=1 means perfect prediction; R²=0 means the model is no better than predicting the mean; R²<0 means worse than predicting the mean."
+    },
+    {
+      "type": "comparison",
+      "title": "RMSE vs MAE",
+      "a": {
+        "name": "RMSE",
+        "description": "Root Mean Squared Error — penalises large errors more",
+        "strengths": ["Sensitive to large outliers", "Differentiable, used in gradient descent"],
+        "weaknesses": ["Heavily influenced by outliers", "Harder to interpret in original units"],
+        "useWhen": "Large prediction errors are especially costly"
+      },
+      "b": {
+        "name": "MAE",
+        "description": "Mean Absolute Error — treats all errors equally",
+        "strengths": ["Robust to outliers", "Easy to interpret (average absolute error)"],
+        "weaknesses": ["Not differentiable at 0", "Treats small and large errors the same"],
+        "useWhen": "Outliers should not dominate your performance measure"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Always scale features before linear regression. Without scaling, features with large numeric ranges (like income in thousands) will dominate features on small scales (like number of bedrooms), making coefficients misleading."
+    },
+    {
+      "type": "warning",
+      "text": "Linear regression assumes the relationship is linear. Check a residual plot — if residuals show a curved pattern, the model is underfitting a non-linear relationship. Try polynomial features or a tree-based model."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Assumptions to Check"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Linearity — the relationship between X and y is linear",
+        "Homoscedasticity — residuals have constant variance (no funnel shape in residual plot)",
+        "No multicollinearity — features are not highly correlated with each other",
+        "No significant outliers — extreme values can distort the fitted line"
+      ]
     },
     {
       "type": "quiz",
@@ -43,13 +121,39 @@
           "question": "What does a linear regression model output?",
           "type": "multiple-choice",
           "options": [
-            "A probability",
+            "A probability between 0 and 1",
             "A class label",
             "A continuous numeric value",
             "A cluster ID"
           ],
           "correctAnswer": 2,
-          "explanation": "Linear regression predicts a continuous number, like price or temperature."
+          "explanation": "Linear regression predicts a continuous number, like price or temperature, by computing a weighted sum of input features."
+        },
+        {
+          "id": "q2",
+          "question": "An R² score of 0.85 means:",
+          "type": "multiple-choice",
+          "options": [
+            "The model makes errors 15% of the time",
+            "The model explains 85% of the variance in the target",
+            "The model is 85% accurate",
+            "The RMSE is 0.15"
+          ],
+          "correctAnswer": 1,
+          "explanation": "R² measures the proportion of variance explained. 0.85 means the model captures 85% of the variation in the target; the remaining 15% is unexplained."
+        },
+        {
+          "id": "q3",
+          "question": "Which metric is most robust to outliers in the target?",
+          "type": "multiple-choice",
+          "options": [
+            "RMSE",
+            "MSE",
+            "MAE",
+            "R²"
+          ],
+          "correctAnswer": 2,
+          "explanation": "MAE (Mean Absolute Error) uses absolute differences, making it less sensitive to outliers than RMSE or MSE, which square the errors."
         }
       ]
     }
@@ -57,23 +161,35 @@
   "faq": [
     {
       "q": "When is linear regression not appropriate?",
-      "a": "When the relationship is non-linear, or the target is categorical. Use tree-based models or logistic regression instead."
+      "a": "When the relationship is strongly non-linear, when the target is categorical (use logistic regression or classifiers), or when there are strong interactions between features that you haven't manually added."
+    },
+    {
+      "q": "What is the difference between linear regression and logistic regression?",
+      "a": "Linear regression predicts a continuous value. Logistic regression uses the same linear combination but passes it through a sigmoid function to output a probability for binary classification."
+    },
+    {
+      "q": "Why is RMSE in the same units as the target?",
+      "a": "RMSE takes the square root of the mean squared error, bringing it back to the original units. This makes it directly interpretable — an RMSE of 10,000 means typical predictions are off by £10,000."
     }
   ],
   "sources": [
     {
-      "name": "Linear Regression",
+      "name": "sklearn: Linear Models",
       "url": "https://scikit-learn.org/stable/modules/linear_model.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: Metrics",
+      "url": "https://scikit-learn.org/stable/modules/model_evaluation.html#regression-metrics",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "price prediction",
-      "demand forecasting"
-    ],
+    "usedIn": ["price prediction", "demand forecasting", "energy consumption estimation", "financial modelling"],
     "examples": [
-      "Predicting apartment rent from size and location"
+      "Predicting apartment rent from size, location, and number of rooms",
+      "Estimating energy consumption from temperature and building size",
+      "Forecasting monthly sales from advertising spend and seasonality"
     ]
   }
 }

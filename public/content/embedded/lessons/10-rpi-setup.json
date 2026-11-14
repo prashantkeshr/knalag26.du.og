@@ -1,54 +1,159 @@
 {
   "id": "10-rpi-setup",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Raspberry Pi OS Bookworm (12)",
   "technology": "embedded",
   "module": "raspberry-pi",
   "title": "Setting Up Raspberry Pi",
-  "subtitle": "OS installation, SSH, and initial configuration",
+  "subtitle": "OS installation, headless SSH setup, networking, and raspi-config",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.wireless"
-  ],
-  "skillsTaught": [
-    "embedded.rpi-setup"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.wireless"],
+  "skillsTaught": ["embedded.rpi-setup"],
+  "whyItExists": {
+    "problem": "Raspberry Pi is a full Linux computer that must be set up before it can run any project code. First-time users often struggle with flashing SD cards, enabling SSH headlessly, finding the Pi's IP address, and configuring the system.",
+    "solution": "Raspberry Pi Imager simplifies OS installation with built-in support for headless configuration: WiFi credentials, SSH key, and hostname can all be preconfigured before the first boot — no keyboard or monitor needed.",
+    "whenToUse": "For any embedded project requiring a full Linux OS: web servers, Python-based sensor systems, databases, computer vision, media players, or edge AI.",
+    "whenNotToUse": "For simple, low-power, real-time control tasks — an Arduino or ESP32 is cheaper, starts instantly, and uses <1 W vs Raspberry Pi's 2.5–7 W."
+  },
+  "explainModes": {
+    "beginner": "Setting up a Raspberry Pi is like setting up a mini PC, but without a screen or keyboard at first. You put the operating system on a micro-SD card, plug it into the Pi, and connect to it over WiFi using SSH — it's like a remote terminal into the Pi from your laptop.",
+    "simple": "Raspberry Pi OS is a Debian Linux distribution that boots from a micro-SD card. Use Raspberry Pi Imager to flash the OS with your WiFi credentials and SSH key pre-entered. Connect via `ssh pi@raspberrypi.local` from any computer on the same network.",
+    "standard": "Raspberry Pi Imager writes the compressed .img file to SD, then applies a firstrun.sh cloud-init-style configuration script. SSH daemon starts on first boot. mDNS (via avahi-daemon) resolves raspberrypi.local to the Pi's IP without needing to check your router.",
+    "technical": "The boot partition is FAT32 (accessible from any OS) containing config.txt, cmdline.txt, and overlays. Linux root filesystem is ext4. GPU, CPU, and peripheral configuration go in config.txt. SSH can be enabled by an empty /boot/ssh file (legacy method) or via cloud-init userdata.",
+    "deepDive": "Raspberry Pi 4 uses a 64-bit ARM Cortex-A72 (BCM2711). It supports USB boot (no SD card needed) via EEPROM bootloader update. Overclocking in config.txt: `arm_freq=2000` and `over_voltage=6` for Pi 4B. Enable hardware watchdog with `dtparam=watchdog=on` and configure systemd watchdog in /etc/systemd/system.conf."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Raspberry Pi Setup"
+      "text": "Raspberry Pi Models — Which One to Choose?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "pi-comparison.txt",
+      "code": "Model            CPU                 RAM    USB  Price   Best For\n──────────────────────────────────────────────────────────────────\nPi 5             Cortex-A76 2.4GHz  4-8GB  USB3  $60   Heavy compute, desktop\nPi 4B            Cortex-A72 1.8GHz  1-8GB  USB3  $35   Most projects, NAS\nPi 400           Cortex-A72 1.8GHz   4GB   USB3  $70   Desktop-in-keyboard\nPi 3B+           Cortex-A53 1.4GHz   1GB   USB2  $35   Legacy, still common\nPi Zero 2W       Cortex-A53 1GHz   512MB  micro $15   Portable, headless sensor\nPi Zero W        Cortex-A53 1GHz   512MB  micro $10   Budget, single-task"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Flashing the SD Card with Raspberry Pi Imager"
     },
     {
       "type": "paragraph",
-      "text": "Raspberry Pi runs a full Linux OS (Raspberry Pi OS). Flash the SD card with Raspberry Pi Imager, enable SSH, and connect headlessly."
+      "text": "Download <strong>Raspberry Pi Imager</strong> from raspberrypi.com. Insert a micro-SD card (8 GB minimum, Class 10 recommended). In Imager: Choose OS → Raspberry Pi OS (64-bit) Lite for headless, or Desktop for GUI. Click the <strong>gear icon ⚙</strong> (or Ctrl+Shift+X) to open Advanced Options before writing."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "imager-advanced-options.txt",
+      "code": "Raspberry Pi Imager — Advanced Options (Ctrl+Shift+X)\n───────────────────────────────────────────────────────\n✅ Set hostname:          mypi.local\n✅ Enable SSH:            Use password authentication\n   Username:             pi\n   Password:             [your secure password]\n✅ Configure wireless LAN:\n   SSID:                 YourNetwork\n   Password:             YourWiFiPassword\n   Country:              IN (India) / US / GB\n✅ Set locale:\n   Timezone:             Asia/Kolkata\n   Keyboard layout:      gb\n\n→ Click SAVE, then WRITE"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connecting Over SSH"
+    },
+    {
+      "type": "paragraph",
+      "text": "After first boot (wait 60–90 seconds), connect from any computer on the same WiFi. The Pi is discoverable by hostname via mDNS — no need to find its IP address."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Flash with Raspberry Pi Imager (GUI) or\n# via command line\nsudo dd if=raspios.img of=/dev/sdX bs=4M status=progress\n\n# Enable SSH before first boot\ntouch /boot/ssh\n\n# Set WiFi credentials\ncat > /boot/wpa_supplicant.conf << EOF\ncountry=IN\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\nnetwork={\n  ssid=\"YourNetwork\"\n  psk=\"YourPassword\"\n}\nEOF\n\n# Connect\nssh pi@raspberrypi.local"
+      "filename": "ssh-connect.sh",
+      "code": "# Connect to Pi by hostname (mDNS — works on same network)\nssh pi@mypi.local\n# Enter your password when prompted\n\n# If hostname doesn't resolve, find IP from your router admin,\n# or use nmap to scan your network:\nnmap -sn 192.168.1.0/24 | grep -i raspberry\n\n# Once connected, check system info\nuname -a                     # kernel version + architecture\nvcgencmd measure_temp        # CPU temperature\nfree -h                      # memory usage\ndf -h                        # disk usage\n\n# Keep the connection alive (add to ~/.ssh/config on client)\n# Host raspberrypi.local\n#   ServerAliveInterval 60"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Initial Configuration with raspi-config"
+    },
+    {
+      "type": "paragraph",
+      "text": "<code>sudo raspi-config</code> is a text-based menu for configuring the Pi. Essential settings to check on a new installation:"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "raspi-config-tips.sh",
+      "code": "sudo raspi-config\n# Key options:\n# 1. System Options → S5 Boot / Auto Login → Console (no desktop)\n# 3. Interface Options → I2  → Enable SSH (if not already)\n#                      → I4  → Enable I2C (for sensors)\n#                      → I3  → Enable SPI\n#                      → I6  → Enable Serial Port (disable login shell)\n# 6. Advanced Options → A1  → Expand Filesystem (uses full SD card)\n#                      → A3  → Memory Split → 16 (for headless: less GPU RAM)\n\n# Update the system (do this once after first boot)\nsudo apt update && sudo apt upgrade -y\nsudo apt install -y vim htop git python3-pip python3-venv\n\n# Set a static IP (optional — useful for server projects)\nsudo nano /etc/dhcpcd.conf\n# Add at end:\n# interface wlan0\n# static ip_address=192.168.1.100/24\n# static routers=192.168.1.1\n# static domain_name_servers=1.1.1.1 8.8.8.8"
+    },
+    {
+      "type": "comparison",
+      "title": "Raspberry Pi vs Arduino for Embedded Projects",
+      "a": {
+        "name": "Raspberry Pi",
+        "description": "Full Linux single-board computer",
+        "strengths": ["Full Python/Node.js ecosystem", "Network stack, database, web server", "HDMI display, USB peripherals", "Computer vision (OpenCV), ML inference"],
+        "weaknesses": ["2.5–7 W power draw", "Boots in 20–30 seconds", "Overkill for simple I/O", "Expensive ($15–60)"],
+        "useWhen": "Need Linux OS, database, web server, computer vision, or complex networking"
+      },
+      "b": {
+        "name": "Arduino / ESP32",
+        "description": "Bare-metal microcontroller",
+        "strengths": ["Instant-on (no boot)", "< 1 W typical, µA in deep sleep", "Cheap ($1–5)", "Real-time, deterministic"],
+        "weaknesses": ["No OS, single program", "Limited RAM (KB range)", "No USB host", "C++ only (no Python)"],
+        "useWhen": "Real-time control, battery power, simple I/O, cost-sensitive production"
+      }
     },
     {
       "type": "tip",
-      "text": "Use Raspberry Pi Imager's advanced settings to preconfigure hostname, SSH, and WiFi — no manual file editing needed."
+      "text": "For the most robust headless Pi setup, copy your SSH public key to the Pi immediately after first login: `ssh-copy-id pi@mypi.local`. Then disable password authentication in /etc/ssh/sshd_config (set PasswordAuthentication no) so only key-based login works — much more secure."
+    },
+    {
+      "type": "warning",
+      "text": "Never abruptly unplug a Raspberry Pi — it can corrupt the SD card filesystem, requiring a full reflash. Always shut down gracefully with `sudo shutdown -h now` or `sudo poweroff`. For projects that may lose power, use a UPS HAT or configure the Pi to use a read-only overlay filesystem."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "How do you enable SSH headlessly on Raspberry Pi?",
+          "question": "How do you enable SSH headlessly before first Pi boot using Raspberry Pi Imager?",
           "type": "multiple-choice",
           "options": [
-            "Edit sshd_config",
-            "Place an empty file named \"ssh\" in the /boot partition",
-            "Install openssh-server",
-            "Run raspi-config"
+            "Edit /etc/ssh/sshd_config on the SD card",
+            "Use the Advanced Options (gear icon) in Imager to enable SSH before writing the image",
+            "Boot the Pi, run raspi-config, and enable SSH from there",
+            "Create an empty file called 'ssh' in the root partition"
           ],
           "correctAnswer": 1,
-          "explanation": "Placing an empty file named \"ssh\" in the /boot partition tells the Pi to enable SSH on first boot."
+          "explanation": "Modern Raspberry Pi Imager (v1.7+) has Advanced Options (Ctrl+Shift+X or gear icon) that lets you preconfigure SSH, WiFi, hostname, and locale before writing — the preferred method for headless setup."
+        },
+        {
+          "id": "q2",
+          "question": "What command connects you to a Raspberry Pi by hostname over SSH?",
+          "type": "multiple-choice",
+          "options": [
+            "telnet raspberrypi.local",
+            "ssh pi@raspberrypi.local",
+            "ping -ssh pi@raspberrypi.local",
+            "connect pi raspberrypi.local"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ssh pi@raspberrypi.local connects using SSH. The hostname.local format uses mDNS (Avahi) to resolve the Pi's IP automatically on the local network — no need to look up the IP."
+        },
+        {
+          "id": "q3",
+          "question": "Why is abruptly unplugging a Raspberry Pi dangerous?",
+          "type": "multiple-choice",
+          "options": [
+            "It can shock the user",
+            "It voids the warranty",
+            "It can corrupt the ext4 filesystem on the SD card, requiring a reflash",
+            "It resets the CPU permanently"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Raspberry Pi OS uses a journaling ext4 filesystem, but writes may be in-flight when power cuts. Abrupt power loss can corrupt the SD card, leaving the Pi unbootable. Always use `sudo shutdown -h now`."
         }
       ]
     }
@@ -56,24 +161,40 @@
   "faq": [
     {
       "q": "What operating system does Raspberry Pi use?",
-      "a": "Raspberry Pi OS (formerly Raspbian), based on Debian Linux. You can also run Ubuntu, Arch, or other ARM-compatible Linux distributions."
+      "a": "Raspberry Pi OS (formerly Raspbian), based on Debian Linux. The 64-bit Bookworm version (Debian 12) is current as of 2024. You can also run Ubuntu Server 22.04/24.04, Arch Linux ARM, or Alpine Linux — all support ARM64."
+    },
+    {
+      "q": "My Pi isn't showing up at raspberrypi.local. What's wrong?",
+      "a": "Common causes: (1) WiFi credentials wrong in Imager — reflash with correct SSID/password; (2) the Pi is on 5 GHz WiFi but Raspberry Pi 3/Zero only supports 2.4 GHz; (3) mDNS not supported on your router — use nmap to find the IP; (4) first boot takes 90 seconds — be patient."
+    },
+    {
+      "q": "Can I run Raspberry Pi from a USB drive instead of SD card?",
+      "a": "Yes! Pi 4 supports USB boot natively after a one-time EEPROM update (rpi-eeprom-update). USB 3.0 SSD is much faster and more reliable than SD cards for intensive projects. Pi 5 also supports NVMe SSD via its PCIe slot."
     }
   ],
   "sources": [
     {
-      "name": "Raspberry Pi Documentation",
+      "name": "Raspberry Pi Official Documentation",
       "url": "https://www.raspberrypi.com/documentation/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Raspberry Pi Imager",
+      "url": "https://www.raspberrypi.com/software/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "home servers",
-      "edge computing",
-      "robotics"
+      "Home servers (Nextcloud, Plex, Pi-hole)",
+      "IoT sensor hubs aggregating data from multiple Arduinos",
+      "Network-attached storage (NAS)",
+      "Robotics controllers (ROS on Raspberry Pi)",
+      "Kiosk displays and digital signage"
     ],
     "examples": [
-      "Setting up a Pi Zero W as a headless sensor hub"
+      "Pi Zero W as a headless sensor hub collecting DHT22 data and posting to Home Assistant via MQTT",
+      "Pi 4B running Pi-hole DNS ad blocker and Nextcloud personal cloud on a 500 GB USB SSD"
     ]
   }
 }

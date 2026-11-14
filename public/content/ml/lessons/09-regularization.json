@@ -1,19 +1,31 @@
 {
   "id": "09-regularization",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "model-evaluation",
   "title": "Regularization",
   "subtitle": "L1, L2, dropout, and preventing overfitting",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.cross-validation"
-  ],
-  "skillsTaught": [
-    "ml.regularization"
-  ],
+  "prerequisites": ["ml.cross-validation"],
+  "skillsTaught": ["ml.regularization", "ml.lasso", "ml.ridge", "ml.bias-variance"],
+  "whyItExists": {
+    "problem": "Models with many parameters (or decision trees with unlimited depth) memorise training data — including its noise. They score well on training data but fail on new data. This is overfitting.",
+    "solution": "Regularisation adds a penalty term to the loss function that discourages large parameter values, forcing the model to stay simple and generalise better.",
+    "whenToUse": "Whenever your model performs significantly better on training data than on validation data — a classic sign of overfitting.",
+    "whenNotToUse": "When you are underfitting (model is too simple to capture the pattern). Regularisation would make it worse. First check: is training performance also poor?"
+  },
+  "explainModes": {
+    "beginner": "Regularisation is like telling a student to summarise instead of memorise. If you just memorise every question from last year's exam, you'll fail on new questions. Regularisation forces the model to learn general patterns, not specific examples.",
+    "simple": "Regularisation adds a penalty for complexity. It says: 'don't just minimise prediction error — also keep your coefficients small.' This prevents the model from fitting noise in the training data.",
+    "standard": "Regularisation adds a penalty λ||β||ₚ to the loss. L2 (Ridge) uses p=2, shrinking all coefficients. L1 (Lasso) uses p=1, driving some coefficients to exactly zero. ElasticNet combines both.",
+    "technical": "Ridge solves: min ||y - Xβ||² + λ||β||². Lasso solves: min ||y - Xβ||² + λ||β||₁. The L1 penalty creates sparsity because the L1 ball has corners at axis-aligned directions. The λ parameter controls the bias-variance trade-off.",
+    "deepDive": "From a Bayesian perspective, Ridge is MAP estimation with a Gaussian prior on β; Lasso uses a Laplace prior. The regularisation path (solution for all λ) can be computed efficiently with LARS. Stability selection uses Lasso on subsamples to robustly identify non-zero features."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,30 +34,87 @@
     },
     {
       "type": "paragraph",
-      "text": "Overfitting means the model memorises training data. Regularization adds a penalty on large coefficients to keep the model simple."
+      "text": "Overfitting means the model memorises training data — including its random noise — and fails on new examples. The gap between training score and validation score is the tell-tale sign. Regularisation adds a <strong>penalty on complexity</strong> to keep the model general."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "The Bias-Variance Trade-off"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Bias</strong> is the error from underfitting — the model is too simple to capture the pattern. <strong>Variance</strong> is the error from overfitting — the model is too sensitive to the specific training data. The goal is to find the sweet spot where total error is minimised."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "High bias / low variance: simple model, underfits — training and test error are both high",
+        "Low bias / high variance: complex model, overfits — training error is low, test error is high",
+        "Good balance: validation error is close to training error and both are acceptably low"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "L2 Regularization: Ridge"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "regularize.py",
-      "code": "from sklearn.linear_model import Ridge, Lasso, ElasticNet\n\n# Ridge (L2): penalises sum of squared coefficients\nridge = Ridge(alpha=1.0)  # alpha controls penalty strength\nridge.fit(X_train, y_train)\n\n# Lasso (L1): drives some coefficients to exactly 0 (feature selection)\nlasso = Lasso(alpha=0.1)\nlasso.fit(X_train, y_train)\nprint(\"Non-zero features:\", sum(lasso.coef_ != 0))"
+      "filename": "ridge.py",
+      "code": "from sklearn.linear_model import Ridge, RidgeCV\nfrom sklearn.preprocessing import StandardScaler\nimport numpy as np\n\n# Ridge adds alpha * sum(coef^2) to the loss\n# Higher alpha = stronger regularisation = smaller coefficients\nridge = Ridge(alpha=1.0)\nridge.fit(X_train_sc, y_train)\nprint(f'Ridge R²: {ridge.score(X_test_sc, y_test):.3f}')\nprint(f'Coef range: {ridge.coef_.min():.3f} to {ridge.coef_.max():.3f}')\n\n# Automatically choose alpha with cross-validation\nalphas = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]\nridge_cv = RidgeCV(alphas=alphas, cv=5)\nridge_cv.fit(X_train_sc, y_train)\nprint(f'Best alpha: {ridge_cv.alpha_}')"
     },
     {
-      "type": "definition",
-      "term": "L2 Regularization",
-      "definition": "Penalises the sum of squared weights. Keeps all features but shrinks them."
+      "type": "heading",
+      "level": 3,
+      "text": "L1 Regularization: Lasso (Feature Selection)"
     },
     {
-      "type": "definition",
-      "term": "L1 Regularization",
-      "definition": "Penalises the sum of absolute weights. Drives unimportant features to zero."
+      "type": "code",
+      "lang": "python",
+      "filename": "lasso.py",
+      "code": "from sklearn.linear_model import Lasso, LassoCV\nimport numpy as np\n\n# Lasso adds alpha * sum(|coef|) to the loss\n# This drives unimportant coefficients to exactly 0\nlasso = Lasso(alpha=0.1)\nlasso.fit(X_train_sc, y_train)\n\nn_nonzero = np.sum(lasso.coef_ != 0)\nprint(f'Non-zero features: {n_nonzero} / {X_train_sc.shape[1]}')\nprint(f'Selected features: {list(X.columns[lasso.coef_ != 0])}')\nprint(f'Lasso R²: {lasso.score(X_test_sc, y_test):.3f}')\n\n# Cross-validate to find best alpha\nlasso_cv = LassoCV(alphas=None, cv=5)  # None = auto-generate alphas\nlasso_cv.fit(X_train_sc, y_train)\nprint(f'Best alpha: {lasso_cv.alpha_:.4f}')"
+    },
+    {
+      "type": "comparison",
+      "title": "L1 (Lasso) vs L2 (Ridge) Regularization",
+      "a": {
+        "name": "L1 / Lasso",
+        "description": "Penalises sum of absolute coefficient values",
+        "strengths": ["Performs automatic feature selection", "Produces sparse models (many zero coefficients)", "Better when only a few features are truly relevant"],
+        "weaknesses": ["Unstable when features are highly correlated (selects one arbitrarily)", "Less efficient for dense problems"],
+        "useWhen": "You have many features and suspect only a few are important"
+      },
+      "b": {
+        "name": "L2 / Ridge",
+        "description": "Penalises sum of squared coefficient values",
+        "strengths": ["Stable with correlated features (shrinks both)", "Works well when all features contribute a little", "Closed-form solution"],
+        "weaknesses": ["Does not perform feature selection (keeps all features, just smaller)", "Less interpretable than Lasso"],
+        "useWhen": "You want to keep all features but reduce their magnitude to prevent overfitting"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "ElasticNet: Combining L1 and L2"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "elasticnet.py",
+      "code": "from sklearn.linear_model import ElasticNet, ElasticNetCV\n\n# ElasticNet = L1 * l1_ratio + L2 * (1-l1_ratio)\n# l1_ratio=1 is pure Lasso; l1_ratio=0 is pure Ridge\nelastic = ElasticNet(alpha=0.1, l1_ratio=0.5)\nelastic.fit(X_train_sc, y_train)\nprint(f'ElasticNet R²: {elastic.score(X_test_sc, y_test):.3f}')\nprint(f'Non-zero: {(elastic.coef_ != 0).sum()}')"
+    },
+    {
+      "type": "tip",
+      "text": "Always scale features before applying Ridge or Lasso. The penalty applies to the coefficient magnitude, so unscaled features with large ranges will have smaller coefficients and receive less regularisation."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Which regularization method performs feature selection?",
+          "question": "Which regularization method performs automatic feature selection?",
           "type": "multiple-choice",
           "options": [
             "L2 (Ridge)",
@@ -54,7 +123,33 @@
             "Batch normalisation"
           ],
           "correctAnswer": 1,
-          "explanation": "L1 (Lasso) regularization sets the coefficients of unimportant features to zero, effectively removing them."
+          "explanation": "L1 (Lasso) regularisation drives coefficients of unimportant features to exactly zero, effectively removing them from the model."
+        },
+        {
+          "id": "q2",
+          "question": "What does increasing the regularisation strength (alpha) do to model complexity?",
+          "type": "multiple-choice",
+          "options": [
+            "Increases complexity (more overfitting)",
+            "Has no effect on complexity",
+            "Decreases complexity (more underfitting)",
+            "Only affects training speed"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Higher alpha penalises large coefficients more strongly, forcing them smaller and making the model simpler. Too much alpha causes underfitting."
+        },
+        {
+          "id": "q3",
+          "question": "What is the bias-variance trade-off?",
+          "type": "multiple-choice",
+          "options": [
+            "The trade-off between training speed and accuracy",
+            "The balance between model simplicity (underfitting) and complexity (overfitting)",
+            "The trade-off between precision and recall",
+            "The balance between L1 and L2 regularisation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Bias-variance trade-off describes how increasing model complexity reduces bias (underfitting) but increases variance (overfitting). The goal is to find the complexity that minimises total error."
         }
       ]
     }
@@ -62,23 +157,34 @@
   "faq": [
     {
       "q": "How do I choose the regularization strength (alpha)?",
-      "a": "Use cross-validation and GridSearchCV to search over a range of alpha values and pick the one with best validation score."
+      "a": "Use RidgeCV or LassoCV which perform cross-validation automatically over a range of alpha values. For a Pipeline, use GridSearchCV to search over alpha values as a hyperparameter."
+    },
+    {
+      "q": "What is the difference between regularisation and pruning (for decision trees)?",
+      "a": "They address the same problem (overfitting) in different ways. Regularisation adds a penalty to the loss function for linear models. Pruning constrains the tree's growth (max_depth, min_samples_leaf) or removes branches after training."
+    },
+    {
+      "q": "Should I use Ridge or Lasso first?",
+      "a": "Start with Ridge — it is stable and works well when most features contribute. If you suspect only a few features are important and want automatic feature selection, try Lasso. ElasticNet is a safe default for high-dimensional data."
     }
   ],
   "sources": [
     {
-      "name": "Regularization",
+      "name": "sklearn: Ridge and Lasso",
       "url": "https://scikit-learn.org/stable/modules/linear_model.html#ridge-regression",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: ElasticNet",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html#elastic-net",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "linear models",
-      "preventing overfitting"
-    ],
+    "usedIn": ["linear models", "preventing overfitting", "feature selection", "high-dimensional genomics data"],
     "examples": [
-      "Lasso regression for sparse feature selection on high-dimensional data"
+      "Lasso regression selecting the 20 most important genes from 20,000 for a cancer classifier",
+      "Ridge regression stabilising a house price model with many correlated neighbourhood features"
     ]
   }
 }

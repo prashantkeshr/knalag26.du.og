@@ -1,49 +1,112 @@
 {
   "id": "07-lists-sets",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "advanced-structures",
   "title": "Lists and Sets",
   "subtitle": "LPUSH, RPOP, SADD, SINTER, and queue patterns",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "redis.distributed"
-  ],
-  "skillsTaught": [
-    "redis.lists-sets"
-  ],
+  "prerequisites": ["redis.distributed"],
+  "skillsTaught": ["redis.lists-sets"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Job queues and membership checks are fundamental to applications. Implementing a reliable job queue or social-graph follower system with just strings or a SQL table is cumbersome and slow.",
+    "solution": "Redis Lists provide O(1) push/pop with blocking support — perfect for producer-consumer queues. Redis Sets provide O(1) add/membership-check and set operations (union, intersection, difference) for social graphs, tags, and permissions.",
+    "whenToUse": "List: background job queues, activity feeds, chat history (bounded). Set: unique collections, social graphs, tag systems, real-time presence.",
+    "whenNotToUse": "If you need ordered results by value (not insertion order), use Sorted Sets. If you need to query across fields, use a full database."
+  },
+  "explainModes": {
+    "beginner": "A List is like a queue at a coffee shop — people join at the back and are served from the front. A Set is like a bag of unique stickers — you can't have duplicates, and you can compare two bags to find common stickers.",
+    "simple": "Lists hold ordered items with O(1) push/pop at both ends. Sets hold unique items with O(1) add/check. Use BLPOP on a list to build a worker that waits for jobs. Use SINTER on two sets to find common members.",
+    "standard": "Redis Lists are doubly-linked lists (internally a quicklist of zip lists) with O(1) operations at both ends. BLPOP blocks the connection until an element is available. Redis Sets are hash tables with O(1) SADD/SISMEMBER. SINTER, SUNION, SDIFF compute set operations in O(N).",
+    "technical": "List encoding: listpack for ≤128 elements of ≤64 bytes, then quicklist (doubly-linked list of listpack nodes). Set encoding: intset for integer-only sets up to 512 members, then hash table. LMOVE atomically pops from one list and pushes to another — a reliable queue pattern that prevents message loss.",
+    "deepDive": "The reliable queue pattern uses LMOVE source dest LEFT RIGHT to atomically move a job to a 'processing' list. If the worker crashes, the job is in the processing list and can be recovered. This is the basis for Sidekiq's retry mechanism. BRPOPLPUSH (deprecated in Redis 6.2, replaced by BLMOVE) implemented the same pattern with blocking."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Lists as Queues"
+      "text": "Lists as Queues and Stacks"
     },
     {
       "type": "paragraph",
-      "text": "Redis Lists support O(1) push and pop from both ends, making them perfect for queues and stacks."
+      "text": "Redis Lists support O(1) push and pop from both ends. This makes them ideal for <strong>FIFO queues</strong> (RPUSH + BLPOP) and <strong>stacks</strong> (LPUSH + LPOP). Blocking variants wait for data rather than polling."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Producer\nRPUSH jobs \"job1\" \"job2\" \"job3\"\n\n# Consumer (blocking — waits up to 30s)\nBLPOP jobs 30\n\n# Check length\nLLEN jobs"
+      "filename": "lists.sh",
+      "code": "# FIFO Queue: add to right, consume from left\nRPUSH jobs:email \"send-welcome\" \"send-receipt\" \"send-promo\"\nLPOP jobs:email      # \"send-welcome\"\n\n# Blocking consumer (worker waits up to 30s for a job)\nBLPOP jobs:email 30\n# Returns: [\"jobs:email\", \"send-receipt\"]\n\n# Stack: add and remove from same end\nLPUSH history:user1 \"visited page A\"\nLPUSH history:user1 \"clicked buy\"\nLPOP history:user1   # \"clicked buy\" (most recent first)\n\n# View without consuming\nLRANGE jobs:email 0 -1   # all items\nLLEN jobs:email          # count\n\n# Trim to last 100 items (capped log)\nLTRIM activity:feed 0 99"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Sets for Unique Members"
+      "text": "Reliable Queue with LMOVE"
     },
     {
       "type": "paragraph",
-      "text": "Sets store unique strings. Use them for tags, followers, or any \"is X in group Y?\" queries."
+      "text": "Plain BLPOP has a risk: if the worker crashes after popping but before finishing, the job is lost. <strong>LMOVE</strong> solves this by atomically moving the job to a 'processing' list."
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "reliable-queue.js",
+      "code": "async function processNextJob() {\n  // Atomically move job from 'pending' to 'processing'\n  const job = await redis.lMove('jobs:pending', 'jobs:processing', 'LEFT', 'RIGHT');\n  if (!job) return;\n\n  try {\n    await doWork(job);\n    // On success, remove from processing\n    await redis.lRem('jobs:processing', 1, job);\n  } catch (err) {\n    // On failure, put back in pending\n    await redis.lMove('jobs:processing', 'jobs:pending', 'LEFT', 'LEFT');\n    throw err;\n  }\n}\n\n// Recover lost jobs (e.g. on startup)\nconst stuck = await redis.lRange('jobs:processing', 0, -1);\nfor (const job of stuck) {\n  await redis.lMove('jobs:processing', 'jobs:pending', 'LEFT', 'LEFT');\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sets for Unique Membership"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sets store <strong>unique strings</strong> with O(1) add, remove, and membership check. They also support powerful set operations: union, intersection, and difference."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "SADD user:1:friends \"alice\" \"bob\"\nSADD user:2:friends \"bob\" \"carol\"\n\n# Common friends\nSINTER user:1:friends user:2:friends  # \"bob\""
+      "filename": "sets.sh",
+      "code": "# Online presence\nSADD online:users \"alice\" \"bob\" \"carol\"\nSISMEMBER online:users \"alice\"  # 1 (is online)\nSCARD online:users              # 3 (count)\nSMEMBERS online:users           # all members\n\n# Social graph\nSADD user:1:following \"alice\" \"bob\"\nSADD user:2:following \"bob\" \"carol\"\n\n# Set operations\nSINTER user:1:following user:2:following  # common: [\"bob\"]\nSUNION user:1:following user:2:following  # all: [\"alice\",\"bob\",\"carol\"]\nSDIFF  user:1:following user:2:following  # only user:1 follows: [\"alice\"]\n\n# Move a member between sets\nSMOVE online:users away:users \"alice\"\n\n# Random member (useful for sampling)\nSRANDMEMBER online:users 2  # 2 random members\nSPOP online:users            # remove and return one random member"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Real-World: Mutual Friends"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "mutual-friends.js",
+      "code": "// Follow a user\nasync function follow(userId, targetId) {\n  await redis.sAdd(`user:${userId}:following`, targetId);\n  await redis.sAdd(`user:${targetId}:followers`, userId);\n}\n\n// Get mutual friends\nasync function getMutualFriends(userId1, userId2) {\n  return redis.sInter(\n    `user:${userId1}:following`,\n    `user:${userId2}:following`\n  );\n}\n\n// Who to suggest following (friends of friends minus already following)\nasync function getSuggestions(userId) {\n  const following = await redis.sMembers(`user:${userId}:following`);\n  const friendsOfFriends = `user:${userId}:suggestions:temp`;\n\n  for (const friendId of following) {\n    await redis.sUnionStore(friendsOfFriends, friendsOfFriends, `user:${friendId}:following`);\n  }\n\n  const suggestions = await redis.sDiff(friendsOfFriends, `user:${userId}:following`);\n  await redis.del(friendsOfFriends);\n  return suggestions.filter(id => id !== userId);\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "List vs Set",
+      "a": {
+        "name": "List",
+        "description": "Ordered sequence, allows duplicates",
+        "strengths": ["Maintains insertion order", "O(1) push/pop at both ends", "Blocking operations (BLPOP)", "Range access by index"],
+        "weaknesses": ["O(N) membership check", "No set operations (union/intersection)", "Duplicates allowed"],
+        "useWhen": "Job queues, activity feeds, chat history, stacks"
+      },
+      "b": {
+        "name": "Set",
+        "description": "Unordered unique strings",
+        "strengths": ["O(1) membership check", "Union, intersection, difference", "No duplicates enforced", "Random member access"],
+        "weaknesses": ["No ordering", "No blocking operations", "No range queries"],
+        "useWhen": "Tags, followers, online presence, permissions, unique visitors"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Use <code>BLPOP jobs:email jobs:sms 30</code> with multiple keys to have one worker drain multiple queues. Redis returns the key name along with the value so you know which queue fired."
     },
     {
       "type": "quiz",
@@ -54,12 +117,33 @@
           "type": "multiple-choice",
           "options": [
             "Returns nil immediately",
-            "Blocks until an element is pushed",
+            "Blocks the connection until an element is pushed or timeout expires",
             "Throws an error",
-            "Creates an empty element"
+            "Creates an empty placeholder"
           ],
           "correctAnswer": 1,
-          "explanation": "BLPOP blocks the connection until an element is available, up to the timeout."
+          "explanation": "BLPOP blocks the connection (not the entire server) until an element is available, up to the specified timeout. This avoids polling loops in workers."
+        },
+        {
+          "id": "q2",
+          "question": "What command finds the members that exist in BOTH set A and set B?",
+          "type": "multiple-choice",
+          "options": ["SUNION", "SDIFF", "SINTER", "SMEMBERS"],
+          "correctAnswer": 2,
+          "explanation": "SINTER returns the intersection — members that exist in ALL specified sets. SUNION returns all members from all sets. SDIFF returns members in the first set not present in the others."
+        },
+        {
+          "id": "q3",
+          "question": "Why is LMOVE better than BLPOP for a reliable job queue?",
+          "type": "multiple-choice",
+          "options": [
+            "LMOVE is faster",
+            "LMOVE atomically moves the job to a 'processing' list, so a crashed worker doesn't lose the job",
+            "LMOVE works with Cluster; BLPOP does not",
+            "LMOVE supports blocking; BLPOP does not"
+          ],
+          "correctAnswer": 1,
+          "explanation": "With plain BLPOP, if a worker crashes after popping a job but before finishing it, the job is lost. LMOVE moves it to a 'processing' list atomically — the job can be recovered from there if the worker fails."
         }
       ]
     }
@@ -67,23 +151,26 @@
   "faq": [
     {
       "q": "How do I implement a task queue with Redis?",
-      "a": "RPUSH tasks to enqueue, BLPOP tasks from the other side to dequeue. Workers block on BLPOP waiting for work."
+      "a": "RPUSH to enqueue jobs, BLPOP to consume them. For reliability, use LMOVE to atomically move jobs to a 'processing' list before working on them, so crashes don't lose jobs."
+    },
+    {
+      "q": "What is the maximum number of members in a Redis Set?",
+      "a": "Up to 2^32 - 1 (over 4 billion) members. In practice, large sets use significant memory — monitor SCARD and size accordingly."
+    },
+    {
+      "q": "Can I expire individual set members?",
+      "a": "No. TTL applies to the whole key. If you need per-member expiry, use a Sorted Set with timestamps as scores and periodically ZREMRANGEBYSCORE to remove old members."
     }
   ],
   "sources": [
-    {
-      "name": "Lists",
-      "url": "https://redis.io/docs/data-types/lists/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Lists", "url": "https://redis.io/docs/data-types/lists/", "verified": "2026-11-04" },
+    { "name": "Sets", "url": "https://redis.io/docs/data-types/sets/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "job queues",
-      "social graphs"
-    ],
+    "usedIn": ["Sidekiq (background jobs via Lists)", "social networks (Sets for followers)", "online presence tracking", "tag systems"],
     "examples": [
-      "Implementing a background job queue with RPUSH/BLPOP"
+      "Sidekiq (Ruby) uses Redis Lists as the core of its background job queue",
+      "Social apps store follower/following sets in Redis for O(1) mutual friend lookups"
     ]
   }
 }

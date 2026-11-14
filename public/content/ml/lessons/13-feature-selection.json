@@ -1,19 +1,31 @@
 {
   "id": "13-feature-selection",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-14",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "ml-production",
   "title": "Feature Selection",
   "subtitle": "Removing irrelevant features to improve models",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "ml.clustering"
-  ],
-  "skillsTaught": [
-    "ml.feature-selection"
-  ],
+  "prerequisites": ["ml.clustering"],
+  "skillsTaught": ["ml.feature-selection", "ml.permutation-importance", "ml.rfe"],
+  "whyItExists": {
+    "problem": "Datasets often contain dozens or hundreds of features, many of which are irrelevant, redundant, or noisy. Including them increases overfitting, slows training, complicates the model, and makes it harder to interpret.",
+    "solution": "Feature selection systematically identifies and removes features that don't contribute useful information, leaving only those that genuinely help predict the target.",
+    "whenToUse": "When you have high-dimensional data (many features), when the model overfits despite regularisation, when you need a faster/simpler production model, or when stakeholders need to understand which factors drive predictions.",
+    "whenNotToUse": "When you have very few features already, or when using deep learning on images/text — the network learns its own feature selection internally."
+  },
+  "explainModes": {
+    "beginner": "If you're trying to predict whether it will rain, features like 'humidity' and 'cloud cover' are very useful. Features like 'your lucky number' are useless. Feature selection is the process of throwing away the useless stuff so the model focuses on what matters.",
+    "simple": "Feature selection removes columns from the dataset that don't help predict the target. Some techniques rank features by statistical relationship with the target. Others train a model and check which features the model found important. You keep the top K.",
+    "standard": "Filter methods rank features by statistical criteria (F-statistic, mutual information). Wrapper methods (RFE) train the model iteratively, removing the least important feature each round. Embedded methods (Lasso) perform selection as part of training.",
+    "technical": "Filter methods are model-agnostic and fast but ignore feature interactions. Wrapper methods (RFE) capture interactions but are expensive. Embedded methods (Lasso, Random Forest importance) are the best compromise. Permutation importance is the most reliable post-hoc selection method.",
+    "deepDive": "Feature selection is a combinatorial search over 2^n subsets. Greedy wrapper methods (forward selection, backward elimination, RFE) approximate this. Stability selection applies Lasso to bootstrapped subsamples — features selected consistently across subsamples are robust. SHAP values provide theoretically grounded feature attribution."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,29 +34,123 @@
     },
     {
       "type": "paragraph",
-      "text": "Fewer features reduce overfitting, speed up training, and make models more interpretable. Remove features that add noise."
+      "text": "Fewer, better features reduce overfitting, speed up training, and make models more interpretable. Including irrelevant or redundant features introduces noise and can actually hurt performance. The goal: <strong>keep only the features that genuinely help predict the target</strong>."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Reduces overfitting — fewer parameters to learn from noise",
+        "Speeds up training and prediction — less computation",
+        "Improves interpretability — easier to explain 10 features than 500",
+        "Reduces data collection costs — if 20 features are enough, don't measure 200"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Method 1: Filter Methods (Statistical Tests)"
+    },
+    {
+      "type": "paragraph",
+      "text": "Filter methods rank features by their statistical relationship with the target — independently of any model. They are fast but can miss complex interactions between features."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "select.py",
-      "code": "from sklearn.feature_selection import SelectKBest, f_classif, RFE\nfrom sklearn.ensemble import RandomForestClassifier\n\n# Select top 10 features by ANOVA F-statistic\nselector = SelectKBest(score_func=f_classif, k=10)\nX_new = selector.fit_transform(X_train, y_train)\n\n# Recursive Feature Elimination\nrf = RandomForestClassifier(n_estimators=100)\nrfe = RFE(estimator=rf, n_features_to_select=10)\nrfe.fit(X_train, y_train)\nprint(\"Selected features:\", [features[i] for i in range(len(features)) if rfe.support_[i]])"
+      "filename": "filter_selection.py",
+      "code": "from sklearn.feature_selection import SelectKBest, f_classif, mutual_info_classif\nimport pandas as pd\n\n# F-statistic (ANOVA): tests linear relationship, good for numeric features\nselector_f = SelectKBest(score_func=f_classif, k=10)\nX_new_f = selector_f.fit_transform(X_train, y_train)\nselected_mask_f = selector_f.get_support()\nprint('Selected by F-test:', list(X.columns[selected_mask_f]))\n\n# Mutual information: captures non-linear relationships\nselector_mi = SelectKBest(score_func=mutual_info_classif, k=10)\nX_new_mi = selector_mi.fit_transform(X_train, y_train)\nselected_mask_mi = selector_mi.get_support()\nprint('Selected by MI:', list(X.columns[selected_mask_mi]))\n\n# View scores\nscores = pd.Series(selector_mi.scores_, index=X.columns)\nprint(scores.sort_values(ascending=False).head(15))"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Method 2: Recursive Feature Elimination (RFE)"
+    },
+    {
+      "type": "paragraph",
+      "text": "RFE trains a model, removes the least important feature, then retrains — repeating until only the desired number of features remain. It captures feature interactions that filter methods miss."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rfe.py",
+      "code": "from sklearn.feature_selection import RFE, RFECV\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import StratifiedKFold\n\n# Standard RFE: select exactly N features\nrf = RandomForestClassifier(n_estimators=100, random_state=42)\nrfe = RFE(estimator=rf, n_features_to_select=15, step=1)\nrfe.fit(X_train, y_train)\n\nselected = [feat for feat, sel in zip(X.columns, rfe.support_) if sel]\nprint(f'Selected {len(selected)} features:', selected)\nprint(f'Score with selected features: {rfe.score(X_test, y_test):.3f}')\n\n# RFECV: automatically find the optimal number of features\nrfecv = RFECV(\n    estimator=RandomForestClassifier(n_estimators=100, random_state=42),\n    cv=StratifiedKFold(5),\n    scoring='f1',\n    min_features_to_select=5\n)\nrfecv.fit(X_train, y_train)\nprint(f'Optimal number of features: {rfecv.n_features_}')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Method 3: Permutation Importance"
+    },
+    {
+      "type": "paragraph",
+      "text": "Permutation importance measures how much model performance drops when a feature's values are randomly shuffled. If shuffling a feature doesn't hurt performance, it was not useful. This works with any fitted model and is more reliable than tree-based feature importance."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "permutation_importance.py",
+      "code": "from sklearn.inspection import permutation_importance\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# Train the model first\nmodel = RandomForestClassifier(n_estimators=200, random_state=42)\nmodel.fit(X_train, y_train)\n\n# Permutation importance on the test set\nresult = permutation_importance(\n    model, X_test, y_test,\n    n_repeats=10,          # shuffle each feature 10 times and average\n    random_state=42,\n    scoring='f1',\n    n_jobs=-1\n)\n\nperm_df = pd.DataFrame({\n    'feature': X.columns,\n    'importance_mean': result.importances_mean,\n    'importance_std': result.importances_std\n}).sort_values('importance_mean', ascending=False)\n\nprint(perm_df.head(15))\n\n# Remove features that hurt performance when shuffled (negative or near-zero importance)\nuseful_features = perm_df[perm_df['importance_mean'] > 0.001]['feature'].tolist()\nprint(f'Keeping {len(useful_features)} useful features')"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Method 4: Lasso (Embedded Feature Selection)"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "lasso_selection.py",
+      "code": "from sklearn.linear_model import LassoCV\nfrom sklearn.preprocessing import StandardScaler\nimport numpy as np\n\nscaler = StandardScaler()\nX_train_sc = scaler.fit_transform(X_train)\n\n# LassoCV finds optimal alpha via CV and drives unimportant coefficients to zero\nlasso = LassoCV(cv=5, random_state=42)\nlasso.fit(X_train_sc, y_train)\n\nselected_mask = lasso.coef_ != 0\nselected_features = X.columns[selected_mask]\nprint(f'Lasso selected {selected_mask.sum()} / {len(X.columns)} features')\nprint(f'Selected: {list(selected_features)}')"
+    },
+    {
+      "type": "tip",
+      "text": "Prefer permutation importance over tree-based feature importance (model.feature_importances_). Tree importance is biased towards high-cardinality features and can be misleading. Permutation importance is model-agnostic and evaluated on the test set."
+    },
+    {
+      "type": "warning",
+      "text": "Always do feature selection on the training set only. If you rank features by correlation with the target on the full dataset first, you've used test-set information — a form of data leakage."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the purpose of RFE?",
+          "question": "What is the purpose of Recursive Feature Elimination (RFE)?",
           "type": "multiple-choice",
           "options": [
-            "To reduce model depth",
-            "To recursively remove the least important features",
-            "To split data into folds",
-            "To impute missing values"
+            "To recursively add the most important features one at a time",
+            "To iteratively remove the least important feature until a target count is reached",
+            "To split data into folds for cross-validation",
+            "To impute missing values recursively"
           ],
           "correctAnswer": 1,
-          "explanation": "RFE (Recursive Feature Elimination) iteratively trains the model and removes the least important feature until the desired number remains."
+          "explanation": "RFE trains a model, identifies the least important feature, removes it, and repeats — until only the desired number of features remain. RFECV automates the selection of that number."
+        },
+        {
+          "id": "q2",
+          "question": "Why is permutation importance more reliable than Random Forest's built-in feature importance?",
+          "type": "multiple-choice",
+          "options": [
+            "Permutation importance is faster to compute",
+            "Built-in importance favours features with many unique values; permutation importance is unbiased",
+            "Permutation importance works only on the training set",
+            "Built-in importance requires cross-validation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Random Forest's built-in importance is biased towards high-cardinality features because there are more possible splits. Permutation importance measures actual impact on test-set performance, which is unbiased."
+        },
+        {
+          "id": "q3",
+          "question": "What is an advantage of filter methods over wrapper methods like RFE?",
+          "type": "multiple-choice",
+          "options": [
+            "Filter methods consider feature interactions",
+            "Filter methods are much faster since they don't require training a model",
+            "Filter methods always select the optimal subset",
+            "Filter methods work better for high-dimensional data"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Filter methods rank features by statistical criteria (F-test, mutual information) without training a model, making them much faster. The trade-off is they can miss interactions between features."
         }
       ]
     }
@@ -52,23 +158,35 @@
   "faq": [
     {
       "q": "Can feature importance from Random Forest be misleading?",
-      "a": "Yes. RF feature importance can favour high-cardinality features. Use permutation importance for a more reliable estimate."
+      "a": "Yes. Random Forest's built-in feature importance (Gini importance) tends to favour high-cardinality features (many unique values) because there are more possible split points. Use permutation importance for a more reliable, unbiased estimate."
+    },
+    {
+      "q": "How many features should I keep?",
+      "a": "Use RFECV to find the optimal number automatically, or look at the diminishing returns in the permutation importance ranking. As a rule of thumb, start with sqrt(n_features) and increase if the model underfits."
+    },
+    {
+      "q": "Should I do feature selection before or after hyperparameter tuning?",
+      "a": "Ideally, feature selection and hyperparameter tuning should be done together (nested cross-validation). In practice, do feature selection first with a default model, then tune hyperparameters on the reduced feature set."
     }
   ],
   "sources": [
     {
-      "name": "Feature Selection",
+      "name": "sklearn: Feature Selection",
       "url": "https://scikit-learn.org/stable/modules/feature_selection.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "sklearn: Permutation Importance",
+      "url": "https://scikit-learn.org/stable/modules/permutation_importance.html",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "high-dimensional datasets",
-      "interpretable models"
-    ],
+    "usedIn": ["high-dimensional genomics data", "sensor arrays", "text feature matrices", "interpretable models for regulated industries"],
     "examples": [
-      "Reducing 200 sensor readings to the 20 most informative"
+      "Reducing 20,000 gene expression features to 50 predictive genes for a cancer classifier",
+      "Selecting 15 key features from 300 sensor readings for a predictive maintenance model",
+      "Using Lasso to identify which of 1,000 marketing attributes drive customer conversion"
     ]
   }
 }

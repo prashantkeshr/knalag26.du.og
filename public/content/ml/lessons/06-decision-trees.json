@@ -1,19 +1,31 @@
 {
   "id": "06-decision-trees",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2026-11-12",
+  "technologyVersion": "scikit-learn 1.5",
+  "author": "KERNAL Content Team",
   "technology": "ml",
   "module": "supervised-learning",
   "title": "Decision Trees",
   "subtitle": "Splits, depth, and tree-based models",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "ml.classification"
-  ],
-  "skillsTaught": [
-    "ml.trees"
-  ],
+  "prerequisites": ["ml.classification"],
+  "skillsTaught": ["ml.trees", "ml.decision-tree", "ml.interpretability"],
+  "whyItExists": {
+    "problem": "Linear models can only learn linear decision boundaries. Many real-world problems require non-linear boundaries (e.g., young AND high-income vs young AND low-income). Also, stakeholders often need to understand why the model made a decision.",
+    "solution": "Decision trees split the feature space into rectangular regions using a series of if-then rules. The resulting tree structure is naturally interpretable.",
+    "whenToUse": "When interpretability is critical, as a quick baseline, or as the base learner in ensemble methods (Random Forest, Gradient Boosting).",
+    "whenNotToUse": "As a standalone deep tree — it overfits badly. Use it at limited depth or as part of an ensemble."
+  },
+  "explainModes": {
+    "beginner": "A decision tree is like a flowchart of yes/no questions. 'Is the email more than 100 words? No → check for certain keywords. Yes → check sender.' Each question narrows down what category the data belongs to.",
+    "simple": "Decision trees split data at each step based on the feature that best separates the classes. At each node, they pick the question (like 'is age > 30?') that most cleanly divides the data. The final answer is in the leaf at the bottom.",
+    "standard": "Decision trees recursively partition the feature space by selecting the feature and split threshold that minimises impurity (Gini or entropy) in the child nodes. Max_depth, min_samples_leaf constrain growth to prevent overfitting.",
+    "technical": "At each node, the algorithm selects feature j and threshold t to maximise information gain IG = H(parent) - [w_L H(left) + w_R H(right)]. CART uses Gini impurity; ID3/C4.5 uses entropy. Trees have high variance: bagging (Random Forest) reduces this via averaging.",
+    "deepDive": "Decision trees are piecewise-constant functions — they partition the input space into hypercubes and assign constant predictions per region. Optimal trees are NP-hard; greedy top-down induction is used. Variance is high because small data perturbations change the tree structure significantly — this motivates ensemble methods."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +34,76 @@
     },
     {
       "type": "paragraph",
-      "text": "A decision tree splits data at each node based on the feature that best separates classes. Leaves contain predictions."
+      "text": "A decision tree learns a sequence of <strong>if-then-else rules</strong>. At each node, it asks a question about one feature (e.g., <code>age &gt; 30?</code>). The answer routes the sample left or right. At a leaf node, it makes a prediction. The goal is to split data so each leaf is as pure as possible."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Training a Decision Tree"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "tree.py",
-      "code": "from sklearn.tree import DecisionTreeClassifier, export_text\nfrom sklearn.model_selection import train_test_split\n\nmodel = DecisionTreeClassifier(max_depth=5, random_state=42)\nmodel.fit(X_train, y_train)\n\nprint(f\"Accuracy: {model.score(X_test, y_test):.2f}\")\nprint(export_text(model, feature_names=feature_names))"
+      "filename": "decision_tree.py",
+      "code": "from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\nimport matplotlib.pyplot as plt\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,\n                                                    stratify=y, random_state=42)\n\n# Shallow tree = interpretable, less likely to overfit\nmodel = DecisionTreeClassifier(\n    max_depth=5,           # limit depth to prevent overfitting\n    min_samples_leaf=10,   # each leaf needs at least 10 samples\n    criterion='gini',      # 'gini' or 'entropy'\n    random_state=42\n)\nmodel.fit(X_train, y_train)\n\npreds = model.predict(X_test)\nprint(f'Accuracy: {model.score(X_test, y_test):.3f}')\nprint(classification_report(y_test, preds))\n\n# Print the tree as text rules\nrules = export_text(model, feature_names=list(X.columns))\nprint(rules[:1000])   # first 1000 chars"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Visualising the Tree"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "visualise_tree.py",
+      "code": "import matplotlib.pyplot as plt\nfrom sklearn.tree import plot_tree\n\nfig, ax = plt.subplots(figsize=(20, 10))\nplot_tree(\n    model,\n    feature_names=list(X.columns),\n    class_names=['No', 'Yes'],\n    filled=True,          # colour nodes by class\n    rounded=True,\n    ax=ax\n)\nplt.savefig('tree.png', dpi=150, bbox_inches='tight')\nplt.show()\n\n# Feature importances\nimportances = model.feature_importances_\nfor feat, imp in sorted(zip(X.columns, importances), key=lambda x: -x[1]):\n    print(f'{feat:20s}: {imp:.3f}')"
+    },
+    {
+      "type": "definition",
+      "term": "Gini Impurity",
+      "definition": "A measure of how often a randomly chosen element would be incorrectly classified. Gini=0 means a node is perfectly pure (all one class). It's computed as 1 - Σ(pᵢ²) over all classes."
+    },
+    {
+      "type": "definition",
+      "term": "Information Gain",
+      "definition": "The reduction in entropy (uncertainty) achieved by splitting on a feature. The tree selects the feature and threshold that maximises information gain at each node."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Overfitting and Pruning"
+    },
+    {
+      "type": "paragraph",
+      "text": "An unconstrained decision tree will grow until every leaf contains a single sample — perfectly classifying training data but failing completely on new data. This is <strong>overfitting</strong>."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "depth_comparison.py",
+      "code": "from sklearn.tree import DecisionTreeClassifier\nfrom sklearn.model_selection import cross_val_score\n\n# Compare different depths\nresults = []\nfor depth in range(1, 20):\n    dt = DecisionTreeClassifier(max_depth=depth, random_state=42)\n    cv_scores = cross_val_score(dt, X, y, cv=5, scoring='f1')\n    dt.fit(X_train, y_train)\n    results.append({\n        'depth': depth,\n        'train_score': dt.score(X_train, y_train),\n        'cv_score': cv_scores.mean()\n    })\n\n# The gap between train_score and cv_score reveals overfitting\nfor r in results:\n    print(f\"depth={r['depth']:2d}  train={r['train_score']:.3f}  cv={r['cv_score']:.3f}\")"
+    },
+    {
+      "type": "comparison",
+      "title": "Decision Tree vs Random Forest",
+      "a": {
+        "name": "Decision Tree",
+        "description": "Single tree — interpretable but high variance",
+        "strengths": ["Fully interpretable rules", "No feature scaling needed", "Handles mixed data types"],
+        "weaknesses": ["Overfits easily", "High variance (sensitive to data changes)", "Unstable — small changes create different trees"],
+        "useWhen": "Interpretability is the priority, or as a quick diagnostic baseline"
+      },
+      "b": {
+        "name": "Random Forest",
+        "description": "Ensemble of trees — accurate but less interpretable",
+        "strengths": ["Much more accurate", "Resistant to overfitting", "Built-in feature importance"],
+        "weaknesses": ["Black box (harder to interpret)", "Slower to train and predict", "More memory"],
+        "useWhen": "You need high accuracy and can sacrifice some interpretability"
+      }
     },
     {
       "type": "tip",
-      "text": "Unconstrained trees overfit. Use max_depth, min_samples_leaf, or pruning to regularise."
+      "text": "Unconstrained trees overfit. Use <code>max_depth=5</code> or <code>min_samples_leaf=10</code> as starting hyperparameters. Tune with cross-validation."
     },
     {
       "type": "quiz",
@@ -42,13 +113,39 @@
           "question": "What is overfitting in a decision tree?",
           "type": "multiple-choice",
           "options": [
-            "The tree is too shallow",
+            "The tree is too shallow to learn patterns",
             "The tree memorises training data and fails on new data",
             "The tree takes too long to train",
-            "The tree has too few nodes"
+            "The tree has too few leaf nodes"
           ],
           "correctAnswer": 1,
-          "explanation": "Overfitting means the model fits the training data too closely and does not generalise."
+          "explanation": "Overfitting means the model fits the training data too precisely — including its noise — and therefore fails to generalise to unseen examples."
+        },
+        {
+          "id": "q2",
+          "question": "What does max_depth control in a Decision Tree?",
+          "type": "multiple-choice",
+          "options": [
+            "The number of features used",
+            "How many levels deep the tree can grow",
+            "The minimum samples per leaf",
+            "The splitting criterion"
+          ],
+          "correctAnswer": 1,
+          "explanation": "max_depth limits how many levels (questions) the tree can have. A smaller max_depth creates a simpler, more generalizable model."
+        },
+        {
+          "id": "q3",
+          "question": "What do feature importances in a decision tree represent?",
+          "type": "multiple-choice",
+          "options": [
+            "The correlation of each feature with the target",
+            "The total impurity reduction achieved by splits on each feature",
+            "The number of times each feature was used",
+            "The variance of each feature"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Feature importance is computed as the total weighted impurity reduction (Gini or entropy) across all splits that use that feature."
         }
       ]
     }
@@ -56,23 +153,34 @@
   "faq": [
     {
       "q": "What is the difference between a decision tree and a random forest?",
-      "a": "A random forest is an ensemble of many decision trees, each trained on a random subset of data and features. It is much more accurate and less prone to overfitting."
+      "a": "A random forest is an ensemble of many decision trees. Each tree is trained on a random subset of data (bootstrap) and features. Final predictions are made by majority vote or averaging. This dramatically reduces variance and overfitting compared to a single tree."
+    },
+    {
+      "q": "Should I use Gini impurity or entropy?",
+      "a": "In practice the results are nearly identical. Gini is slightly faster to compute. Use Gini unless you have a specific reason to prefer entropy."
+    },
+    {
+      "q": "Do decision trees need feature scaling?",
+      "a": "No. Decision trees split on individual features one at a time, so the absolute scale of features doesn't matter. This is a key advantage over linear models and k-NN."
     }
   ],
   "sources": [
     {
-      "name": "Decision Trees",
+      "name": "sklearn: Decision Trees",
       "url": "https://scikit-learn.org/stable/modules/tree.html",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "sklearn: plot_tree",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.tree.plot_tree.html",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
-    "usedIn": [
-      "rule extraction",
-      "interpretable models"
-    ],
+    "usedIn": ["rule extraction", "interpretable credit models", "medical decision support", "customer segmentation"],
     "examples": [
-      "Credit scoring with a shallow decision tree"
+      "A bank uses a shallow decision tree (depth 4) to explain loan approval decisions to regulators",
+      "Medical triage rules derived from a decision tree trained on patient symptoms and outcomes"
     ]
   }
 }

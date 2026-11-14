@@ -1,44 +1,116 @@
 {
   "id": "10-pub-sub",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "messaging",
   "title": "Pub/Sub Messaging",
   "subtitle": "PUBLISH, SUBSCRIBE, and channel patterns",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.hashes"
-  ],
-  "skillsTaught": [
-    "redis.pub-sub"
-  ],
+  "prerequisites": ["redis.hashes"],
+  "skillsTaught": ["redis.pub-sub"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "In distributed systems, services need to react to events without polling or tight coupling. A checkout service needs to notify an email service, an inventory service, and an analytics service simultaneously, but shouldn't know their addresses.",
+    "solution": "Redis Pub/Sub decouples publishers from subscribers via named channels. A publisher sends a message to a channel; all current subscribers receive it instantly. No polling, no direct connection between services.",
+    "whenToUse": "Real-time notifications, broadcasting UI updates, chat systems (simple), live dashboards, event fan-out to multiple consumers.",
+    "whenNotToUse": "When message delivery must be guaranteed. Pub/Sub is fire-and-forget — if no subscriber is connected, the message is lost. Use Redis Streams for durability."
+  },
+  "explainModes": {
+    "beginner": "Pub/Sub is like a radio station. The publisher is the DJ playing music on a frequency (channel). Anyone who tunes in to that frequency hears it. If you're not listening right now, you miss it.",
+    "simple": "SUBSCRIBE channel puts a Redis connection into listen mode on a channel. PUBLISH channel message sends a message to all current subscribers. Pattern subscribe (PSUBSCRIBE) uses wildcards like orders.* to match multiple channels.",
+    "standard": "Redis Pub/Sub is a push-based messaging system. Subscribers register interest in channels; publishers send messages without knowing who's subscribed. Messages are delivered to all current subscribers immediately. A subscribed connection can only use SUBSCRIBE, UNSUBSCRIBE, PSUBSCRIBE, PUNSUBSCRIBE, PING, RESET, and QUIT.",
+    "technical": "Redis Pub/Sub uses a channel registry (hash table of channel → subscriber list). PUBLISH has O(N+M) complexity where N is subscribers and M is pattern subscribers. Pattern matching uses glob-style patterns. Pub/Sub connections are stateful — the subscriber connection blocks in subscribe mode. In Node.js with ioredis, you need separate connections for publishing and subscribing.",
+    "deepDive": "Redis Pub/Sub is implemented via the channel_dict and pubsub_patterns in the redisServer struct. PUBLISH iterates the subscriber list for the channel and also evaluates all registered patterns against the channel name. No durability: messages exist only in-flight. For durability, Redis Streams store messages in an append-only log that consumers can replay. Keyspace notifications (CONFIG SET notify-keyspace-events) use Pub/Sub internally to broadcast events like key expiry."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Redis Pub/Sub"
+      "text": "How Pub/Sub Works"
     },
     {
       "type": "paragraph",
-      "text": "Redis Pub/Sub allows publishers to send messages to channels without knowing who (if anyone) is subscribed. Subscribers receive messages in real time."
+      "text": "Redis Pub/Sub decouples message producers (<strong>publishers</strong>) from consumers (<strong>subscribers</strong>) via named <strong>channels</strong>. Publishers broadcast to a channel without knowing who is listening. Subscribers receive all messages on their channel in real time."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Subscriber (blocks waiting for messages)\nSUBSCRIBE notifications\n\n# Publisher (in a different connection)\nPUBLISH notifications \"New order placed: #1234\"\n\n# Pattern subscribe\nPSUBSCRIBE orders.*"
+      "filename": "pubsub-cli.sh",
+      "code": "# Terminal 1 — Subscribe to a channel\nredis-cli\n127.0.0.1:6379> SUBSCRIBE notifications\nReading messages... (press Ctrl-C to quit)\n1) \"subscribe\"\n2) \"notifications\"\n3) (integer) 1\n\n# Terminal 2 — Publish a message\nredis-cli PUBLISH notifications \"User 42 signed up\"\n# (integer) 1  <-- number of subscribers that received it\n\n# Back in Terminal 1:\n1) \"message\"\n2) \"notifications\"\n3) \"User 42 signed up\""
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Pattern Subscriptions"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>PSUBSCRIBE</strong> lets you subscribe to multiple channels matching a glob pattern. This is useful when channel names are dynamic."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "pattern-subscribe.sh",
+      "code": "# Subscribe to all order channels\nPSUBSCRIBE orders.*\n# Matches: orders.created, orders.shipped, orders.cancelled\n\n# Subscribe to multiple patterns\nPSUBSCRIBE user:* product:*\n\n# Unsubscribe from pattern\nPUNSUBSCRIBE orders.*\n\n# List active subscriptions\nPUBSUB CHANNELS         # all active channels with subscribers\nPUBSUB CHANNELS user:*  # matching pattern\nPUBSUB NUMSUB notifications  # subscriber count per channel\nPUBSUB NUMPAT            # total pattern subscriptions"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Pub/Sub in Node.js"
     },
     {
       "type": "code",
       "lang": "javascript",
       "filename": "pubsub.js",
-      "code": "// Node.js with ioredis\nconst sub = new Redis();\nawait sub.subscribe(\"chat:room1\");\nsub.on(\"message\", (channel, message) => {\n  console.log(`${channel}: ${message}`);\n});\n\n// Publish from another connection\nconst pub = new Redis();\nawait pub.publish(\"chat:room1\", \"Hello!\");"
+      "code": "import Redis from 'ioredis';\n\n// IMPORTANT: Use separate connections for pub and sub\n// A subscribed connection can ONLY use subscribe commands\nconst subscriber = new Redis();\nconst publisher = new Redis();\n\n// Subscribe to a channel\nawait subscriber.subscribe('chat:room1');\n\n// Listen for messages\nsubscriber.on('message', (channel, message) => {\n  console.log(`[${channel}] ${message}`);\n});\n\n// Pattern subscribe\nawait subscriber.psubscribe('orders.*');\nsubscriber.on('pmessage', (pattern, channel, message) => {\n  console.log(`Pattern: ${pattern}, Channel: ${channel}, Message: ${message}`);\n});\n\n// Publish from another connection\nawait publisher.publish('chat:room1', JSON.stringify({ user: 'Alice', text: 'Hello!' }));\nawait publisher.publish('orders.created', JSON.stringify({ orderId: 42, total: 99.99 }));\n\n// Cleanup\nawait subscriber.unsubscribe('chat:room1');\nawait subscriber.punsubscribe('orders.*');"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Keyspace Notifications"
+    },
+    {
+      "type": "paragraph",
+      "text": "Redis can publish notifications when keys expire, are set, or are deleted — using Pub/Sub internally. Enable it in <code>redis.conf</code> or via CONFIG SET."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "keyspace-notifications.sh",
+      "code": "# Enable expired key notifications\nredis-cli CONFIG SET notify-keyspace-events \"Ex\"\n\n# Subscribe to expired key events on database 0\nredis-cli\nSUBSCRIBE __keyevent@0__:expired\n\n# When any key expires, you get a notification:\n# 1) \"message\"\n# 2) \"__keyevent@0__:expired\"\n# 3) \"session:abc123\"   <- the expired key name\n\n# Node.js: react when a session expires\nawait subscriber.subscribe('__keyevent@0__:expired');\nsubscriber.on('message', (channel, key) => {\n  if (key.startsWith('session:')) {\n    console.log('Session expired:', key);\n    cleanupUserSession(key);\n  }\n});"
+    },
+    {
+      "type": "comparison",
+      "title": "Pub/Sub vs Redis Streams",
+      "a": {
+        "name": "Pub/Sub",
+        "description": "Fire-and-forget broadcast",
+        "strengths": ["Simple API", "Instant delivery", "Pattern matching", "Zero persistence overhead"],
+        "weaknesses": ["Messages lost if no subscriber", "No message history", "No consumer groups", "No replay"],
+        "useWhen": "Real-time notifications where missing a message is acceptable"
+      },
+      "b": {
+        "name": "Redis Streams",
+        "description": "Durable append-only log",
+        "strengths": ["Messages persisted", "Consumer groups (competing consumers)", "Replay from any position", "Acknowledgement"],
+        "weaknesses": ["More complex API", "Memory grows without trimming", "More setup"],
+        "useWhen": "Event sourcing, job queues, any use case where you must not lose messages"
+      }
     },
     {
       "type": "tip",
-      "text": "Pub/Sub messages are fire-and-forget — if no subscriber is connected, the message is lost. Use Streams for durability."
+      "text": "Pub/Sub messages are fire-and-forget — if no subscriber is connected at the moment of publish, the message is lost. For durability, use Redis Streams, which persist messages to an append-only log."
+    },
+    {
+      "type": "warning",
+      "text": "A Redis connection in subscribe mode can only use SUBSCRIBE, UNSUBSCRIBE, PSUBSCRIBE, PUNSUBSCRIBE, PING, RESET, and QUIT. Use a separate connection for publishing and normal commands."
     },
     {
       "type": "quiz",
@@ -47,14 +119,30 @@
           "id": "q1",
           "question": "What happens to a Pub/Sub message if no subscriber is listening?",
           "type": "multiple-choice",
-          "options": [
-            "It is queued",
-            "It is stored in a list",
-            "It is lost",
-            "It is re-sent every minute"
-          ],
+          "options": ["It is queued for the next subscriber", "It is stored in a list", "It is lost", "It is re-sent every minute"],
           "correctAnswer": 2,
-          "explanation": "Redis Pub/Sub is fire-and-forget; messages not received by a subscriber at the moment of publish are lost."
+          "explanation": "Redis Pub/Sub is fire-and-forget. Messages not received by a connected subscriber at the time of publish are permanently lost."
+        },
+        {
+          "id": "q2",
+          "question": "What command subscribes to all channels matching a glob pattern?",
+          "type": "multiple-choice",
+          "options": ["SUBSCRIBE *", "PSUBSCRIBE pattern", "SUBSCRIBE PATTERN", "GLOB SUBSCRIBE"],
+          "correctAnswer": 1,
+          "explanation": "PSUBSCRIBE accepts glob patterns like orders.* or user:*:events. SUBSCRIBE requires exact channel names."
+        },
+        {
+          "id": "q3",
+          "question": "Why do you need separate connections for publishing and subscribing in Node.js?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis only allows one connection per process",
+            "A subscribed connection can only use subscribe-related commands, not regular commands",
+            "Publishing is faster on a separate connection",
+            "It's just a convention, not a requirement"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Once a connection enters subscribe mode (after SUBSCRIBE or PSUBSCRIBE), it can only send subscribe/unsubscribe commands. You need a separate connection for PUBLISH or any other command."
         }
       ]
     }
@@ -62,24 +150,26 @@
   "faq": [
     {
       "q": "Can I use Pub/Sub for a chat app?",
-      "a": "Yes for simple cases. For message history or offline delivery, use Redis Streams instead, which persist messages."
+      "a": "Yes for real-time delivery, but add Redis Streams or a database for message history. Pub/Sub has no message history — joining a room after a message was sent means you missed it."
+    },
+    {
+      "q": "How do I know how many subscribers a channel has?",
+      "a": "PUBSUB NUMSUB channel1 channel2 returns the subscriber count for each channel. PUBSUB CHANNELS lists all channels with at least one subscriber."
+    },
+    {
+      "q": "What is the difference between SUBSCRIBE and PSUBSCRIBE?",
+      "a": "SUBSCRIBE registers for exact channel names. PSUBSCRIBE registers for channels matching a glob pattern (*, ?, [abc]). Pattern subscribers receive pmessage events instead of message events."
     }
   ],
   "sources": [
-    {
-      "name": "Pub/Sub",
-      "url": "https://redis.io/docs/manual/pubsub/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Pub/Sub", "url": "https://redis.io/docs/manual/pubsub/", "verified": "2026-11-04" },
+    { "name": "Keyspace Notifications", "url": "https://redis.io/docs/manual/keyspace-notifications/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "real-time notifications",
-      "chat",
-      "live updates"
-    ],
+    "usedIn": ["real-time notifications", "chat rooms", "live dashboard updates", "event fan-out in microservices"],
     "examples": [
-      "Broadcasting score updates to all connected clients"
+      "Broadcasting score updates to all connected WebSocket clients on a sports app",
+      "Microservice event fan-out: order created → email, inventory, and analytics services all subscribed to orders.created"
     ]
   }
 }

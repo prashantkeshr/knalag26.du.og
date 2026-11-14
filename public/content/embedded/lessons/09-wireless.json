@@ -1,84 +1,194 @@
 {
   "id": "09-wireless",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "ESP32 Arduino Core 2.x / esp-idf 5.x",
   "technology": "embedded",
   "module": "protocols",
   "title": "Wireless Communication",
-  "subtitle": "WiFi (ESP32), Bluetooth, and LoRa for IoT",
+  "subtitle": "WiFi with ESP32, Bluetooth LE, and LoRa for long-range IoT",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.uart"
-  ],
-  "skillsTaught": [
-    "embedded.wireless"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.uart"],
+  "skillsTaught": ["embedded.wireless"],
+  "whyItExists": {
+    "problem": "Physical sensor wiring doesn't scale — you can't run cables to every field sensor, wearable, or remote device. IoT requires embedded systems to communicate wirelessly over WiFi, Bluetooth, LoRa, or Zigbee.",
+    "solution": "The ESP32 integrates dual-core CPU, WiFi 802.11 b/g/n, and Bluetooth 5.0 LE on a single $3–5 chip. It runs Arduino-compatible code and connects to cloud APIs, MQTT brokers, and home automation systems out of the box.",
+    "whenToUse": "Any IoT project needing wireless: smart home sensors, remote weather stations, wearables, WiFi-controlled devices, Bluetooth beacons.",
+    "whenNotToUse": "Long cable runs in a building (use Ethernet for reliability). Safety-critical control systems (wireless latency is non-deterministic). Very-low-power battery devices with 10-year lifetimes (use LoRaWAN or Zigbee instead of WiFi)."
+  },
+  "explainModes": {
+    "beginner": "The ESP32 is a microcontroller with built-in WiFi and Bluetooth, like an Arduino that can connect to the internet. You can send sensor data to a website, receive commands over WiFi, or connect to your phone via Bluetooth — all from a $5 chip.",
+    "simple": "ESP32 connects to your WiFi router like a phone does. Once connected, you can make HTTP requests, run a web server, subscribe to MQTT topics, or send data to cloud platforms. It uses the same Arduino API so your existing knowledge transfers directly.",
+    "standard": "ESP32 (Espressif) uses a dual-core Xtensa LX6 at 240 MHz with 520 KB SRAM and 4 MB flash. The WiFi stack runs on Core 0, leaving Core 1 for application code. It supports WPA2, 802.11 b/g/n, AP and STA modes. BLE 5.0 uses GATT profiles.",
+    "technical": "ESP32 WiFi is interrupt-driven using the lwIP TCP/IP stack. HTTP calls via HTTPClient use TLS (mbedTLS). NVS (Non-Volatile Storage) stores credentials in flash encrypted partitions. ESP-NOW is a connectionless peer-to-peer protocol using WiFi MAC layer for <1ms, low-power device-to-device messaging.",
+    "deepDive": "ESP32 power modes: active (~160 mA), modem sleep (~20 mA WiFi off), light sleep (~0.8 mA), deep sleep (~10 µA, only RTC survives). Deep sleep + ULP (Ultra Low Power) coprocessor enables battery operation for years. WiFi consumes 160–300 mA during transmission bursts — alkaline batteries die quickly. Use LiPo + TP4056 charger or solar."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "ESP32 WiFi"
+      "text": "The ESP32: WiFi + Bluetooth on One Chip"
     },
     {
       "type": "paragraph",
-      "text": "The ESP32 has built-in WiFi and Bluetooth. It is ideal for IoT projects that need internet connectivity."
+      "text": "The <strong>ESP32</strong> from Espressif is the workhorse of modern IoT. It packs a 240 MHz dual-core CPU, 520 KB SRAM, WiFi 802.11 b/g/n, Bluetooth 5.0 LE, and 34 GPIO pins — all for $3–5. Install the ESP32 Arduino core via Board Manager: search for <code>esp32 by Espressif</code>."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "esp32_wifi.ino",
-      "code": "#include <WiFi.h>\n#include <HTTPClient.h>\n\nconst char* ssid = \"YourSSID\";\nconst char* pass = \"YourPassword\";\n\nvoid setup() {\n  WiFi.begin(ssid, pass);\n  while (WiFi.status() != WL_CONNECTED) delay(500);\n  Serial.println(\"Connected! IP: \" + WiFi.localIP().toString());\n\n  HTTPClient http;\n  http.begin(\"https://api.example.com/data\");\n  int code = http.GET();\n  if (code == 200) Serial.println(http.getString());\n  http.end();\n}"
+      "filename": "esp32_wifi_connect.ino",
+      "code": "#include <WiFi.h>\n\n// Store credentials outside source code in production\nconst char* SSID = \"YourNetwork\";\nconst char* PASS = \"YourPassword\";\n\nvoid setup() {\n  Serial.begin(115200);\n  Serial.print(F(\"Connecting to WiFi\"));\n\n  WiFi.begin(SSID, PASS);\n  while (WiFi.status() != WL_CONNECTED) {\n    delay(500);\n    Serial.print('.');\n  }\n\n  Serial.println();\n  Serial.print(F(\"Connected! IP: \"));\n  Serial.println(WiFi.localIP());\n  Serial.print(F(\"RSSI: \"));\n  Serial.print(WiFi.RSSI());\n  Serial.println(F(\" dBm\"));\n}"
     },
     {
-      "type": "definition",
-      "term": "LoRa",
-      "definition": "Long Range radio: low data rate but can reach kilometres without infrastructure. Used for rural sensor networks."
+      "type": "heading",
+      "level": 2,
+      "text": "HTTP Requests: Sending Sensor Data to an API"
+    },
+    {
+      "type": "paragraph",
+      "text": "Once connected to WiFi, the ESP32 can make HTTP GET/POST requests using the <code>HTTPClient</code> library. Use this to push sensor data to REST APIs, home automation platforms, or cloud services."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "esp32_http_post.ino",
+      "code": "#include <WiFi.h>\n#include <HTTPClient.h>\n#include <ArduinoJson.h>\n// Library Manager: ArduinoJson by Benoit Blanchon\n\nconst char* SSID    = \"YourNetwork\";\nconst char* PASS    = \"YourPassword\";\nconst char* API_URL = \"https://api.example.com/sensors\";\nconst char* API_KEY = \"your-api-key\";\n\nvoid sendReading(float temp, float humidity) {\n  if (WiFi.status() != WL_CONNECTED) return;\n\n  HTTPClient http;\n  http.begin(API_URL);\n  http.addHeader(\"Content-Type\", \"application/json\");\n  http.addHeader(\"X-API-Key\", API_KEY);\n\n  // Build JSON body\n  StaticJsonDocument<200> doc;\n  doc[\"device_id\"] = \"sensor-01\";\n  doc[\"temperature\"] = temp;\n  doc[\"humidity\"]    = humidity;\n  doc[\"timestamp\"]   = millis() / 1000;\n\n  String body;\n  serializeJson(doc, body);\n\n  int code = http.POST(body);\n  Serial.print(F(\"HTTP POST: \")); Serial.println(code);\n  http.end();\n}\n\nvoid setup() {\n  Serial.begin(115200);\n  WiFi.begin(SSID, PASS);\n  while (WiFi.status() != WL_CONNECTED) delay(500);\n  Serial.println(F(\"WiFi ready\"));\n}\n\nvoid loop() {\n  sendReading(23.4, 55.1);\n  delay(30000);  // send every 30 seconds\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ESP32 as a Web Server"
+    },
+    {
+      "type": "paragraph",
+      "text": "The ESP32 can serve a web page over your local network — no cloud needed. Connect to the same WiFi and open the ESP32's IP address in a browser to control GPIO pins or view sensor readings in real time."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "esp32_webserver.ino",
+      "code": "#include <WiFi.h>\n#include <WebServer.h>\n\nconst char* SSID = \"YourNetwork\";\nconst char* PASS = \"YourPassword\";\nWebServer server(80);\nconst int LED_PIN = 2;\n\nvoid handleRoot() {\n  String html = \"<html><body>\";\n  html += \"<h1>ESP32 Web Control</h1>\";\n  html += \"<p>LED: <a href='/on'>ON</a> | <a href='/off'>OFF</a></p>\";\n  html += \"<p>Uptime: \" + String(millis()/1000) + \" s</p>\";\n  html += \"</body></html>\";\n  server.send(200, \"text/html\", html);\n}\n\nvoid setup() {\n  Serial.begin(115200);\n  pinMode(LED_PIN, OUTPUT);\n  WiFi.begin(SSID, PASS);\n  while (WiFi.status() != WL_CONNECTED) delay(500);\n  Serial.print(F(\"Web server at http://\"));\n  Serial.println(WiFi.localIP());\n\n  server.on(\"/\",    handleRoot);\n  server.on(\"/on\",  []() { digitalWrite(LED_PIN, HIGH); server.sendHeader(\"Location\", \"/\"); server.send(302); });\n  server.on(\"/off\", []() { digitalWrite(LED_PIN, LOW);  server.sendHeader(\"Location\", \"/\"); server.send(302); });\n  server.begin();\n}\n\nvoid loop() {\n  server.handleClient();\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Wireless Technology Comparison"
+    },
+    {
+      "type": "comparison",
+      "title": "WiFi vs LoRa for IoT",
+      "a": {
+        "name": "WiFi (ESP32)",
+        "description": "802.11 b/g/n, 2.4/5 GHz",
+        "strengths": ["High bandwidth (Mbps)", "Direct internet access", "Existing infrastructure", "Rich Arduino library support"],
+        "weaknesses": ["Power hungry (160–300 mA TX)", "Range ~50 m indoors", "Requires WiFi router infrastructure"],
+        "useWhen": "Indoor smart home, data-heavy sensors, devices near power outlets"
+      },
+      "b": {
+        "name": "LoRa (SX1276)",
+        "description": "Sub-GHz spread-spectrum radio",
+        "strengths": ["Extreme range (1–10 km)", "Ultra-low power (10–50 mA TX)", "No infrastructure needed", "Penetrates walls"],
+        "weaknesses": ["Very low bandwidth (~250 bps–50 kbps)", "Requires LoRa gateway for internet", "Expensive module ($8–15)"],
+        "useWhen": "Rural sensors, tracking, agriculture, long-range low-data-rate IoT"
+      }
     },
     {
       "type": "tip",
-      "text": "Store WiFi credentials in NVS (non-volatile storage) or as build flags, not hardcoded in source."
+      "text": "Store WiFi credentials in ESP32's NVS (non-volatile storage) using the Preferences library rather than hardcoding them. For production devices, implement a WiFiManager access-point setup mode so users can configure their own network without reflashing firmware."
+    },
+    {
+      "type": "warning",
+      "text": "ESP32 WiFi consumes 160–300 mA during transmission bursts. A standard 9V alkaline battery (~500 mAh) will last only ~3 hours in continuous WiFi mode. For battery-powered sensors, use deep sleep between readings — a 10-second wake cycle with 10-minute sleep reduces average current to ~15 µA, lasting months on a LiPo."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What microcontroller has built-in WiFi and is popular for IoT?",
+          "question": "What makes the ESP32 ideal for IoT compared to a standard Arduino Uno?",
           "type": "multiple-choice",
           "options": [
-            "ATmega328P",
-            "Arduino Uno",
-            "ESP32",
-            "STM32F103"
+            "It has more analog pins",
+            "It includes built-in WiFi, Bluetooth, 240 MHz dual-core CPU, and 520 KB SRAM",
+            "It is compatible with 5V sensors",
+            "It has a larger flash memory"
           ],
-          "correctAnswer": 2,
-          "explanation": "The ESP32 from Espressif has dual-core CPU, WiFi, Bluetooth, and runs at 240 MHz — ideal for IoT."
+          "correctAnswer": 1,
+          "explanation": "The ESP32 integrates WiFi 802.11 b/g/n, Bluetooth 5.0 LE, 240 MHz dual-core CPU, and 520 KB SRAM on one chip — none of which the Arduino Uno (16 MHz, 2 KB SRAM, no wireless) provides."
+        },
+        {
+          "id": "q2",
+          "question": "Why is LoRa better suited than WiFi for a remote agricultural sensor in a field 5 km from the nearest building?",
+          "type": "multiple-choice",
+          "options": [
+            "LoRa supports higher bandwidth for video streaming",
+            "LoRa has multi-kilometre range and very low power consumption — WiFi can't reach 5 km",
+            "LoRa uses the same 2.4 GHz band as WiFi",
+            "LoRa is cheaper than WiFi modules"
+          ],
+          "correctAnswer": 1,
+          "explanation": "LoRa uses sub-GHz spread-spectrum radio reaching 1–10 km on a few milliamps average current. WiFi requires a router within ~50 m and draws 160+ mA — impractical for remote, battery-powered field sensors."
+        },
+        {
+          "id": "q3",
+          "question": "What is ESP-NOW?",
+          "type": "multiple-choice",
+          "options": [
+            "An OTA firmware update protocol",
+            "A connectionless peer-to-peer protocol for direct ESP32-to-ESP32 messaging without a router",
+            "Espressif's cloud IoT platform",
+            "A BLE advertising format"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ESP-NOW is Espressif's proprietary protocol that enables direct peer-to-peer communication between ESP32/ESP8266 devices using WiFi MAC layer — no router needed, latency < 1 ms, and very low power overhead."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "What is the range of Bluetooth LE?",
-      "a": "Typically 10-100 metres depending on obstacles and antenna. Good for local device communication."
+      "q": "What is the range of Bluetooth LE on ESP32?",
+      "a": "Typically 10–100 metres line-of-sight depending on antenna and obstacles. BLE 5.0 (supported by ESP32) extends range to ~200 m in open areas using long-range coded PHY. Good for local wearables, beacons, and mobile app control."
+    },
+    {
+      "q": "How do I store WiFi credentials securely on ESP32?",
+      "a": "Use the Preferences library which writes to ESP32's NVS (Non-Volatile Storage) in an encrypted flash partition. For production, implement WiFiManager: ESP32 starts as an AP with a captive portal on first boot so the user enters their own credentials."
+    },
+    {
+      "q": "My ESP32 keeps disconnecting from WiFi. How do I add auto-reconnect?",
+      "a": "Add `WiFi.setAutoReconnect(true); WiFi.persistent(true);` in setup(). Also check WiFi.status() periodically in loop() and call WiFi.reconnect() if it returns WL_DISCONNECTED. Use a watchdog timer (esp_task_wdt) for recovery if reconnect fails."
     }
   ],
   "sources": [
     {
-      "name": "ESP32 Arduino",
+      "name": "ESP32 Arduino Documentation",
       "url": "https://docs.espressif.com/projects/arduino-esp32/en/latest/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "ArduinoJson Library",
+      "url": "https://arduinojson.org/",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "smart home",
-      "remote sensors",
-      "wearables"
+      "Smart home sensors (temperature, humidity, air quality)",
+      "WiFi-controlled LED strips (WLED firmware)",
+      "Remote door locks and security cameras",
+      "Agricultural soil moisture loggers (LoRa)",
+      "Asset trackers (GPS + LoRa or GSM)"
     ],
     "examples": [
-      "ESP32 temperature sensor posting data to a REST API every minute"
+      "ESP32 temperature sensor POSTing JSON to InfluxDB Cloud every 60 seconds, then deep-sleeping to save battery",
+      "ESP32 web server controlling a relay for smart irrigation — no cloud, fully local"
     ]
   }
 }

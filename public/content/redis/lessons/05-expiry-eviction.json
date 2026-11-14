@@ -1,49 +1,121 @@
 {
   "id": "05-expiry-eviction",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "caching",
   "title": "Expiry and Eviction",
   "subtitle": "TTL, EXPIRE, and eviction policies",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 14,
   "status": "published",
-  "prerequisites": [
-    "redis.caching"
-  ],
-  "skillsTaught": [
-    "redis.eviction"
-  ],
+  "prerequisites": ["redis.caching"],
+  "skillsTaught": ["redis.eviction"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "whyItExists": {
+    "problem": "Redis stores data in RAM, which is finite. Without expiry and eviction policies, Redis fills up and throws errors. Applications also need old cache entries to auto-remove so they don't serve stale data forever.",
+    "solution": "TTL (Time-To-Live) lets you schedule automatic deletion of keys. When Redis approaches its memory limit, eviction policies decide which keys to remove automatically, turning Redis into a managed LRU cache.",
+    "whenToUse": "Always set a TTL for cached values. Set maxmemory and an eviction policy on any Redis instance used as a cache (not as a primary store).",
+    "whenNotToUse": "If Redis is your primary data store (not a cache), do not use aggressive eviction — you could lose data you need."
+  },
+  "explainModes": {
+    "beginner": "TTL is a countdown timer on a key. When the timer hits zero, Redis deletes the key automatically. Eviction is what happens when Redis runs low on memory — it deletes the least useful keys to make space.",
+    "simple": "Every key can have a TTL set in seconds or milliseconds. When memory is full, Redis uses an eviction policy to decide which keys to delete — LRU deletes the least recently used, LFU deletes the least frequently used.",
+    "standard": "Redis expires keys lazily (on access) and actively (background scan every 100ms). When memory hits maxmemory, the eviction policy kicks in. allkeys-lru is best for a pure cache; volatile-lru only evicts keys with TTL. noeviction returns errors when full.",
+    "technical": "Redis uses a probabilistic approximation of LRU (not a full LRU list) — it samples maxmemory-samples keys and evicts the least recently used of that sample. Redis 4.0+ added LFU (Least Frequently Used) with a 24-bit counter that decays over time. Eviction adds latency to each write command that triggers it.",
+    "deepDive": "Redis lazy expiry: expired keys are deleted on access (GET checks TTL, returns nil if expired). Active expiry: a background job runs every 100ms, picks a random sample of keys with TTL, and deletes expired ones. If >25% of samples are expired, it loops. This guarantees <25% expired keys exist at any time. For LFU, the counter uses a probabilistic increment: increment probability = 1/counter, so the counter grows logarithmically and doesn't saturate quickly."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Key Expiry"
+      "text": "Key Expiry Commands"
     },
     {
       "type": "paragraph",
-      "text": "Redis automatically deletes expired keys. Set expiry at write time with EX or EXPIRE."
+      "text": "Redis automatically deletes keys when their TTL expires. You can set expiry at write time or add it later to an existing key."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "SET token:abc \"xyz\" EX 900     # 15 minutes\nEXPIRE session:1 1800          # 30 minutes\nPERSIST session:1              # remove expiry\nPTTL token:abc                 # milliseconds remaining"
+      "filename": "expiry-commands.sh",
+      "code": "# Set with inline expiry at write time\nSET token:abc \"xyz\" EX 900          # 900 seconds (15 min)\nSET token:abc \"xyz\" PX 900000       # 900000 ms (15 min)\nSET token:abc \"xyz\" EXAT 1735689600 # Unix timestamp\n\n# Add expiry to existing key\nEXPIRE session:1 1800    # 30 minutes from now\nPEXPIRE session:1 86400000  # 24 hours in ms\nEXPIREAT session:1 1735689600  # exact Unix timestamp\n\n# Check TTL\nTTL session:1    # seconds left (-1 = no expiry, -2 = key gone)\nPTTL session:1   # milliseconds left\n\n# Remove expiry (make permanent)\nPERSIST session:1\n\n# Conditional: only update expiry if new TTL is greater (Redis 7.0+)\nEXPIRE session:1 3600 GT"
+    },
+    {
+      "type": "definition",
+      "term": "TTL (Time-To-Live)",
+      "definition": "The remaining lifetime of a key in seconds. TTL returns -1 if no expiry is set, -2 if the key does not exist. Use PTTL for millisecond precision."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Eviction Policies"
+      "text": "How Redis Expires Keys"
     },
     {
       "type": "paragraph",
-      "text": "When Redis runs out of memory, the eviction policy decides what to remove. Set maxmemory-policy in redis.conf."
+      "text": "Redis uses two mechanisms to handle expired keys: <strong>lazy expiry</strong> (checked on access) and <strong>active expiry</strong> (background periodic sweep)."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>Lazy expiry</strong>: When you read a key, Redis checks if it's expired. If so, it deletes it and returns nil. No wasted CPU until the key is accessed.",
+        "<strong>Active expiry</strong>: A background job runs every 100ms, randomly samples 20 keys with TTL, and deletes expired ones. If more than 25% are expired, it loops. This keeps expired key count below ~25% at all times."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Memory Limits and Eviction Policies"
+    },
+    {
+      "type": "paragraph",
+      "text": "When Redis reaches its <code>maxmemory</code> limit, it needs to free memory. The <code>maxmemory-policy</code> setting controls what gets evicted."
     },
     {
       "type": "code",
-      "lang": "text",
+      "lang": "bash",
       "filename": "redis.conf",
-      "code": "maxmemory 256mb\nmaxmemory-policy allkeys-lru   # LRU eviction on all keys"
+      "code": "# Set memory limit\nmaxmemory 512mb\n\n# Eviction policy\nmaxmemory-policy allkeys-lru   # recommended for a pure cache\n\n# LRU sample size (higher = more accurate, more CPU)\nmaxmemory-samples 5\n\n# Or via CLI (no restart needed)\nredis-cli CONFIG SET maxmemory 512mb\nredis-cli CONFIG SET maxmemory-policy allkeys-lru"
+    },
+    {
+      "type": "comparison",
+      "title": "Eviction Policy Comparison",
+      "a": {
+        "name": "allkeys-lru",
+        "description": "Evict any key, least recently used first",
+        "strengths": ["No wasted memory on keys without TTL", "Works great for a pure cache", "Predictable behavior under load"],
+        "weaknesses": ["May evict keys you wanted to keep permanently"],
+        "useWhen": "Redis is used exclusively as a cache with no durable data"
+      },
+      "b": {
+        "name": "volatile-lru",
+        "description": "Evict only keys with TTL, LRU first",
+        "strengths": ["Keys without TTL are never evicted (safe for durable data)", "LRU ordering"],
+        "weaknesses": ["May fail to free memory if too few keys have TTL", "Returns error if no volatile keys exist"],
+        "useWhen": "Mixed use: some durable data + some cached data with TTL"
+      }
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "<strong>noeviction</strong> — Return error on write when memory is full. Safe for primary stores.",
+        "<strong>allkeys-lru</strong> — Evict any key, least recently used. Best for pure caches.",
+        "<strong>volatile-lru</strong> — Evict only keys with TTL, LRU order.",
+        "<strong>allkeys-lfu</strong> — Evict any key, least frequently used. Better for uneven access patterns.",
+        "<strong>volatile-lfu</strong> — Evict only TTL keys, LFU order.",
+        "<strong>allkeys-random</strong> — Random eviction (rarely useful).",
+        "<strong>volatile-ttl</strong> — Evict the key with the shortest remaining TTL first."
+      ]
+    },
+    {
+      "type": "tip",
+      "text": "For a pure cache, use <code>allkeys-lru</code> with a <code>maxmemory</code> set to 70-80% of available RAM. Leave headroom for the fork() Redis uses during RDB saves."
     },
     {
       "type": "quiz",
@@ -54,12 +126,38 @@
           "type": "multiple-choice",
           "options": [
             "Removes the most recently used keys",
-            "Removes the least recently used keys",
+            "Removes the least recently used keys from all keys",
             "Removes expired keys first",
             "Removes keys with the shortest TTL"
           ],
           "correctAnswer": 1,
-          "explanation": "LRU (Least Recently Used) eviction removes keys that have not been accessed recently."
+          "explanation": "LRU (Least Recently Used) eviction removes the keys that have not been accessed for the longest time, from all keys regardless of whether they have a TTL."
+        },
+        {
+          "id": "q2",
+          "question": "What happens with noeviction policy when Redis is full?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis stops accepting new connections",
+            "Redis writes to disk",
+            "Redis returns an error on write commands",
+            "Redis evicts random keys"
+          ],
+          "correctAnswer": 2,
+          "explanation": "With noeviction, Redis returns an OOM (Out Of Memory) error on write commands when maxmemory is reached. Use this when Redis holds primary data you cannot afford to lose."
+        },
+        {
+          "id": "q3",
+          "question": "What is lazy expiry in Redis?",
+          "type": "multiple-choice",
+          "options": [
+            "Redis never deletes expired keys",
+            "Expired keys are deleted when they are next accessed",
+            "Expiry happens on a weekly schedule",
+            "Only keys without TTL expire lazily"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Lazy expiry means Redis checks if a key is expired when you try to access it. If expired, it's deleted and nil is returned. This avoids continuous background scanning for every key."
         }
       ]
     }
@@ -67,23 +165,26 @@
   "faq": [
     {
       "q": "What eviction policy should I use for a pure cache?",
-      "a": "allkeys-lru is the most common choice — it evicts the least recently used keys across all keys."
+      "a": "allkeys-lru is the most common. If your access pattern is highly uneven (some keys are accessed far more than others), allkeys-lfu (Least Frequently Used) may outperform LRU."
+    },
+    {
+      "q": "Does Redis delete expired keys immediately?",
+      "a": "Not immediately. Redis uses lazy + active expiry. A key may persist for a brief time after its TTL if it hasn't been accessed and the active sweep hasn't reached it yet."
+    },
+    {
+      "q": "What is maxmemory-samples?",
+      "a": "The number of keys Redis randomly samples when deciding which key to evict. Higher values (default 5) are more accurate but use more CPU. Setting it to 10 approaches true LRU behavior."
     }
   ],
   "sources": [
-    {
-      "name": "Key Expiry",
-      "url": "https://redis.io/docs/manual/keyspace-notifications/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Key Expiry", "url": "https://redis.io/docs/manual/keyspace-notifications/", "verified": "2026-11-04" },
+    { "name": "Memory Management", "url": "https://redis.io/docs/manual/eviction/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "session management",
-      "rate limit counters"
-    ],
+    "usedIn": ["session management (auto-expire)", "rate limit counters (sliding window)", "managed LRU caches"],
     "examples": [
-      "Setting maxmemory for a Redis cache instance"
+      "Setting maxmemory-policy allkeys-lru for a Redis cache behind an API gateway",
+      "Using EXPIRE to auto-delete password reset tokens after 15 minutes"
     ]
   }
 }

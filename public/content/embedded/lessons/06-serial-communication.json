@@ -1,54 +1,145 @@
 {
   "id": "06-serial-communication",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino IDE 2.x",
   "technology": "embedded",
   "module": "arduino",
   "title": "Serial Communication",
-  "subtitle": "UART debugging, sending data to a computer, and parsing",
+  "subtitle": "UART debugging, structured data formats, and bidirectional PC-Arduino communication",
   "difficulty": "intermediate",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 15,
   "status": "published",
-  "prerequisites": [
-    "embedded.sensors"
-  ],
-  "skillsTaught": [
-    "embedded.serial"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.sensors"],
+  "skillsTaught": ["embedded.serial"],
+  "whyItExists": {
+    "problem": "Embedded systems need a way to report sensor data, receive commands, and show debug information — but they have no screen or keyboard. Without serial communication, you're debugging blind.",
+    "solution": "UART serial provides a simple, reliable two-wire communication channel between your microcontroller and a PC. The Arduino IDE Serial Monitor connects instantly over USB, giving you a text window for debugging and control.",
+    "whenToUse": "Debugging any Arduino project, sending sensor data to a PC, controlling Arduino from Python scripts, or communicating between two microcontrollers.",
+    "whenNotToUse": "Long-distance communication (use RS-485), multi-device bus (use I2C or CAN), or when you need high bandwidth (use SPI or Ethernet)."
+  },
+  "explainModes": {
+    "beginner": "Serial is like a text message between your Arduino and your computer. Your Arduino sends data line by line, and you read it in the Serial Monitor window. You can also type back to the Arduino to send commands.",
+    "simple": "UART serial sends characters one bit at a time at an agreed speed (baud rate). Serial.print() sends data from Arduino to PC; Serial.available() and Serial.read() receive data from PC to Arduino. Both ends must use the same baud rate.",
+    "standard": "UART (Universal Asynchronous Receiver-Transmitter) sends 8-bit frames with start and stop bits at a configured baud rate. Arduino's HardwareSerial uses interrupt-driven 64-byte ring buffers for both TX and RX. SoftwareSerial bit-bangs any two GPIO pins to emulate UART.",
+    "technical": "UART frame format: 1 start bit (LOW), 8 data bits (LSB first), optional parity bit, 1–2 stop bits (HIGH). Baud rate must match within ±3% between devices. The 328P USART uses a 16-bit counter with a prescaler derived from F_CPU. SoftwareSerial disables interrupts during receive, causing potential data loss from other interrupts.",
+    "deepDive": "For robust multi-byte protocols: use a framing scheme (start byte 0xAA, length, payload, CRC8/16) rather than newline-delimited text — text parsing is fragile under noise. For Arduino-to-Arduino: wire TX of one to RX of other; ground shared. For PC at RS-232 levels: MAX232 chip converts ±12V to 5V TTL. For 3.3V devices: direct wiring or 10 kΩ series resistor on TX."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Serial / UART"
+      "text": "UART Serial Basics"
     },
     {
       "type": "paragraph",
-      "text": "Serial is the simplest way to debug Arduino code and exchange data with a computer. The Arduino IDE Serial Monitor connects at the configured baud rate."
+      "text": "Serial is the simplest and most useful debugging tool in embedded programming. <code>Serial.begin(baud)</code> initialises the UART at a given speed; <code>Serial.print()</code> and <code>Serial.println()</code> send data to the PC. The <strong>Arduino IDE Serial Monitor</strong> (Ctrl+Shift+M) shows incoming data in real time."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "serial.ino",
-      "code": "void setup() {\n  Serial.begin(115200);  // baud rate must match Serial Monitor\n  Serial.println(\"Boot complete\");\n}\n\nvoid loop() {\n  // Send structured CSV data\n  float temp = readTemp();\n  int light = analogRead(A0);\n  Serial.print(millis()); Serial.print(\",\");\n  Serial.print(temp);    Serial.print(\",\");\n  Serial.println(light);\n  delay(500);\n}\n\n// Read serial command from PC\nvoid serialEvent() {\n  if (Serial.available()) {\n    char cmd = Serial.read();\n    if (cmd == 'L') digitalWrite(13, HIGH);\n    if (cmd == 'l') digitalWrite(13, LOW);\n  }\n}"
+      "filename": "serial_basics.ino",
+      "code": "void setup() {\n  Serial.begin(115200);  // baud rate must match Serial Monitor\n  Serial.println(F(\"=== Boot complete ===\"));\n  Serial.print(F(\"Free SRAM: \"));\n  // Print multiple types on one line\n  Serial.print(2048 - 500);  // approximate\n  Serial.println(F(\" bytes\"));\n}\n\nvoid loop() {\n  // Print structured CSV data: timestamp, A0, A1\n  Serial.print(millis());\n  Serial.print(',');\n  Serial.print(analogRead(A0));\n  Serial.print(',');\n  Serial.println(analogRead(A1));\n\n  delay(500);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Sending Structured Data as JSON"
+    },
+    {
+      "type": "paragraph",
+      "text": "Plain CSV is easy to parse but fragile. For more robust communication, send data as <strong>JSON</strong>. A Python script on the PC can receive it via pyserial and log to a database or display a live chart."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "serial_json.ino",
+      "code": "// Send sensor readings as JSON — easy to parse on PC\n// Format: {\"t\":1234,\"temp\":23.4,\"hum\":55.1,\"light\":789}\n\n#include <DHT.h>\nDHT dht(4, DHT22);\n\nvoid setup() {\n  Serial.begin(115200);\n  dht.begin();\n}\n\nvoid loop() {\n  float temp = dht.readTemperature();\n  float hum  = dht.readHumidity();\n  int   light = analogRead(A0);\n\n  if (!isnan(temp) && !isnan(hum)) {\n    Serial.print(F(\"{\\\"t\\\":\"));\n    Serial.print(millis() / 1000);\n    Serial.print(F(\",\\\"temp\\\":\"));\n    Serial.print(temp, 1);\n    Serial.print(F(\",\\\"hum\\\":\"));\n    Serial.print(hum, 1);\n    Serial.print(F(\",\\\"light\\\":\"));\n    Serial.print(light);\n    Serial.println(F(\"}\"));\n  }\n  delay(2000);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Receiving Commands from the PC"
+    },
+    {
+      "type": "paragraph",
+      "text": "Arduino can read commands from the Serial Monitor using <code>Serial.available()</code> (number of bytes waiting) and <code>Serial.read()</code> (read one byte). For multi-character commands, read a complete line into a buffer and parse it."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "serial_commands.ino",
+      "code": "const int LED_PIN = 13;\nString inputBuffer = \"\";\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  Serial.begin(115200);\n  Serial.println(F(\"Commands: LED_ON, LED_OFF, STATUS\"));\n}\n\nvoid handleCommand(const String& cmd) {\n  if (cmd == \"LED_ON\") {\n    digitalWrite(LED_PIN, HIGH);\n    Serial.println(F(\"OK: LED on\"));\n  } else if (cmd == \"LED_OFF\") {\n    digitalWrite(LED_PIN, LOW);\n    Serial.println(F(\"OK: LED off\"));\n  } else if (cmd == \"STATUS\") {\n    Serial.print(F(\"Uptime: \"));\n    Serial.print(millis() / 1000);\n    Serial.print(F(\"s  A0: \"));\n    Serial.println(analogRead(A0));\n  } else {\n    Serial.print(F(\"ERR: Unknown command: \"));\n    Serial.println(cmd);\n  }\n}\n\nvoid loop() {\n  // Read incoming serial data character by character\n  while (Serial.available()) {\n    char c = Serial.read();\n    if (c == '\\n' || c == '\\r') {\n      inputBuffer.trim();\n      if (inputBuffer.length() > 0) {\n        handleCommand(inputBuffer);\n        inputBuffer = \"\";\n      }\n    } else {\n      inputBuffer += c;\n      if (inputBuffer.length() > 32) inputBuffer = \"\";  // overflow guard\n    }\n  }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SoftwareSerial: Multiple Serial Ports"
+    },
+    {
+      "type": "paragraph",
+      "text": "Arduino Uno has <strong>one hardware UART</strong> (pins 0/1 — shared with USB). To connect multiple serial devices (GPS module, Bluetooth HC-05, 4G modem), use <code>SoftwareSerial</code> to emulate serial on any two pins."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "software_serial.ino",
+      "code": "#include <SoftwareSerial.h>\n// SoftwareSerial(RX_pin, TX_pin)\n// Connect HC-05 Bluetooth TX → Arduino pin 10\n// Connect HC-05 Bluetooth RX → Arduino pin 11\nSoftwareSerial bluetooth(10, 11);\n\nvoid setup() {\n  Serial.begin(115200);    // USB debug\n  bluetooth.begin(9600);   // HC-05 default baud\n  Serial.println(F(\"Bluetooth ready\"));\n  bluetooth.println(F(\"AT\"));  // test HC-05 with AT command\n}\n\nvoid loop() {\n  // Bridge: forward bluetooth → USB serial\n  if (bluetooth.available()) {\n    Serial.write(bluetooth.read());\n  }\n  // Bridge: forward USB serial → bluetooth\n  if (Serial.available()) {\n    bluetooth.write(Serial.read());\n  }\n}"
+    },
+    {
+      "type": "warning",
+      "text": "SoftwareSerial disables interrupts while receiving data to maintain bit timing. This interferes with libraries that rely on interrupts (servo, DHT, encoder). For multi-serial Arduino projects, choose an Arduino Mega (4 hardware UARTs) or ESP32 (3 hardware UARTs) instead."
     },
     {
       "type": "tip",
-      "text": "Use 115200 baud instead of 9600 for faster data transfer. Both ends must use the same rate."
+      "text": "Use 115200 baud instead of 9600. At 9600 baud, sending a 50-byte JSON packet takes 52 ms — meaning you can only send ~19 packets/second. At 115200 baud, the same packet takes 4.3 ms, allowing 230+ packets/second."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What must match between the Arduino and Serial Monitor?",
+          "question": "What must match between the Arduino and the Serial Monitor to avoid garbled output?",
           "type": "multiple-choice",
           "options": [
-            "LED pin number",
-            "Baud rate",
-            "Library version",
-            "Board type"
+            "The LED pin number",
+            "The baud rate in both Serial.begin() and the Serial Monitor dropdown",
+            "The library version installed",
+            "The USB cable type"
           ],
           "correctAnswer": 1,
-          "explanation": "Both the Arduino sketch and the Serial Monitor must use the same baud rate, or you will see garbled data."
+          "explanation": "Both ends must use the same baud rate. If Serial.begin(115200) is called but the Serial Monitor is set to 9600, all received characters will be wrong."
+        },
+        {
+          "id": "q2",
+          "question": "Why should you avoid using String concatenation heavily on Arduino Uno?",
+          "type": "multiple-choice",
+          "options": [
+            "String is a reserved keyword and won't compile",
+            "String class uses dynamic memory allocation which fragments the 2 KB SRAM, causing crashes",
+            "String operations are too slow on AVR",
+            "Serial.println() doesn't support String objects"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The Arduino String class uses malloc/free on SRAM. With only 2 KB available, frequent allocation/deallocation causes fragmentation and eventual crashes. Use fixed char[] buffers and snprintf() for robust production code."
+        },
+        {
+          "id": "q3",
+          "question": "What is the key limitation of SoftwareSerial on Arduino Uno?",
+          "type": "multiple-choice",
+          "options": [
+            "It only works at 9600 baud maximum",
+            "It disables global interrupts while receiving, potentially losing data from other libraries",
+            "It requires an external oscillator",
+            "It only supports I2C communication"
+          ],
+          "correctAnswer": 1,
+          "explanation": "SoftwareSerial bit-bangs timing by disabling interrupts. This can cause missed interrupts from DHT, Servo, encoder libraries, etc. Use hardware UART (Mega/ESP32) for reliable multi-serial."
         }
       ]
     }
@@ -56,24 +147,40 @@
   "faq": [
     {
       "q": "Can I use Serial while also using other libraries?",
-      "a": "Most libraries are compatible. Watch out for SoftwareSerial conflicts and libraries that disable interrupts, which can corrupt serial data."
+      "a": "Most libraries are compatible with HardwareSerial. Watch out for SoftwareSerial conflicts and libraries that disable interrupts for long periods, which can corrupt incoming serial data in the buffer."
+    },
+    {
+      "q": "How do I log Arduino serial data to a file on my PC?",
+      "a": "Use Python with pyserial: `import serial; s = serial.Serial('COM3', 115200)` then `s.readline()`. Or use the Arduino IDE's Serial Plotter for live graphs, or CoolTerm/PuTTY for file logging."
+    },
+    {
+      "q": "My serial data has garbage characters at the start. Why?",
+      "a": "This happens when the Serial Monitor is opened before the Arduino finishes booting. The 16 MHz Arduino sends a character at the wrong baud during USB enumeration. It's cosmetic — just clear the monitor or add a 500 ms delay at the start of setup()."
     }
   ],
   "sources": [
     {
-      "name": "Serial Reference",
+      "name": "Arduino Serial Reference",
       "url": "https://www.arduino.cc/reference/en/language/functions/communication/serial/",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "SoftwareSerial Library",
+      "url": "https://www.arduino.cc/reference/en/libraries/softwareserial/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "debugging",
-      "data logging",
-      "PC-Arduino communication"
+      "Sensor data logging to PC or Raspberry Pi via serial",
+      "PC-controlled Arduino test fixtures",
+      "Bluetooth serial terminal control (HC-05)",
+      "GPS NMEA sentence parsing",
+      "AT command modems (GSM, WiFi shields)"
     ],
     "examples": [
-      "Logging sensor data to a Python script via serial"
+      "Python pyserial script reading CSV temperature data from Arduino and writing to a CSV file",
+      "HC-05 Bluetooth module bridged via SoftwareSerial for wireless serial control"
     ]
   }
 }

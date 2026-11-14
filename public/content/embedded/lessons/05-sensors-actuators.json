@@ -1,90 +1,200 @@
 {
   "id": "05-sensors-actuators",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "Arduino IDE 2.x / DHT / Servo library",
   "technology": "embedded",
   "module": "arduino",
   "title": "Sensors and Actuators",
-  "subtitle": "Reading temperature, controlling motors, and PWM",
+  "subtitle": "Reading temperature, ultrasonic distance, controlling motors and servos with PWM",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.arduino-setup"
-  ],
-  "skillsTaught": [
-    "embedded.sensors"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-12",
+  "lastVerified": "2026-11-12",
+  "prerequisites": ["embedded.arduino-setup"],
+  "skillsTaught": ["embedded.sensors"],
+  "whyItExists": {
+    "problem": "An Arduino that can only blink an LED is useless in the real world. Real projects need to sense the environment (temperature, motion, distance) and act on it (move motors, trigger relays, drive servos).",
+    "solution": "Sensor libraries abstract the low-level protocol details so you can focus on the application. Actuators are controlled via PWM, relay signals, or dedicated driver chips depending on current requirements.",
+    "whenToUse": "Any project that interacts with the physical world: weather stations, robots, smart doors, irrigation systems, and more.",
+    "whenNotToUse": "If you only need logic/computation (no physical world interaction), you may not need any sensors — but that would be an unusual embedded project."
+  },
+  "explainModes": {
+    "beginner": "Sensors are like the eyes and ears of your project — they convert temperature, distance, and motion into electrical signals your Arduino can read. Actuators are the hands — motors, servos, and buzzers that take action based on what the sensors report.",
+    "simple": "Most sensors use one of three interfaces: analog (a voltage that varies), digital (high/low pulses), or a data protocol (I2C/SPI/UART). Actuators are driven either by a GPIO pin directly (small current) or through a driver chip (high current motors).",
+    "standard": "The DHT22 uses a single-wire proprietary protocol. HC-SR04 uses trigger/echo pulse timing. Servo position is controlled by PWM pulse width (1–2 ms). DC motors above 500 mA need an H-bridge driver (L298N, TB6612). I2C sensors share the same two wires with device-specific addresses.",
+    "technical": "DHT22 pulls data low for a 50 µs start pulse, then sends 40 bits (16-bit humidity, 16-bit temp, 8-bit checksum) with bit encoding: 26-28 µs = 0, 70 µs = 1. HC-SR04 triggers a 40 kHz ultrasonic burst with a 10 µs pulse; echo pin is HIGH for the round-trip time. Servo PWM: 50 Hz signal, 1 ms = 0°, 1.5 ms = 90°, 2 ms = 180°.",
+    "deepDive": "Precision sensor reading requires ADC averaging (median filter to remove outliers), anti-alias filtering before ADC on rapidly-varying signals, and understanding reference voltage accuracy. The Arduino internal 1.1 V reference gives better ADC precision for 0–1.1 V sensors. For high-current loads (stepper motors), use dedicated drivers with current sensing (DRV8825, TMC2209) which offer micro-stepping and over-current protection."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Reading Sensors"
+      "text": "Temperature and Humidity: DHT22"
     },
     {
       "type": "paragraph",
-      "text": "Sensors convert physical quantities to electrical signals. The DHT22 gives temperature and humidity; HC-SR04 measures distance with ultrasound."
+      "text": "The <strong>DHT22</strong> (AM2302) is a popular digital temperature/humidity sensor. It uses a custom single-wire protocol; the DHT library handles all the timing. Accuracy: ±0.5°C temperature, ±2% humidity. It needs at least 2 seconds between readings."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "dht.ino",
-      "code": "#include <DHT.h>\n#define DHT_PIN 4\n#define DHT_TYPE DHT22\nDHT dht(DHT_PIN, DHT_TYPE);\n\nvoid setup() {\n  Serial.begin(9600);\n  dht.begin();\n}\n\nvoid loop() {\n  float humidity = dht.readHumidity();\n  float temp = dht.readTemperature();\n  Serial.print(\"Temp: \"); Serial.print(temp); Serial.print(\"C  \");\n  Serial.print(\"Humidity: \"); Serial.print(humidity); Serial.println(\"%\");\n  delay(2000);\n}"
+      "filename": "dht22.ino",
+      "code": "#include <DHT.h>\n// Library Manager: search \"DHT sensor library\" by Adafruit\n\n#define DHT_PIN  4\n#define DHT_TYPE DHT22\nDHT dht(DHT_PIN, DHT_TYPE);\n\nunsigned long lastRead = 0;\n\nvoid setup() {\n  Serial.begin(115200);\n  dht.begin();\n  Serial.println(F(\"DHT22 ready\"));\n}\n\nvoid loop() {\n  if (millis() - lastRead >= 2000) {  // 2s minimum interval\n    lastRead = millis();\n\n    float humidity    = dht.readHumidity();\n    float temperature = dht.readTemperature();  // Celsius\n    float tempF       = dht.readTemperature(true); // Fahrenheit\n    float heatIndex   = dht.computeHeatIndex(temperature, humidity, false);\n\n    if (isnan(humidity) || isnan(temperature)) {\n      Serial.println(F(\"Error: Failed to read DHT22\"));\n      return;\n    }\n\n    Serial.print(F(\"Temp: \"));  Serial.print(temperature, 1); Serial.print(F(\"°C  \"));\n    Serial.print(F(\"Hum: \"));   Serial.print(humidity, 1);    Serial.print(F(\"%  \"));\n    Serial.print(F(\"HeatIdx: \")); Serial.print(heatIndex, 1); Serial.println(F(\"°C\"));\n  }\n}"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "PWM for Actuators"
+      "text": "Distance Measurement: HC-SR04 Ultrasonic"
     },
     {
       "type": "paragraph",
-      "text": "PWM (Pulse Width Modulation) simulates analog output by rapidly switching a digital pin on and off."
+      "text": "The <strong>HC-SR04</strong> measures distance by emitting a 40 kHz ultrasonic pulse and measuring how long the echo takes to return. Range: 2 cm – 400 cm, accuracy ±3 mm. It uses two pins: <code>TRIG</code> (trigger) and <code>ECHO</code>."
     },
     {
       "type": "code",
       "lang": "cpp",
-      "filename": "pwm.ino",
-      "code": "// Control LED brightness with PWM (pins 3,5,6,9,10,11 on Uno)\nanalogWrite(9, 128);  // 50% duty cycle = half brightness\n\n// Servo motor\n#include <Servo.h>\nServo myServo;\nmyServo.attach(9);\nmyServo.write(90);  // 90 degrees"
+      "filename": "hcsr04.ino",
+      "code": "#define TRIG_PIN 7\n#define ECHO_PIN 8\n\nvoid setup() {\n  Serial.begin(115200);\n  pinMode(TRIG_PIN, OUTPUT);\n  pinMode(ECHO_PIN, INPUT);\n}\n\nfloat readDistanceCm() {\n  // 1. Send 10µs trigger pulse\n  digitalWrite(TRIG_PIN, LOW);\n  delayMicroseconds(2);\n  digitalWrite(TRIG_PIN, HIGH);\n  delayMicroseconds(10);\n  digitalWrite(TRIG_PIN, LOW);\n\n  // 2. Measure echo pulse width in microseconds\n  long duration = pulseIn(ECHO_PIN, HIGH, 25000); // 25ms timeout\n\n  if (duration == 0) return -1;  // timeout = no echo\n\n  // 3. Convert: sound travels 343 m/s = 0.0343 cm/µs\n  //    divide by 2 for round trip\n  return duration * 0.0343 / 2.0;\n}\n\nvoid loop() {\n  float dist = readDistanceCm();\n  if (dist < 0) {\n    Serial.println(F(\"Out of range\"));\n  } else {\n    Serial.print(F(\"Distance: \"));\n    Serial.print(dist, 1);\n    Serial.println(F(\" cm\"));\n  }\n  delay(100);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "PWM: Controlling LED Brightness and Servos"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>PWM</strong> (Pulse Width Modulation) simulates analog output by rapidly switching a pin on and off. <code>analogWrite(pin, 0–255)</code> controls the duty cycle. Servo motors use a specific PWM signal: a 50 Hz signal where pulse width (1–2 ms) sets the angle."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "servo_control.ino",
+      "code": "#include <Servo.h>\n// Servo library is built into Arduino IDE — no install needed\n\nconst int SERVO_PIN = 9;\nconst int POT_PIN   = A0;  // potentiometer to control servo\nServo myServo;\n\nvoid setup() {\n  myServo.attach(SERVO_PIN);  // must be a PWM pin\n  Serial.begin(115200);\n}\n\nvoid loop() {\n  // Read potentiometer (0–1023) and map to angle (0–180)\n  int potValue = analogRead(POT_PIN);\n  int angle    = map(potValue, 0, 1023, 0, 180);\n\n  myServo.write(angle);\n\n  Serial.print(F(\"Pot: \")); Serial.print(potValue);\n  Serial.print(F(\"  Angle: \")); Serial.print(angle); Serial.println(F(\"°\"));\n\n  delay(15);  // give servo time to move\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Controlling DC Motors with an H-Bridge"
+    },
+    {
+      "type": "paragraph",
+      "text": "A DC motor draws 100 mA–1 A — far more than a GPIO pin can provide (40 mA max). An <strong>H-bridge driver</strong> like the <strong>L298N</strong> or <strong>TB6612FNG</strong> acts as an amplifier, switching up to 2 A per channel from a motor supply rail while taking logic-level control signals."
+    },
+    {
+      "type": "code",
+      "lang": "cpp",
+      "filename": "dc_motor_l298n.ino",
+      "code": "// L298N H-Bridge motor driver\n// Connect: ENA=PWM pin 9, IN1=pin 7, IN2=pin 6\n// Motor A between OUT1 and OUT2\n\n#define ENA 9  // PWM for speed\n#define IN1 7\n#define IN2 6\n\nvoid setup() {\n  pinMode(ENA, OUTPUT);\n  pinMode(IN1, OUTPUT);\n  pinMode(IN2, OUTPUT);\n}\n\nvoid motorForward(int speed) {   // speed: 0-255\n  digitalWrite(IN1, HIGH);\n  digitalWrite(IN2, LOW);\n  analogWrite(ENA, speed);\n}\n\nvoid motorBackward(int speed) {\n  digitalWrite(IN1, LOW);\n  digitalWrite(IN2, HIGH);\n  analogWrite(ENA, speed);\n}\n\nvoid motorStop() {\n  analogWrite(ENA, 0);\n}\n\nvoid loop() {\n  motorForward(200);  delay(2000);   // forward 2s at ~78%\n  motorStop();        delay(500);    // stop\n  motorBackward(200); delay(2000);   // reverse 2s\n  motorStop();        delay(1000);\n}"
+    },
+    {
+      "type": "warning",
+      "text": "Never connect a motor directly to an Arduino GPIO pin. Even small motors can draw 200–500 mA — this will instantly destroy the Arduino's voltage regulator or GPIO protection diodes. Always use a motor driver (L298N, L9110, TB6612FNG) with its own power supply."
+    },
+    {
+      "type": "comparison",
+      "title": "DHT11 vs DHT22",
+      "a": {
+        "name": "DHT11",
+        "description": "Budget temperature/humidity sensor",
+        "strengths": ["Very cheap (~$0.50)", "Common in starter kits"],
+        "weaknesses": ["±2°C accuracy", "±5% humidity accuracy", "Only integer readings", "1-second minimum interval"],
+        "useWhen": "Display projects where accuracy doesn't matter"
+      },
+      "b": {
+        "name": "DHT22 (AM2302)",
+        "description": "Higher-accuracy temperature/humidity sensor",
+        "strengths": ["±0.5°C accuracy", "±2% humidity", "Decimal readings", "Wider range (-40 to 80°C)"],
+        "weaknesses": ["~3× more expensive than DHT11", "2-second minimum interval"],
+        "useWhen": "Any project needing accurate measurements"
+      }
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is PWM used for?",
+          "question": "What is PWM used for in embedded systems?",
           "type": "multiple-choice",
           "options": [
-            "Reading digital signals",
-            "Simulating analog output by varying pulse duty cycle",
-            "Measuring temperature",
-            "Serial communication"
+            "Reading digital sensor values",
+            "Simulating analog output by varying pulse duty cycle to control brightness, speed, and position",
+            "Measuring temperature precisely",
+            "UART serial communication"
           ],
           "correctAnswer": 1,
-          "explanation": "PWM rapidly switches a pin on and off to simulate an analog voltage, controlling LED brightness, motor speed, and servo position."
+          "explanation": "PWM rapidly switches a pin on/off. Varying the on-time (duty cycle) simulates an analog voltage. Used for LED brightness, motor speed, and servo position control."
+        },
+        {
+          "id": "q2",
+          "question": "Why can't you connect a DC motor directly to an Arduino GPIO pin?",
+          "type": "multiple-choice",
+          "options": [
+            "GPIO pins output AC not DC",
+            "Motors require I2C communication",
+            "Motors draw too much current (100mA–1A) — GPIO max is 40mA",
+            "Motors need 12V but Arduino runs at 5V"
+          ],
+          "correctAnswer": 2,
+          "explanation": "GPIO pins are limited to 40 mA per pin. DC motors draw 100 mA–1 A, which would immediately damage the Arduino's output driver. Use an H-bridge like L298N."
+        },
+        {
+          "id": "q3",
+          "question": "How does the HC-SR04 ultrasonic sensor measure distance?",
+          "type": "multiple-choice",
+          "options": [
+            "By measuring reflected infrared light intensity",
+            "By measuring the time between emitting an ultrasonic pulse and receiving its echo",
+            "By comparing two analog voltage levels",
+            "By counting I2C clock cycles"
+          ],
+          "correctAnswer": 1,
+          "explanation": "HC-SR04 emits a 40 kHz ultrasonic burst and measures how long the echo takes to return. Distance = (echo duration × speed of sound) / 2."
         }
       ]
     }
   ],
   "faq": [
     {
+      "q": "My DHT22 gives 'nan' readings. What's wrong?",
+      "a": "Common causes: (1) reading too fast — wait at least 2 seconds between reads; (2) no pull-up resistor on data pin — add 4.7 kΩ to Vcc; (3) wire too long — keep under 20 cm; (4) power supply noise — add 100 µF capacitor across Vcc and GND."
+    },
+    {
       "q": "How do I debounce a button?",
-      "a": "Add a small delay (5-20 ms) after detecting a state change, or use the Bounce2 library to handle mechanical switch bouncing reliably."
+      "a": "Add a 10–20 ms delay after detecting a state change, or use the Bounce2 library. For the millis() approach: record the time of the first edge, ignore further changes for 20 ms, then check the final state."
+    },
+    {
+      "q": "What is the difference between a servo and a stepper motor?",
+      "a": "Servo: continuous rotation (360° DC motor) or limited rotation (hobby servo 0–180°). Easy to control with PWM. Stepper: moves in precise discrete steps (1.8° per step typically). Better for precise positioning (3D printer, CNC). More complex to drive but no feedback needed."
     }
   ],
   "sources": [
     {
-      "name": "DHT Library",
+      "name": "DHT Sensor Library (Adafruit)",
       "url": "https://github.com/adafruit/DHT-sensor-library",
-      "verified": "2026-11-04"
+      "verified": "2026-11-12"
+    },
+    {
+      "name": "Arduino Servo Library",
+      "url": "https://www.arduino.cc/reference/en/libraries/servo/",
+      "verified": "2026-11-12"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "weather stations",
-      "robotics",
-      "home automation"
+      "Home weather stations (DHT22 + InfluxDB + Grafana)",
+      "Obstacle-avoiding robots (HC-SR04)",
+      "Pan-tilt camera mounts (dual servo)",
+      "Automated window openers (DC motor + H-bridge)",
+      "Smart irrigation systems (soil moisture + relay)"
     ],
     "examples": [
-      "Building a temperature logger with DHT22 and an SD card"
+      "A temperature logger that reads DHT22 every 2 seconds and logs to SD card via SPI",
+      "An obstacle-avoiding robot using two HC-SR04 sensors and dual DC motors via L298N"
     ]
   }
 }

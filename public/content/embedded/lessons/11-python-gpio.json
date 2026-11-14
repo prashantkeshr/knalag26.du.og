@@ -1,85 +1,193 @@
 {
   "id": "11-python-gpio",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "contentVersion": "2.0.0",
+  "technologyVersion": "gpiozero 2.0 / RPi.GPIO 0.7 / Python 3.11",
   "technology": "embedded",
   "module": "raspberry-pi",
   "title": "Python GPIO on Raspberry Pi",
-  "subtitle": "RPi.GPIO, gpiozero, and controlling hardware with Python",
+  "subtitle": "gpiozero, RPi.GPIO, PWM fading, and sensor reading with Python",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "embedded.rpi-setup"
-  ],
-  "skillsTaught": [
-    "embedded.rpi-gpio"
-  ],
+  "author": "Kernal Team",
+  "reviewer": "Kernal Team",
+  "createdAt": "2026-11-04",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "prerequisites": ["embedded.rpi-setup"],
+  "skillsTaught": ["embedded.rpi-gpio"],
+  "whyItExists": {
+    "problem": "Unlike Arduino where C++ is the only practical option, Raspberry Pi runs full Python — giving access to a vastly richer ecosystem of libraries, easier string handling, JSON, HTTP, databases, and asyncio. But Python's GPIO requires careful library choice and understanding of 3.3V logic limits.",
+    "solution": "The gpiozero library provides a high-level, Pythonic interface for the most common GPIO tasks (LEDs, buttons, PWM, motors). For lower-level control, RPi.GPIO provides direct register-style access. Both run on Raspberry Pi OS with no extra install.",
+    "whenToUse": "Any Raspberry Pi project needing physical I/O: buttons, LEDs, sensors, displays, relays, motor control, ultrasonic distance, temperature sensors.",
+    "whenNotToUse": "Hard real-time control (the Linux scheduler is non-deterministic — use an Arduino or dedicated MCU for microsecond-precision timing). Never connect 5V signals to Pi GPIO."
+  },
+  "explainModes": {
+    "beginner": "Raspberry Pi GPIO lets Python control physical pins — turn on LEDs, read buttons, fade brightness. The gpiozero library makes this very easy: `from gpiozero import LED; led = LED(17); led.on()`. GPIO numbering uses BCM numbers, not physical pin numbers.",
+    "simple": "GPIO pins on the Pi are 3.3V. Use gpiozero for high-level control (LED, Button, Motor, PWMLED) or RPi.GPIO for direct control. Always check the GPIO pinout diagram (BCM vs physical numbers differ) and never connect 5V signals to any GPIO pin.",
+    "standard": "Raspberry Pi GPIO uses 3.3V logic with 16 mA max per pin. gpiozero wraps RPi.GPIO/pigpio with event-driven handlers (when_pressed, when_released). The BCM numbering scheme refers to the Broadcom chip's GPIO numbers, not physical pin positions on the 40-pin header.",
+    "technical": "GPIOs are memory-mapped via /dev/gpiomem (accessible without root via gpio group). gpiozero uses RPi.GPIO by default but can be pinned to pigpio (pigpiod daemon) for precise PWM — pigpio generates hardware-timed PWM at any frequency vs software PWM which jitters under CPU load.",
+    "deepDive": "pigpio uses DMA (Direct Memory Access) to generate precise hardware PWM on any GPIO pin at up to 1 MHz — essential for servo control. RPi.GPIO software PWM uses a background thread and has ±10% jitter under load. For I2C sensors in Python, use smbus2 (pure Python) or the Adafruit CircuitPython driver ecosystem which provides unified sensor APIs across Pi and microcontrollers."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "GPIO with Python"
+      "text": "GPIO Pinout and Numbering"
     },
     {
       "type": "paragraph",
-      "text": "Raspberry Pi GPIO uses 3.3V logic. Python's gpiozero library provides a high-level interface for buttons, LEDs, motors, and sensors."
+      "text": "The Raspberry Pi 40-pin GPIO header uses <strong>BCM numbering</strong> (Broadcom chip GPIO numbers) in gpiozero and RPi.GPIO — not physical pin positions. Run <code>pinout</code> in the terminal for a colour diagram. Critical rule: <strong>all GPIO pins are 3.3V maximum — never connect 5V signals directly</strong>."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "gpio-tools.sh",
+      "code": "# Install gpiozero (usually pre-installed on Pi OS)\nsudo apt install python3-gpiozero python3-rpi.gpio -y\n\n# View GPIO pinout diagram in terminal\npinout\n\n# Install Adafruit sensor libraries in a virtual env\npython3 -m venv ~/sensors-env\nsource ~/sensors-env/bin/activate\npip install adafruit-circuitpython-dht adafruit-circuitpython-bmp280"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "LED and Button with gpiozero"
+    },
+    {
+      "type": "paragraph",
+      "text": "gpiozero provides high-level classes for common components. Its event-driven model (when_pressed, when_released) keeps code clean without polling loops."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "gpio_led.py",
-      "code": "from gpiozero import LED, Button\nfrom signal import pause\n\nled = LED(17)      # GPIO17 = pin 11\nbtn = Button(27)   # GPIO27 = pin 13\n\nbtn.when_pressed  = led.on\nbtn.when_released = led.off\n\npause()  # wait forever for events"
+      "filename": "gpio_led_button.py",
+      "code": "from gpiozero import LED, Button\nfrom signal import pause\n\n# BCM pin numbers — check 'pinout' for physical positions\nled = LED(17)       # GPIO17 = physical pin 11\nbtn = Button(27, pull_up=True, bounce_time=0.05)  # GPIO27 = physical pin 13\n\n# Event-driven: assign callbacks\nbtn.when_pressed  = led.on\nbtn.when_released = led.off\n\nprint(\"Press the button to toggle the LED. Ctrl+C to exit.\")\npause()  # block forever, letting gpiozero handle events"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "PWM: LED Fading and Servo Control"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "gpio_pwm.py",
-      "code": "from gpiozero import PWMLED\nfrom time import sleep\n\nled = PWMLED(17)\n\n# Fade in and out\nwhile True:\n    for brightness in range(0, 100, 5):\n        led.value = brightness / 100\n        sleep(0.05)\n    for brightness in range(100, 0, -5):\n        led.value = brightness / 100\n        sleep(0.05)"
+      "filename": "gpio_pwm_fade.py",
+      "code": "from gpiozero import PWMLED, Servo\nfrom time import sleep\nimport math\n\n# PWM LED fade (GPIO17)\nled = PWMLED(17)\n\nprint(\"Fading LED...\")\nfor _ in range(3):\n    # Smooth sine-wave fade\n    for i in range(360):\n        brightness = (math.sin(math.radians(i)) + 1) / 2  # 0.0 to 1.0\n        led.value = brightness\n        sleep(0.005)\n\n# Servo on GPIO18 (use pigpio factory for precise PWM)\n# from gpiozero import Servo\n# from gpiozero.pins.pigpio import PiGPIOFactory\n# factory = PiGPIOFactory()\n# servo = Servo(18, pin_factory=factory)\n# servo.min()   # -90 degrees\n# servo.mid()   # 0 degrees (neutral)\n# servo.max()   # +90 degrees\n# servo.value = 0.5  # -1.0 to 1.0 range"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Reading DHT22 Temperature Sensor"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "dht22_pi.py",
+      "code": "# Install: pip install adafruit-circuitpython-dht\nimport adafruit_dht\nimport board\nimport time\n\n# DHT22 data pin connected to GPIO4 (physical pin 7)\ndht = adafruit_dht.DHT22(board.D4)\n\nprint(\"Reading DHT22 temperature sensor...\")\n\nwhile True:\n    try:\n        temperature = dht.temperature\n        humidity    = dht.humidity\n        print(f\"Temp: {temperature:.1f}°C  Humidity: {humidity:.1f}%\")\n    except RuntimeError as e:\n        # DHT sensors occasionally fail — not an error, just retry\n        print(f\"Sensor error (retrying): {e}\")\n    finally:\n        time.sleep(2.0)  # DHT22 needs 2s minimum between reads"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Low-Level Control with RPi.GPIO"
+    },
+    {
+      "type": "paragraph",
+      "text": "<code>RPi.GPIO</code> gives direct control over pins — equivalent to Arduino's <code>pinMode</code> / <code>digitalRead</code> / <code>digitalWrite</code>. It's useful when you need fine-grained control or are porting Arduino code to Pi."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rpi_gpio_direct.py",
+      "code": "import RPi.GPIO as GPIO\nimport time\n\n# Use BCM numbering\nGPIO.setmode(GPIO.BCM)\nGPIO.setwarnings(False)\n\nLED_PIN = 17\nBTN_PIN = 27\n\nGPIO.setup(LED_PIN, GPIO.OUT)\nGPIO.setup(BTN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)\n\ntry:\n    while True:\n        if GPIO.input(BTN_PIN) == GPIO.LOW:  # pull-up: LOW = pressed\n            GPIO.output(LED_PIN, GPIO.HIGH)\n            print(\"Button pressed, LED on\")\n        else:\n            GPIO.output(LED_PIN, GPIO.LOW)\n        time.sleep(0.05)  # 50ms debounce\n\nexcept KeyboardInterrupt:\n    print(\"\\nExiting...\")\nfinally:\n    GPIO.cleanup()  # ALWAYS reset GPIO on exit"
+    },
+    {
+      "type": "warning",
+      "text": "Raspberry Pi GPIO pins are 3.3V maximum. Connecting 5V from an Arduino sensor, motor driver, or relay module directly to any GPIO pin will permanently damage the BCM2711 GPIO controller. Use a voltage divider (10 kΩ + 20 kΩ) or a bidirectional level-shifter module for 5V sensors."
     },
     {
       "type": "tip",
-      "text": "Always use GPIO.cleanup() (or let gpiozero do it automatically) when your script exits, to reset pin states."
+      "text": "Always call GPIO.cleanup() when your script exits (use a try/finally block). This resets pin modes to inputs, preventing accidental outputs driving voltage into connected hardware if the script crashes and is restarted."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What voltage level do Raspberry Pi GPIO pins use?",
+          "question": "What maximum voltage can Raspberry Pi GPIO pins handle?",
           "type": "multiple-choice",
           "options": [
-            "5V",
-            "3.3V",
-            "1.8V",
-            "12V"
+            "5V — same as Arduino Uno",
+            "3.3V — connecting 5V will permanently damage the GPIO controller",
+            "1.8V — lower than most sensors",
+            "12V — industrial-grade GPIO"
           ],
           "correctAnswer": 1,
-          "explanation": "Raspberry Pi GPIO pins are 3.3V. Never connect 5V signals directly — it will damage the Pi."
+          "explanation": "All Raspberry Pi GPIO pins operate at 3.3V. Applying 5V to any GPIO pin will damage or destroy the Broadcom SoC. Use a voltage divider or level-shifter for 5V sensor outputs."
+        },
+        {
+          "id": "q2",
+          "question": "What numbering scheme does gpiozero use by default?",
+          "type": "multiple-choice",
+          "options": [
+            "Physical pin numbers (1–40 on the header)",
+            "BCM numbers (Broadcom GPIO chip numbers)",
+            "Board revision numbers",
+            "Wiringpi numbers"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Both gpiozero and RPi.GPIO use BCM (Broadcom) GPIO numbers by default, which differ from physical pin positions. Use `pinout` in terminal or pinout.xyz to see the mapping."
+        },
+        {
+          "id": "q3",
+          "question": "Why should you always call GPIO.cleanup() when a Pi GPIO script exits?",
+          "type": "multiple-choice",
+          "options": [
+            "It saves power by turning off the CPU",
+            "It resets pin modes to inputs, preventing accidental voltage output on restart",
+            "It writes log data to the SD card",
+            "It is required for I2C to function"
+          ],
+          "correctAnswer": 1,
+          "explanation": "GPIO.cleanup() resets all used pins back to input mode. Without it, if the script crashes and is restarted, a pin still configured as OUTPUT could drive voltage into connected hardware immediately on startup."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "Can I use an Arduino sensor library on Raspberry Pi?",
-      "a": "No. Arduino libraries use AVR C++. For Pi, use Python libraries from PyPI (e.g., adafruit-circuitpython) which provide similar sensor drivers."
+      "q": "Can I use Arduino sensor libraries on Raspberry Pi?",
+      "a": "No. Arduino libraries are AVR C++. For Pi, use Python equivalents: Adafruit CircuitPython libraries (pip install adafruit-circuitpython-*) provide identical sensor APIs for most common breakout boards, running on both Pi and microcontrollers."
+    },
+    {
+      "q": "gpiozero vs RPi.GPIO — which should I use?",
+      "a": "Start with gpiozero — it's higher-level, Pythonic, and comes pre-installed. It handles debouncing, event callbacks, PWM, and cleanup automatically. Use RPi.GPIO directly only when you need features gpiozero doesn't expose, or for porting existing RPi.GPIO code."
+    },
+    {
+      "q": "Why does my PWM servo jitter on Raspberry Pi?",
+      "a": "RPi.GPIO software PWM uses a Python thread with ~10% jitter under CPU load. Use pigpio instead: install pigpiod daemon (`sudo systemctl enable pigpiod`) and use gpiozero with PiGPIOFactory. pigpio generates hardware-timed DMA PWM with <1 µs jitter."
     }
   ],
   "sources": [
     {
-      "name": "gpiozero",
-      "url": "https://gpiozero.readthedocs.io/",
-      "verified": "2026-11-04"
+      "name": "gpiozero Documentation",
+      "url": "https://gpiozero.readthedocs.io/en/stable/",
+      "verified": "2026-11-14"
+    },
+    {
+      "name": "Adafruit CircuitPython on Pi",
+      "url": "https://learn.adafruit.com/circuitpython-on-raspberrypi-linux",
+      "verified": "2026-11-14"
     }
   ],
   "realWorld": {
     "usedIn": [
-      "home automation",
-      "robotics",
-      "sensor data collection"
+      "Home automation sensor nodes (DHT22, PIR, door sensors)",
+      "Raspberry Pi camera motion detection (GPIO trigger)",
+      "Robotics joint control (servo PWM)",
+      "LED status indicators on Pi-based servers",
+      "Plant watering systems (soil sensor + relay)"
     ],
     "examples": [
-      "Reading a PIR motion sensor with gpiozero on a Pi"
+      "PIR motion sensor triggering a notification via Python requests library using gpiozero's MotionSensor class",
+      "Smart irrigation controller: soil moisture (SPI ADC) → decision in Python → relay on GPIO18"
     ]
   }
 }

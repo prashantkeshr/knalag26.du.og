@@ -1,55 +1,160 @@
 {
   "id": "11-streams",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "redis",
   "module": "messaging",
   "title": "Redis Streams",
   "subtitle": "XADD, XREAD, consumer groups, and durable messaging",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "redis.pub-sub"
-  ],
-  "skillsTaught": [
-    "redis.streams"
-  ],
+  "prerequisites": ["redis.pub-sub"],
+  "skillsTaught": ["redis.streams"],
+  "contentVersion": "2.0",
+  "technologyVersion": "7.x",
+  "author": "KERNAL",
+  "createdAt": "2026-11-01",
+  "updatedAt": "2026-11-14",
+  "lastVerified": "2026-11-14",
+  "whyItExists": {
+    "problem": "Pub/Sub messages are lost if no subscriber is connected. Lists don't track which messages have been processed. Distributed systems need durable, replayable event logs where multiple consumers can share work without double-processing.",
+    "solution": "Redis Streams are an append-only log. Every message is persisted with a unique auto-generated ID. Consumer groups allow multiple workers to share a stream while ensuring each message is processed by exactly one worker. Unacknowledged messages can be recovered.",
+    "whenToUse": "Event sourcing, durable job queues, activity feeds with history, microservice event buses, IoT event collection.",
+    "whenNotToUse": "Simple fire-and-forget notifications (use Pub/Sub — simpler). Full-featured message brokers with complex routing (use Kafka or RabbitMQ)."
+  },
+  "explainModes": {
+    "beginner": "A Stream is like a conveyor belt that never forgets what passed on it. Every item gets a timestamp ID. Workers can grab items from wherever they left off, and the belt keeps a record of what was processed.",
+    "simple": "XADD appends a message with auto-generated ID. XREAD fetches new messages since a given ID. Consumer groups let multiple workers share a stream — each message goes to only one worker. XACK marks a message as done.",
+    "standard": "Redis Streams are ordered, immutable message logs. Each entry has a unique ID (timestamp-sequence) and multiple field-value pairs. Consumer groups track per-consumer delivery positions and maintain a Pending Entries List (PEL) of unacknowledged messages. XACK removes from PEL; XPENDING inspects it; XCLAIM reassigns stuck entries.",
+    "technical": "Stream entries are stored in a radix tree of listpack nodes, with each listpack holding sequential entries. The ID is a millisecond timestamp plus a sequence number, ensuring monotonic ordering across restarts. Consumer group state is stored in the stream's metadata. MAXLEN / MINID trims the stream to prevent unbounded growth. Streams survive restarts when persistence is enabled.",
+    "deepDive": "The Pending Entries List (PEL) is a rax tree mapping entry-id → {consumer, delivery-time, delivery-count}. XCLAIM atomically transfers an entry from one consumer to another when it exceeds an idle threshold. XAUTOCLAIM (Redis 6.2+) automates this by claiming all PEL entries idle for more than N milliseconds in a single command. The NOACK option in XREADGROUP skips PEL registration for high-throughput fire-and-forget in a group context."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Redis Streams"
+      "text": "What Makes Streams Different"
     },
     {
       "type": "paragraph",
-      "text": "Streams are an append-only log of messages. Unlike Pub/Sub, messages are persisted and consumers can replay them."
+      "text": "Redis Streams are an <strong>append-only log</strong> of messages. Unlike Pub/Sub, messages are persisted. Unlike Lists, streams have unique IDs, support multiple consumers sharing work, and track which messages each consumer has acknowledged."
+    },
+    {
+      "type": "definition",
+      "term": "Stream Entry",
+      "definition": "A message in a Redis Stream, identified by a unique auto-generated ID (milliseconds-sequence, e.g. 1699100000000-0) and containing one or more field-value pairs."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Adding and Reading Messages"
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Append an event\nXADD events * action \"click\" button \"submit\"\n\n# Read new messages (blocking)\nXREAD COUNT 10 BLOCK 5000 STREAMS events $\n\n# Consumer group (for competing consumers)\nXGROUP CREATE events workers $ MKSTREAM\nXREADGROUP GROUP workers consumer1 COUNT 5 STREAMS events >\n\n# Acknowledge processed message\nXACK events workers 1699100000000-0"
+      "filename": "streams-basics.sh",
+      "code": "# Append an event (* = auto-generate ID)\nXADD events * action \"click\" button \"submit\" userId \"42\"\n# Returns: \"1699100000000-0\"  (timestamp-sequence ID)\n\n# Append with explicit ID\nXADD events 1699100001000-0 action \"purchase\" amount \"99.99\"\n\n# Read all messages from the beginning\nXRANGE events - +\n# Returns: list of [id, [field, value, ...]]\n\n# Read from a specific ID onwards\nXRANGE events 1699100000000-0 +\n\n# Read newest messages (blocking — waits up to 5 seconds)\nXREAD COUNT 10 BLOCK 5000 STREAMS events $\n# $ means \"only new messages after now\"\n\n# Count entries\nXLEN events\n\n# Trim stream to last 1000 entries\nXADD events MAXLEN ~ 1000 * action \"view\""
     },
     {
-      "type": "definition",
-      "term": "Consumer Group",
-      "definition": "A named group of consumers sharing work from a stream. Each message is delivered to only one consumer in the group."
+      "type": "heading",
+      "level": 2,
+      "text": "Consumer Groups"
+    },
+    {
+      "type": "paragraph",
+      "text": "Consumer groups allow <strong>multiple workers to share a stream</strong>. Each message is delivered to exactly one consumer in the group. If a worker crashes without acknowledging, the message stays in the Pending Entries List (PEL) for recovery."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "consumer-groups.sh",
+      "code": "# Create a consumer group starting from new messages ($)\nXGROUP CREATE events workers $ MKSTREAM\n\n# Worker 1 reads up to 5 messages\nXREADGROUP GROUP workers consumer1 COUNT 5 STREAMS events >\n# > means \"give me messages not yet delivered to this group\"\n\n# Worker 2 reads next 5 messages\nXREADGROUP GROUP workers consumer2 COUNT 5 STREAMS events >\n\n# Acknowledge a processed message\nXACK events workers 1699100000000-0\n\n# Check pending (unacknowledged) messages\nXPENDING events workers - + 10  # list up to 10 pending\n\n# Claim a stuck message (idle for 60+ seconds)\nXCLAIM events workers consumer2 60000 1699100000000-0\n\n# Auto-claim all messages idle for 60+ seconds (Redis 6.2+)\nXAUTOCLAIM events workers consumer2 60000 0-0 COUNT 10"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Consumer Groups in Node.js"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "streams-worker.js",
+      "code": "import Redis from 'ioredis';\nconst redis = new Redis();\n\nconst STREAM = 'events';\nconst GROUP = 'workers';\nconst CONSUMER = `worker-${process.pid}`;\n\n// Ensure group exists\ntry {\n  await redis.xgroup('CREATE', STREAM, GROUP, '$', 'MKSTREAM');\n} catch (e) {\n  if (!e.message.includes('BUSYGROUP')) throw e;\n}\n\nasync function processMessages() {\n  while (true) {\n    // Read up to 10 new messages, block for 2 seconds if none\n    const results = await redis.xreadgroup(\n      'GROUP', GROUP, CONSUMER,\n      'COUNT', 10,\n      'BLOCK', 2000,\n      'STREAMS', STREAM, '>'\n    );\n\n    if (!results) continue;  // timeout, loop again\n\n    for (const [stream, messages] of results) {\n      for (const [id, fields] of messages) {\n        const data = Object.fromEntries(\n          fields.reduce((acc, _, i, arr) => i % 2 === 0 ? [...acc, [arr[i], arr[i + 1]]] : acc, [])\n        );\n\n        try {\n          await handleEvent(data);\n          await redis.xack(STREAM, GROUP, id);  // mark as done\n        } catch (err) {\n          console.error('Failed to process', id, err);\n          // Don't ACK — stays in PEL for recovery\n        }\n      }\n    }\n  }\n}\n\nprocessMessages();"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovering Stuck Messages"
+    },
+    {
+      "type": "code",
+      "lang": "javascript",
+      "filename": "recovery.js",
+      "code": "async function recoverStuckMessages() {\n  // Find messages pending for more than 60 seconds\n  const pending = await redis.xpending(STREAM, GROUP, '-', '+', 50);\n\n  for (const [id, consumer, idleMs] of pending) {\n    if (idleMs > 60000) {\n      // Claim the message for this worker\n      await redis.xclaim(STREAM, GROUP, CONSUMER, 60000, id);\n      console.log(`Reclaimed stuck message ${id} from ${consumer}`);\n    }\n  }\n}"
+    },
+    {
+      "type": "comparison",
+      "title": "Redis Streams vs Kafka",
+      "a": {
+        "name": "Redis Streams",
+        "description": "In-memory log with persistence",
+        "strengths": ["Sub-millisecond latency", "Simple setup", "Integrated with Redis ecosystem", "XAUTOCLAIM for recovery"],
+        "weaknesses": ["Memory-bound without trimming", "No cross-datacenter replication built-in", "Smaller ecosystem"],
+        "useWhen": "Low-latency event streaming, moderate throughput, single-region"
+      },
+      "b": {
+        "name": "Apache Kafka",
+        "description": "Disk-based distributed log",
+        "strengths": ["Unlimited retention", "Multi-region replication", "Massive throughput", "Rich ecosystem"],
+        "weaknesses": ["Complex setup (ZooKeeper/KRaft)", "Higher latency (ms)", "Overkill for small workloads"],
+        "useWhen": "High-throughput event streaming, long retention, multi-region"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "Always trim streams with <code>XADD MAXLEN ~ 1000</code> or a periodic <code>XTRIM</code> to prevent unbounded memory growth. The <code>~</code> allows approximate trimming which is much faster."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is the difference between Redis Streams and Pub/Sub?",
+          "question": "What is the key difference between Redis Streams and Pub/Sub?",
           "type": "multiple-choice",
           "options": [
             "Streams are faster",
-            "Streams persist messages; Pub/Sub does not",
+            "Streams persist messages; Pub/Sub messages are lost if no subscriber is connected",
             "Pub/Sub supports consumer groups",
             "There is no difference"
           ],
           "correctAnswer": 1,
-          "explanation": "Streams persist messages to an append-only log; Pub/Sub messages vanish if no subscriber is connected."
+          "explanation": "Streams store messages in an append-only log that survives restarts (with persistence). Pub/Sub messages vanish if no subscriber is connected at the moment of publish."
+        },
+        {
+          "id": "q2",
+          "question": "What does XACK do?",
+          "type": "multiple-choice",
+          "options": [
+            "Adds a message to the stream",
+            "Marks a message as successfully processed, removing it from the Pending Entries List",
+            "Deletes the entire stream",
+            "Subscribes to a consumer group"
+          ],
+          "correctAnswer": 1,
+          "explanation": "XACK removes a message from the consumer group's Pending Entries List (PEL). Without XACK, Redis considers the message still in-flight and it can be claimed by another consumer."
+        },
+        {
+          "id": "q3",
+          "question": "What does the > symbol mean in XREADGROUP?",
+          "type": "multiple-choice",
+          "options": [
+            "Read from the end of the stream",
+            "Read messages with IDs greater than a given ID",
+            "Read messages not yet delivered to any consumer in this group",
+            "Read all messages ever"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The > special ID in XREADGROUP means 'give me new messages that haven't been delivered to any consumer in my group yet'. Using a numeric ID instead reads from the consumer's pending list."
         }
       ]
     }
@@ -57,24 +162,26 @@
   "faq": [
     {
       "q": "How do I process failed messages (pending)?",
-      "a": "Use XPENDING to find unacknowledged messages and XCLAIM to reassign them to another consumer for reprocessing."
+      "a": "Use XPENDING to find unacknowledged messages and XCLAIM to reassign them to another consumer for reprocessing. XAUTOCLAIM (Redis 6.2+) automates this."
+    },
+    {
+      "q": "Does a stream grow forever?",
+      "a": "Yes unless you trim it. Use XADD MAXLEN ~ 1000 to cap at ~1000 entries, or run XTRIM periodically. The ~ prefix allows approximate trimming which is 10x faster."
+    },
+    {
+      "q": "Can multiple groups read the same stream?",
+      "a": "Yes. Each consumer group maintains its own read position. Group A and Group B can both process every message independently, like separate queues reading from the same log."
     }
   ],
   "sources": [
-    {
-      "name": "Streams",
-      "url": "https://redis.io/docs/data-types/streams/",
-      "verified": "2026-11-04"
-    }
+    { "name": "Streams", "url": "https://redis.io/docs/data-types/streams/", "verified": "2026-11-04" },
+    { "name": "XREADGROUP", "url": "https://redis.io/commands/xreadgroup/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "event sourcing",
-      "message queues",
-      "activity feeds"
-    ],
+    "usedIn": ["event sourcing", "durable job queues", "activity feeds", "IoT telemetry ingestion"],
     "examples": [
-      "Building a durable event log with XADD and consumer groups"
+      "E-commerce order events (XADD) consumed by email, inventory, and analytics workers in separate consumer groups",
+      "IoT sensors publishing 10K events/sec to a stream with MAXLEN 100000 for 10-second replay window"
     ]
   }
 }
