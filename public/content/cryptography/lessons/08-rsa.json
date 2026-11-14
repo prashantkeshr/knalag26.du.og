@@ -1,19 +1,28 @@
 {
   "id": "08-rsa",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "asymmetric-crypto",
   "title": "RSA Cryptography",
-  "subtitle": "How RSA works, key sizes, and secure usage",
+  "subtitle": "How RSA works, key sizes, padding schemes, and secure usage",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "crypto.public-key"
-  ],
-  "skillsTaught": [
-    "crypto.rsa"
-  ],
+  "prerequisites": ["crypto.public-key"],
+  "skillsTaught": ["crypto.rsa"],
+  "whyItExists": {
+    "problem": "Symmetric encryption requires a pre-shared key, but how can two strangers establish a secret? RSA (1977) provided the first practical public-key system: anyone can encrypt with a public key; only the private key holder can decrypt.",
+    "solution": "RSA uses the mathematical hardness of factoring large integers. Generating the key pair is easy; breaking it requires factoring the product of two secret large primes, which takes more computational power than exists on Earth for key sizes ≥ 2048 bits.",
+    "whenToUse": "Digital signatures (RSA-PSS), certificate signing, legacy TLS key exchange, encrypting small data (RSA-OAEP). Prefer ECDSA/Ed25519 for new systems.",
+    "whenNotToUse": "Encrypting large data (use hybrid encryption). New key exchange protocols (use ECDH/X25519). Post-quantum environments (RSA is broken by Shor's algorithm)."
+  },
+  "explainModes": {
+    "beginner": "RSA is like a special padlock: you give everyone a copy of the open padlock (public key), but only you have the key to open it (private key). Anyone can lock a message; only you can read it.",
+    "simple": "RSA picks two secret large prime numbers, multiplies them, and builds keys from the result. It is easy to multiply primes but very hard to factor the product — that difficulty is what makes RSA secure.",
+    "standard": "RSA generates a key pair from two large primes p and q. The public key is (n=p×q, e=65537). The private key is d, where e×d ≡ 1 (mod φ(n)). Security relies on the Integer Factorisation Problem: given n, find p and q.",
+    "technical": "Encryption: c = m^e mod n. Decryption: m = c^d mod n. OAEP padding uses SHA-256 to randomise the message before encryption, preventing chosen-ciphertext attacks. PSS padding for signatures adds randomness to prevent fault injection attacks. Never use textbook RSA without padding.",
+    "deepDive": "Bleichenbacher's 1998 attack on PKCS1v15 padding showed that a server that leaks whether padding is valid can be used as a decryption oracle. This led to OAEP for encryption and PSS for signing. Timing attacks on RSA are defeated by blinding (multiplying by a random value before modular exponentiation)."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,33 +31,113 @@
     },
     {
       "type": "paragraph",
-      "text": "RSA security is based on the difficulty of factoring large integers. Generating the key pair involves choosing two large primes; breaking RSA requires factoring their product."
+      "text": "RSA security is based on the <strong>Integer Factorisation Problem</strong>: multiplying two large primes is trivial, but factoring their product is computationally infeasible. Generating an RSA key pair involves choosing two large secret primes p and q. Breaking RSA means factoring n = p × q."
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Pick two large primes: p and q (each ~1024 bits for RSA-2048)",
+        "Compute n = p × q (the modulus; published in the public key)",
+        "Compute φ(n) = (p-1)(q-1) (kept secret)",
+        "Choose public exponent e = 65537 (standard choice)",
+        "Compute private exponent d such that e × d ≡ 1 (mod φ(n))",
+        "Public key = (n, e); Private key = (n, d)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "RSA Signatures in Python"
+    },
+    {
+      "type": "paragraph",
+      "text": "RSA signatures are the most common use of RSA. The signer uses the private key to sign a document hash. Anyone with the public key can verify the signature."
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "rsa_sign.py",
-      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes, serialization\n\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npublic_key = private_key.public_key()\n\n# Sign a message\nsignature = private_key.sign(\n    b\"Important document\",\n    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),\n    hashes.SHA256()\n)\n\n# Verify (raises if invalid)\npublic_key.verify(\n    signature, b\"Important document\",\n    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),\n    hashes.SHA256()\n)\nprint(\"Signature valid\")"
+      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes, serialization\n\n# --- Key generation ---\nprivate_key = rsa.generate_private_key(\n    public_exponent=65537,\n    key_size=2048          # minimum; use 4096 for long-lived keys\n)\npublic_key = private_key.public_key()\n\n# --- Sign with PSS padding (recommended for signatures) ---\ndocument = b\"Software release v2.1.0 — hash: abc123...\"\n\nsignature = private_key.sign(\n    document,\n    padding.PSS(\n        mgf=padding.MGF1(hashes.SHA256()),\n        salt_length=padding.PSS.MAX_LENGTH\n    ),\n    hashes.SHA256()\n)\nprint(\"Signature length:\", len(signature), \"bytes\")  # 256 bytes for RSA-2048\n\n# --- Verify (anyone with public key can do this) ---\ntry:\n    public_key.verify(\n        signature,\n        document,\n        padding.PSS(\n            mgf=padding.MGF1(hashes.SHA256()),\n            salt_length=padding.PSS.MAX_LENGTH\n        ),\n        hashes.SHA256()\n    )\n    print(\"Signature VALID\")\nexcept Exception:\n    print(\"Signature INVALID — document was modified or key is wrong\")"
+    },
+    {
+      "type": "warning",
+      "text": "Never use PKCS1v15 padding for RSA encryption (vulnerable to Bleichenbacher's attack) or textbook RSA without any padding. Always use OAEP for encryption and PSS for signing."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Saving and Loading RSA Keys"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "rsa_keys_pem.py",
+      "code": "from cryptography.hazmat.primitives import serialization\nfrom cryptography.hazmat.primitives.asymmetric import rsa\n\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n\n# --- Save private key (password-protected PEM) ---\npem_private = private_key.private_bytes(\n    encoding=serialization.Encoding.PEM,\n    format=serialization.PrivateFormat.PKCS8,\n    encryption_algorithm=serialization.BestAvailableEncryption(b\"strong-passphrase\")\n)\nwith open(\"private.pem\", \"wb\") as f:\n    f.write(pem_private)\n\n# --- Save public key (no password needed) ---\npem_public = private_key.public_key().public_bytes(\n    encoding=serialization.Encoding.PEM,\n    format=serialization.PublicFormat.SubjectPublicKeyInfo\n)\nwith open(\"public.pem\", \"wb\") as f:\n    f.write(pem_public)\n\n# --- Load keys ---\nfrom cryptography.hazmat.primitives.serialization import load_pem_private_key\nwith open(\"private.pem\", \"rb\") as f:\n    loaded = load_pem_private_key(f.read(), password=b\"strong-passphrase\")"
+    },
+    {
+      "type": "comparison",
+      "title": "RSA vs ECDSA for Signatures",
+      "a": {
+        "name": "RSA-2048 with PSS",
+        "description": "Classic integer factorisation-based signature",
+        "strengths": ["Universally supported", "FIPS-approved", "Well-understood security"],
+        "weaknesses": ["Large keys (2048+ bits)", "Slow generation", "Vulnerable to quantum (Shor's)"],
+        "useWhen": "Legacy systems, certificate authorities, compatibility requirements"
+      },
+      "b": {
+        "name": "ECDSA P-256 / Ed25519",
+        "description": "Elliptic curve-based signature",
+        "strengths": ["Small keys (256 bits = equivalent security to RSA-3072)", "Fast generation and verification", "Ed25519 is constant-time (no timing attacks)"],
+        "weaknesses": ["More complex implementation (use a library)", "Vulnerable to quantum (Shor's)"],
+        "useWhen": "New systems — preferred over RSA for performance and key size"
+      }
     },
     {
       "type": "tip",
-      "text": "Use RSA-2048 at minimum. RSA-4096 for long-lived keys. For new systems, prefer ECDSA which is smaller and faster."
+      "text": "For new systems, prefer <strong>Ed25519</strong> over RSA for signing. It produces 64-byte signatures (vs 256 bytes for RSA-2048), is significantly faster, and is constant-time by design (no timing side channels)."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What is RSA security based on?",
+          "question": "What mathematical problem is RSA based on?",
           "type": "multiple-choice",
           "options": [
-            "The difficulty of computing discrete logarithms",
-            "The difficulty of factoring large integers",
-            "The difficulty of solving elliptic curve equations",
-            "The difficulty of inverting hash functions"
+            "The discrete logarithm problem",
+            "The integer factorisation problem",
+            "The elliptic curve discrete logarithm problem",
+            "The preimage resistance of hash functions"
           ],
           "correctAnswer": 1,
-          "explanation": "RSA is based on the integer factorization problem: it is easy to multiply two large primes but very hard to factor their product."
+          "explanation": "RSA is based on the Integer Factorisation Problem: given n = p × q (product of two large primes), it is computationally infeasible to find p and q."
+        },
+        {
+          "id": "q2",
+          "question": "Which padding scheme should you use for RSA signatures?",
+          "type": "multiple-choice",
+          "options": [
+            "No padding (textbook RSA)",
+            "PKCS1v15 padding",
+            "PSS (Probabilistic Signature Scheme)",
+            "OAEP padding"
+          ],
+          "correctAnswer": 2,
+          "explanation": "PSS (Probabilistic Signature Scheme) is the recommended padding for RSA signatures. OAEP is for encryption. PKCS1v15 for signatures is considered weaker. Never use no padding."
+        },
+        {
+          "id": "q3",
+          "question": "What is the minimum recommended RSA key size for new applications?",
+          "type": "multiple-choice",
+          "options": [
+            "512 bits",
+            "1024 bits",
+            "2048 bits",
+            "4096 bits"
+          ],
+          "correctAnswer": 2,
+          "explanation": "RSA-2048 is the current minimum. RSA-512 and RSA-1024 have been factored. NIST recommends 2048-bit keys through 2030 and 3072 bits beyond that."
         }
       ]
     }
@@ -56,24 +145,27 @@
   "faq": [
     {
       "q": "Should I implement RSA myself?",
-      "a": "Never implement cryptography yourself. Use a well-audited library like Python's cryptography package. Home-grown crypto is almost always broken."
+      "a": "Never implement cryptography yourself. Use a well-audited library (Python's cryptography package, OpenSSL). Home-grown RSA will almost certainly have timing vulnerabilities or padding oracle flaws."
+    },
+    {
+      "q": "What is Bleichenbacher's attack?",
+      "a": "A 1998 attack on RSA-PKCS1v15 encryption. If a server reveals whether the RSA padding is valid, an attacker can send crafted ciphertexts and use the error responses to decrypt arbitrary messages — without knowing the private key. OAEP padding prevents this."
+    },
+    {
+      "q": "Should I use RSA-2048 or RSA-4096?",
+      "a": "RSA-2048 is safe today. RSA-4096 is better for keys that must remain secure for 10+ years. For new systems, consider Ed25519 instead — 64-byte signatures with equivalent security to RSA-3072."
     }
   ],
   "sources": [
-    {
-      "name": "RSA",
-      "url": "https://en.wikipedia.org/wiki/RSA_(cryptosystem)",
-      "verified": "2026-11-04"
-    }
+    { "name": "RSA (Wikipedia)", "url": "https://en.wikipedia.org/wiki/RSA_(cryptosystem)", "verified": "2026-11-04" },
+    { "name": "cryptography.io RSA", "url": "https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "digital signatures",
-      "key exchange",
-      "certificate signing"
-    ],
+    "usedIn": ["TLS certificates (signing)", "PGP/GPG", "SSH (RSA host keys)", "code signing", "JWT RS256"],
     "examples": [
-      "RSA signature on a software release package"
+      "Let's Encrypt issues certificates using RSA-2048 or ECDSA-P256 signatures",
+      "JWT tokens signed with RS256 use RSA-PSS or PKCS1v15 depending on the library",
+      "ssh-keygen -t rsa generates RSA key pairs for SSH authentication"
     ]
   }
 }

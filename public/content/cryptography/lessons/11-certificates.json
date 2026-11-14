@@ -1,59 +1,157 @@
 {
   "id": "11-certificates",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "tls-pki",
   "title": "Digital Certificates and PKI",
-  "subtitle": "X.509, certificate authorities, and trust chains",
+  "subtitle": "X.509, certificate authorities, trust chains, and Let's Encrypt",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "crypto.tls"
-  ],
-  "skillsTaught": [
-    "crypto.certificates"
-  ],
+  "prerequisites": ["crypto.tls"],
+  "skillsTaught": ["crypto.certificates"],
+  "whyItExists": {
+    "problem": "In TLS, the client needs to verify the server is who it claims to be. If anyone could create a certificate for any domain, attackers could intercept HTTPS traffic by presenting a fake certificate.",
+    "solution": "Public Key Infrastructure (PKI) uses Certificate Authorities (CAs) — trusted third parties that verify domain ownership and sign certificates. Browsers ship with a list of ~150 trusted root CAs. A certificate signed by one of these is automatically trusted.",
+    "whenToUse": "Every HTTPS server needs a certificate. Use Let's Encrypt for free automated DV (Domain Validation) certificates. Use OV/EV for high-trust organizations.",
+    "whenNotToUse": "Internal services where you control all clients can use a private CA. Self-signed certificates for public services will trigger browser warnings and should not be used."
+  },
+  "explainModes": {
+    "beginner": "A certificate is like a government-issued ID for a website. A Certificate Authority checks that example.com really belongs to you, then signs a certificate proving it. Browsers trust the CA, so they trust your site.",
+    "simple": "A certificate contains a website's public key plus the CA's signature. When you visit HTTPS, your browser checks the certificate's signature against trusted CAs. If it matches, the site is authentic.",
+    "standard": "X.509 certificates contain: subject (domain name), public key, validity dates, issuer (CA name), and the CA's digital signature. The browser validates the certificate chain: leaf cert → intermediate CA → root CA (in browser's trust store).",
+    "technical": "X.509 uses ASN.1 DER/PEM encoding. The CA signs cert.tbsCertificate with its RSA-SHA256 or ECDSA-P256 private key. Chain validation: each cert's subject must match the next's issuer, and each signature must verify with the issuer's public key. CRL and OCSP provide revocation checking.",
+    "deepDive": "Certificate Transparency (CT) requires all publicly-trusted certs to be logged in public, append-only logs. Browsers enforce CT for all new certificates (Chrome since 2018). CAA DNS records let you restrict which CAs can issue certs for your domain. Certificate pinning (HPKP) was deprecated due to bricking risk; use Expect-CT instead."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "X.509 Certificates"
+      "text": "X.509 Digital Certificates"
     },
     {
       "type": "paragraph",
-      "text": "A digital certificate binds a public key to an identity, signed by a trusted Certificate Authority (CA). Your browser trusts hundreds of root CAs."
+      "text": "A digital certificate <strong>binds a public key to an identity</strong>. When you visit <code>https://bank.com</code>, the server presents a certificate saying: 'This public key belongs to bank.com, and I (a trusted CA) vouch for it.' Your browser verifies the CA's signature and trusts the connection."
     },
     {
-      "type": "code",
-      "lang": "bash",
-      "filename": "",
-      "code": "# View a certificate\nopenssl x509 -in cert.pem -text -noout\n\n# Generate a self-signed certificate (for development)\nopenssl req -x509 -newkey rsa:4096 \\\n  -keyout key.pem -out cert.pem \\\n  -days 365 -nodes \\\n  -subj \"/CN=localhost\"\n\n# Get a free Let's Encrypt certificate\ncertbot --nginx -d example.com"
+      "type": "definition",
+      "term": "Certificate Authority (CA)",
+      "definition": "A trusted third party that verifies domain ownership and signs certificates. Browsers ship with ~150 trusted root CAs. If a CA is compromised, it is removed from browser trust stores."
     },
     {
       "type": "definition",
       "term": "Certificate Chain",
-      "definition": "Root CA signs Intermediate CA signs your certificate. Browsers verify by walking up to a trusted root."
+      "definition": "Root CA → Intermediate CA → Leaf (your) certificate. Browsers verify by walking up the chain to a trusted root. The root CA's private key is kept offline; intermediate CAs are online for day-to-day signing."
+    },
+    {
+      "type": "definition",
+      "term": "CSR (Certificate Signing Request)",
+      "definition": "A file containing your public key and domain information, sent to a CA for signing. The CA verifies you own the domain, then returns a signed certificate."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Certificate Operations with OpenSSL"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "certs.sh",
+      "code": "# --- View a certificate ---\nopenssl x509 -in cert.pem -text -noout\n\n# --- Generate a self-signed certificate (development only!) ---\nopenssl req -x509 -newkey rsa:4096 \\\n  -keyout key.pem -out cert.pem \\\n  -days 365 -nodes \\\n  -subj \"/CN=localhost\" \\\n  -addext \"subjectAltName=DNS:localhost,IP:127.0.0.1\"\n\n# --- Generate a CSR (send to CA to get a signed certificate) ---\nopenssl genrsa -out key.pem 2048\nopenssl req -new -key key.pem -out request.csr \\\n  -subj \"/CN=example.com/O=My Company/C=US\"\n\n# --- Check certificate expiry ---\nopenssl x509 -in cert.pem -noout -dates\n\n# --- Check which CA signed a certificate ---\nopenssl x509 -in cert.pem -noout -issuer\n\n# --- Verify a certificate chain ---\nopenssl verify -CAfile ca-bundle.pem cert.pem"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Let's Encrypt: Free Automated Certificates"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Let's Encrypt</strong> is a free, automated CA that issues DV (Domain Validation) certificates in seconds using the ACME protocol. Certbot automates issuance and renewal. No manual CSR submission needed."
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "certbot.sh",
+      "code": "# Install certbot\nsudo apt install certbot python3-certbot-nginx\n\n# Obtain and configure certificate for Nginx\nsudo certbot --nginx -d example.com -d www.example.com\n\n# Obtain certificate only (manual configuration)\nsudo certbot certonly --standalone -d example.com\n\n# Auto-renew (certificates expire in 90 days)\n# Certbot adds a cron job or systemd timer automatically\nsudo certbot renew --dry-run\n\n# Check renewal timer\nsystemctl status certbot.timer\n\n# Certificate files are in:\n# /etc/letsencrypt/live/example.com/fullchain.pem (cert + chain)\n# /etc/letsencrypt/live/example.com/privkey.pem   (private key)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using Certificates in Python"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "cert_python.py",
+      "code": "from cryptography import x509\nfrom cryptography.x509.oid import NameOID\nfrom cryptography.hazmat.primitives import hashes, serialization\nfrom cryptography.hazmat.primitives.asymmetric import rsa\nimport datetime\n\n# --- Generate private key ---\nkey = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n\n# --- Build a self-signed certificate ---\nsubject = issuer = x509.Name([\n    x509.NameAttribute(NameOID.COMMON_NAME, \"localhost\"),\n    x509.NameAttribute(NameOID.ORGANIZATION_NAME, \"My Dev Server\"),\n])\n\ncert = (\n    x509.CertificateBuilder()\n    .subject_name(subject)\n    .issuer_name(issuer)\n    .public_key(key.public_key())\n    .serial_number(x509.random_serial_number())\n    .not_valid_before(datetime.datetime.now(datetime.timezone.utc))\n    .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365))\n    .add_extension(x509.SubjectAlternativeName([x509.DNSName(\"localhost\")]), critical=False)\n    .sign(key, hashes.SHA256())\n)\n\n# Save certificate\nwith open(\"cert.pem\", \"wb\") as f:\n    f.write(cert.public_bytes(serialization.Encoding.PEM))\n\n# Save private key (no password for dev; always password-protect in prod)\nwith open(\"key.pem\", \"wb\") as f:\n    f.write(key.private_bytes(\n        serialization.Encoding.PEM,\n        serialization.PrivateFormat.TraditionalOpenSSL,\n        serialization.NoEncryption()\n    ))"
+    },
+    {
+      "type": "comparison",
+      "title": "DV vs OV vs EV Certificates",
+      "a": {
+        "name": "DV (Domain Validation)",
+        "description": "CA verifies only that you control the domain",
+        "strengths": ["Free (Let's Encrypt)", "Automated in seconds", "Sufficient for most websites"],
+        "weaknesses": ["No organization identity verification", "Phishing sites can get DV certs for lookalike domains"],
+        "useWhen": "Any web application, API, blog — the default choice"
+      },
+      "b": {
+        "name": "OV/EV (Organization/Extended Validation)",
+        "description": "CA verifies legal organization identity",
+        "strengths": ["Shows organization name in some contexts", "Harder for phishing (requires real legal identity)"],
+        "weaknesses": ["Costs $50–$1000+/year", "Manual vetting process (days)", "EV indicators removed from modern browsers"],
+        "useWhen": "Banks, government sites, high-trust services where legal identity matters"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "Never use a self-signed certificate in production — browsers will show a scary warning and users will be trained to click through warnings (which is dangerous). Self-signed certs are only acceptable for internal dev/test environments."
     },
     {
       "type": "tip",
-      "text": "Use Let's Encrypt for free, automatically renewed certificates. Never pay for DV (domain validation) certificates."
+      "text": "Add a <strong>CAA DNS record</strong> to restrict which CAs can issue certificates for your domain: <code>example.com. CAA 0 issue \"letsencrypt.org\"</code>. This prevents rogue CAs from issuing certs for your domain."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What does a Certificate Authority do?",
+          "question": "What does a Certificate Authority (CA) do?",
           "type": "multiple-choice",
           "options": [
-            "Encrypts your data",
-            "Signs certificates to attest a public key belongs to a domain",
-            "Manages DNS records",
-            "Provides a VPN service"
+            "Encrypts your HTTPS traffic",
+            "Signs certificates to prove a public key belongs to a domain",
+            "Manages DNS records for your domain",
+            "Provides VPN tunneling services"
           ],
           "correctAnswer": 1,
-          "explanation": "A CA verifies ownership of a domain and signs a certificate to establish trust."
+          "explanation": "A CA verifies you own a domain (for DV) or your organization identity (OV/EV), then signs your certificate. Browsers trust CAs, so they transitively trust your certificate."
+        },
+        {
+          "id": "q2",
+          "question": "What is a certificate chain?",
+          "type": "multiple-choice",
+          "options": [
+            "A list of all domains the certificate is valid for",
+            "A sequence: leaf certificate → intermediate CA → root CA, each signed by the next",
+            "The encryption algorithms used in TLS",
+            "The list of revoked certificates"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Browsers validate the full chain: your cert is signed by an intermediate CA, which is signed by a root CA in the browser's trust store. This allows root keys to stay offline."
+        },
+        {
+          "id": "q3",
+          "question": "What does certificate revocation mean?",
+          "type": "multiple-choice",
+          "options": [
+            "The certificate has expired naturally",
+            "The CA has marked the certificate as untrusted before its expiry (key compromise, etc.)",
+            "The domain owner has renewed the certificate",
+            "The browser has cached the certificate locally"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Revocation invalidates a certificate before its expiry date. This is done when the private key is compromised, the domain changes ownership, or the cert was issued in error."
         }
       ]
     }
@@ -61,24 +159,27 @@
   "faq": [
     {
       "q": "What is certificate pinning?",
-      "a": "Hardcoding the expected certificate or public key in your app so it only trusts that specific cert, not any cert issued by any CA. Used in mobile apps to prevent MitM with rogue CA certs."
+      "a": "Hardcoding the expected certificate or public key hash in an app. This prevents MitM attacks even with a rogue CA cert. Used in mobile apps. HPKP (HTTP header version) was deprecated because misconfigurations could brick a domain — use certificate transparency monitoring instead."
+    },
+    {
+      "q": "How often should I renew my certificate?",
+      "a": "Let's Encrypt certificates expire in 90 days. Certbot renews automatically at ~60 days. For manually obtained certificates, renew 30+ days before expiry. Certificate expiry has caused major outages at Microsoft, Google, and AWS."
+    },
+    {
+      "q": "Should I pay for a certificate?",
+      "a": "No, for DV certificates. Let's Encrypt provides free, automated DV certificates trusted by all major browsers. Only pay for OV/EV certificates if your organization's legal identity in the certificate is a business requirement."
     }
   ],
   "sources": [
-    {
-      "name": "X.509",
-      "url": "https://en.wikipedia.org/wiki/X.509",
-      "verified": "2026-11-04"
-    }
+    { "name": "X.509 (Wikipedia)", "url": "https://en.wikipedia.org/wiki/X.509", "verified": "2026-11-04" },
+    { "name": "Let's Encrypt documentation", "url": "https://letsencrypt.org/docs/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "HTTPS",
-      "client authentication",
-      "code signing"
-    ],
+    "usedIn": ["HTTPS", "code signing", "email S/MIME", "client authentication", "IoT device identity"],
     "examples": [
-      "Configuring Let's Encrypt auto-renewal with Certbot"
+      "Let's Encrypt has issued over 3 billion certificates since 2015, making HTTPS the default for the web",
+      "The 2011 DigiNotar CA compromise led to rogue certificates for google.com used to spy on Iranian users — DigiNotar was removed from all browser trust stores within days",
+      "Certbot automates certificate renewal for over 400 million websites"
     ]
   }
 }

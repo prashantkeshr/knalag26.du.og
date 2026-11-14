@@ -1,60 +1,146 @@
 {
   "id": "07-public-key",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "asymmetric-crypto",
   "title": "Public-Key Cryptography",
   "subtitle": "Key pairs, asymmetric encryption, and the key exchange problem",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "crypto.aead"
-  ],
-  "skillsTaught": [
-    "crypto.public-key"
-  ],
+  "prerequisites": ["crypto.aead"],
+  "skillsTaught": ["crypto.public-key"],
+  "whyItExists": {
+    "problem": "Symmetric encryption requires both parties to share a secret key. If Alice and Bob have never met, how do they establish that secret? Sending it over the internet means an eavesdropper could intercept it.",
+    "solution": "Public-key cryptography uses a mathematically linked key pair: anyone can encrypt with the public key, but only the holder of the private key can decrypt. No secret needs to be shared in advance.",
+    "whenToUse": "Key exchange (Diffie-Hellman, ECDH), digital signatures (RSA-PSS, ECDSA, Ed25519), asymmetric encryption of small data (RSA-OAEP).",
+    "whenNotToUse": "Encrypting large volumes of data (too slow). Instead, use asymmetric crypto to exchange a symmetric key, then switch to AES-GCM."
+  },
+  "explainModes": {
+    "beginner": "Imagine a padlock with two modes: anyone can lock it with the public key, but only you can unlock it with your private key. You publish the padlock design; people use it to send you secret messages.",
+    "simple": "Public-key cryptography uses two mathematically linked keys. The public key is shared openly. The private key is kept secret. What one encrypts, only the other can decrypt.",
+    "standard": "Asymmetric cryptography (RSA, ECDH, Ed25519) uses key pairs derived from hard mathematical problems. The public key can be distributed freely. The private key must be kept secure. Asymmetric encryption is slow; in practice it is used only to exchange a symmetric session key.",
+    "technical": "RSA security relies on integer factorisation. ECDH relies on the elliptic curve discrete logarithm. Modern protocols (TLS 1.3, Signal) use ECDH for key agreement (ephemeral keys for forward secrecy) and Ed25519 for signing. Direct RSA encryption with OAEP is rare in modern protocols.",
+    "deepDive": "Public-key infrastructure (PKI) binds public keys to identities using certificates signed by Certificate Authorities. Without PKI, an adversary could substitute their own public key (man-in-the-middle). The Certificate Transparency (CT) log provides an append-only audit trail of all issued certificates."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "The Key Exchange Problem"
+      "text": "The Key Distribution Problem"
     },
     {
       "type": "paragraph",
-      "text": "Symmetric encryption requires both parties to share a secret key. How do you establish a shared secret over an insecure channel? Public-key cryptography solves this."
+      "text": "Symmetric encryption is fast and secure, but requires sharing a secret key. <strong>How do you share that key securely?</strong> You can't send it over an insecure channel — that defeats the purpose. Public-key cryptography solves this by allowing parties to establish a shared secret without having communicated privately before."
     },
     {
       "type": "definition",
       "term": "Public Key",
-      "definition": "Can be freely distributed. Used to encrypt data or verify a signature."
+      "definition": "Can be freely distributed to anyone. Used to encrypt data for the owner, or to verify a signature the owner made."
     },
     {
       "type": "definition",
       "term": "Private Key",
-      "definition": "Must be kept secret. Used to decrypt data or create a signature."
+      "definition": "Must remain secret. Used to decrypt data encrypted with the matching public key, or to create a digital signature."
+    },
+    {
+      "type": "definition",
+      "term": "Key Pair",
+      "definition": "A mathematically linked pair of public and private keys. Data encrypted with one can only be decrypted with the other."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "RSA Key Pair Generation and Encryption"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "keygen.py",
-      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes\n\n# Generate an RSA key pair\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npublic_key = private_key.public_key()\n\n# Encrypt with public key\nciphertext = public_key.encrypt(\n    b\"Secret message\",\n    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)\n)\n\n# Decrypt with private key\nplaintext = private_key.decrypt(\n    ciphertext,\n    padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)\n)"
+      "filename": "rsa_encrypt.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import rsa, padding\nfrom cryptography.hazmat.primitives import hashes, serialization\nimport os\n\n# --- Generate key pair ---\nprivate_key = rsa.generate_private_key(\n    public_exponent=65537,\n    key_size=2048\n)\npublic_key = private_key.public_key()\n\n# --- Export public key (share this openly) ---\npem_pub = public_key.public_bytes(\n    encoding=serialization.Encoding.PEM,\n    format=serialization.PublicFormat.SubjectPublicKeyInfo\n)\nprint(pem_pub.decode())  # -----BEGIN PUBLIC KEY-----\n\n# --- Encrypt with public key (anyone can do this) ---\nmessage = b\"AES session key: \" + os.urandom(32)  # 32-byte session key\nciphertext = public_key.encrypt(\n    message,\n    padding.OAEP(\n        mgf=padding.MGF1(algorithm=hashes.SHA256()),\n        algorithm=hashes.SHA256(),\n        label=None\n    )\n)\n\n# --- Decrypt with private key (only you can do this) ---\nplaintext = private_key.decrypt(\n    ciphertext,\n    padding.OAEP(\n        mgf=padding.MGF1(algorithm=hashes.SHA256()),\n        algorithm=hashes.SHA256(),\n        label=None\n    )\n)\nprint(\"Decrypted:\", plaintext)"
+    },
+    {
+      "type": "warning",
+      "text": "Never use RSA with PKCS1v15 padding for encryption — it is vulnerable to Bleichenbacher's attack. Always use OAEP padding (RSA-OAEP) for encryption, and PSS padding (RSA-PSS) for signing."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Hybrid Encryption: The Real-World Pattern"
+    },
+    {
+      "type": "paragraph",
+      "text": "RSA can only encrypt small amounts of data (up to ~190 bytes for a 2048-bit key with OAEP). Real systems use <strong>hybrid encryption</strong>: use RSA to encrypt a random AES key, then use AES-GCM to encrypt the actual data."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "hybrid_encrypt.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import padding as asym_padding\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nfrom cryptography.hazmat.primitives import hashes\nimport os\n\ndef hybrid_encrypt(public_key, plaintext: bytes) -> dict:\n    # 1. Generate a random symmetric session key\n    session_key = AESGCM.generate_key(256)\n    nonce = os.urandom(12)\n\n    # 2. Encrypt the data with the session key (fast AES)\n    aesgcm = AESGCM(session_key)\n    ciphertext = aesgcm.encrypt(nonce, plaintext, None)\n\n    # 3. Encrypt the session key with RSA (slow, but only 32 bytes)\n    encrypted_key = public_key.encrypt(\n        session_key,\n        asym_padding.OAEP(\n            mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),\n            algorithm=hashes.SHA256(),\n            label=None\n        )\n    )\n    return {\"encrypted_key\": encrypted_key, \"nonce\": nonce, \"ciphertext\": ciphertext}\n\n# Recipient decrypts the session key with their private key, then decrypts data with AES"
+    },
+    {
+      "type": "comparison",
+      "title": "Symmetric vs Asymmetric Encryption",
+      "a": {
+        "name": "Symmetric (AES-GCM)",
+        "description": "Same key for encryption and decryption",
+        "strengths": ["Very fast (hardware acceleration)", "Scales to large data", "Provides AEAD"],
+        "weaknesses": ["Key distribution problem", "Every pair of parties needs a unique key"],
+        "useWhen": "Bulk data encryption (files, database fields, network traffic)"
+      },
+      "b": {
+        "name": "Asymmetric (RSA, ECDH)",
+        "description": "Public key encrypts; private key decrypts",
+        "strengths": ["No prior key sharing needed", "Scales to N parties (1 key pair per entity)", "Enables digital signatures"],
+        "weaknesses": ["1000x slower than AES", "RSA limited to ~190 bytes of data"],
+        "useWhen": "Key exchange, digital signatures, certificate verification"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "In practice, asymmetric cryptography is used only to establish a shared session key. Once both parties have the session key, all further communication uses fast symmetric encryption (AES-GCM)."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "In asymmetric encryption, which key encrypts data?",
+          "question": "In asymmetric encryption, which key is used to encrypt data?",
           "type": "multiple-choice",
           "options": [
-            "Private key",
-            "Public key",
-            "Shared key",
-            "Session key"
+            "The sender's private key",
+            "The recipient's public key",
+            "A shared session key",
+            "The sender's public key"
           ],
           "correctAnswer": 1,
-          "explanation": "In asymmetric encryption, the sender uses the recipient's public key to encrypt. Only the recipient's private key can decrypt."
+          "explanation": "The sender uses the recipient's public key to encrypt. Only the recipient's private key can decrypt. The public key can be known by anyone."
+        },
+        {
+          "id": "q2",
+          "question": "Why is asymmetric encryption rarely used directly for large files?",
+          "type": "multiple-choice",
+          "options": [
+            "It produces ciphertext that is too large",
+            "It is approximately 1000x slower than symmetric encryption",
+            "It requires the recipient to be online",
+            "It does not support authenticated encryption"
+          ],
+          "correctAnswer": 1,
+          "explanation": "RSA and ECDH operations are mathematically expensive — orders of magnitude slower than AES. Hybrid encryption uses asymmetric only for key exchange."
+        },
+        {
+          "id": "q3",
+          "question": "What is hybrid encryption?",
+          "type": "multiple-choice",
+          "options": [
+            "Using two different symmetric algorithms together",
+            "Using RSA to encrypt a random AES session key, then AES to encrypt the actual data",
+            "Combining encryption and digital signatures in one step",
+            "Using half the bits for encryption and half for authentication"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Hybrid encryption combines the security of asymmetric cryptography (key distribution) with the speed of symmetric encryption (data encryption)."
         }
       ]
     }
@@ -62,24 +148,27 @@
   "faq": [
     {
       "q": "Can asymmetric encryption be used to encrypt large files?",
-      "a": "No, it is too slow. In practice, asymmetric encryption is used to exchange a symmetric key (like in TLS), then the symmetric key encrypts the actual data."
+      "a": "No. RSA can encrypt at most ~190 bytes (2048-bit key with OAEP). For large files, use hybrid encryption: RSA encrypts a random AES-256 key, AES-GCM encrypts the file."
+    },
+    {
+      "q": "Is it safe to publish my public key?",
+      "a": "Yes — that is the whole point. The public key is designed to be shared openly. Security depends entirely on keeping the private key secret."
+    },
+    {
+      "q": "What is key escrow?",
+      "a": "Giving a copy of a private key to a third party (government, employer) for law enforcement or recovery purposes. It is controversial because it creates a target for attackers and undermines end-to-end encryption."
     }
   ],
   "sources": [
-    {
-      "name": "Public Key Cryptography",
-      "url": "https://en.wikipedia.org/wiki/Public-key_cryptography",
-      "verified": "2026-11-04"
-    }
+    { "name": "Public Key Cryptography (Wikipedia)", "url": "https://en.wikipedia.org/wiki/Public-key_cryptography", "verified": "2026-11-04" },
+    { "name": "cryptography.io RSA", "url": "https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "TLS",
-      "email encryption",
-      "key exchange"
-    ],
+    "usedIn": ["TLS (key exchange)", "PGP/GPG email encryption", "SSH authentication", "Bitcoin wallets", "code signing"],
     "examples": [
-      "TLS uses RSA or ECDH to establish a shared symmetric key"
+      "TLS uses ECDH for key exchange and RSA or ECDSA certificates for server authentication",
+      "GPG uses hybrid encryption: RSA encrypts a random AES key, AES encrypts the email body",
+      "HTTPS connections start with asymmetric key exchange then switch to symmetric AES for speed"
     ]
   }
 }

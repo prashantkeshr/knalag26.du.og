@@ -1,48 +1,115 @@
 {
   "id": "15-post-quantum",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "applied-cryptography",
   "title": "Post-Quantum Cryptography",
-  "subtitle": "Why quantum computers threaten RSA/ECC and what comes next",
+  "subtitle": "Why quantum computers threaten RSA/ECC, NIST PQC standards, and migration planning",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "crypto.protocols"
-  ],
-  "skillsTaught": [
-    "crypto.post-quantum"
-  ],
+  "prerequisites": ["crypto.protocols"],
+  "skillsTaught": ["crypto.post-quantum"],
+  "whyItExists": {
+    "problem": "Shor's algorithm, running on a sufficiently large quantum computer, can factor RSA keys and solve the elliptic curve discrete logarithm in polynomial time — breaking all currently deployed public-key cryptography. Adversaries may already be storing 'harvest now, decrypt later' encrypted traffic.",
+    "solution": "NIST ran a 7-year competition (2017-2024) and standardised three post-quantum algorithms: ML-KEM (key encapsulation), ML-DSA (digital signatures), and SLH-DSA (hash-based signatures). These are based on mathematical problems believed to be hard for quantum computers.",
+    "whenToUse": "Long-lived secrets (keys valid for 10+ years), government/defence systems, any data that must remain confidential for decades. Start planning migration now for all systems.",
+    "whenNotToUse": "AES-256 and SHA-384 are already quantum-safe (Grover's algorithm only halves effective key size; AES-256 retains ~128-bit quantum security). No need to replace them."
+  },
+  "explainModes": {
+    "beginner": "Regular computers find factoring huge numbers extremely hard — that's what keeps RSA secure. Quantum computers have a trick (Shor's algorithm) that makes factoring fast. So RSA and ECC will eventually be broken. Post-quantum algorithms use different math that quantum computers can't solve quickly.",
+    "simple": "Quantum computers with millions of qubits could break RSA and ECC in hours. NIST has selected new algorithms based on math problems (lattice problems, hash functions) that quantum computers cannot solve efficiently. We need to migrate to these before quantum computers are powerful enough.",
+    "standard": "Shor's algorithm breaks integer factorisation (RSA) and discrete logarithm (ECC/DH). Grover's algorithm weakens symmetric encryption by halving effective key size (AES-256 → 128-bit quantum security: still safe). NIST 2024 standards: ML-KEM (key exchange), ML-DSA (signatures), SLH-DSA (hash-based signatures).",
+    "technical": "ML-KEM (CRYSTALS-Kyber) is based on the Module Learning With Errors (MLWE) problem. ML-DSA (CRYSTALS-Dilithium) is based on MLWE and Module Short Integer Solution. SLH-DSA (SPHINCS+) is stateless hash-based: security reduces to collision resistance of a hash function. TLS 1.3 supports hybrid key exchange: X25519 + ML-KEM-768.",
+    "deepDive": "HARVEST NOW, DECRYPT LATER: Nation-state adversaries may be recording encrypted TLS traffic today, waiting for quantum computers to break the key exchange. TLS 1.3 with ECDHE has forward secrecy but only until quantum computers exist. Switching to hybrid PQC key exchange (X25519+ML-KEM) now prevents this attack on future traffic. NIST FIPS 203 (ML-KEM), 204 (ML-DSA), 205 (SLH-DSA) were published August 2024."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "The Quantum Threat"
+      "text": "The Quantum Threat to Cryptography"
     },
     {
       "type": "paragraph",
-      "text": "Shor's algorithm running on a large enough quantum computer can break RSA and ECC in polynomial time. NIST standardised new post-quantum algorithms in 2024."
+      "text": "<strong>Shor's algorithm</strong>, running on a large enough quantum computer, can break RSA, ECDSA, ECDH, and Diffie-Hellman in polynomial time. This threatens all current public-key cryptography. While large quantum computers don't exist yet, the threat is real: adversaries may be recording encrypted traffic today to decrypt it later ('harvest now, decrypt later')."
     },
     {
-      "type": "definition",
-      "term": "CRYSTALS-Kyber (ML-KEM)",
-      "definition": "NIST-standardised key encapsulation mechanism resistant to quantum attacks."
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "RSA-2048: broken by Shor's algorithm (requires ~4000 logical qubits)",
+        "ECDSA P-256: broken by Shor's algorithm",
+        "ECDH / Diffie-Hellman: broken by Shor's algorithm",
+        "AES-256: weakened but NOT broken by Grover's (retains ~128-bit quantum security)",
+        "SHA-256: weakened but NOT broken (use SHA-384 for long-term secrets)"
+      ]
     },
     {
-      "type": "definition",
-      "term": "CRYSTALS-Dilithium (ML-DSA)",
-      "definition": "NIST-standardised digital signature algorithm resistant to quantum attacks."
+      "type": "comparison",
+      "title": "Classical Algorithms vs Quantum Safety",
+      "a": {
+        "name": "Quantum-Vulnerable Algorithms",
+        "description": "Broken by Shor's algorithm on a large quantum computer",
+        "strengths": ["Widely deployed today", "High performance"],
+        "weaknesses": ["RSA, ECDSA, ECDH, DH: all broken by Shor's"],
+        "useWhen": "Only when PQC is not yet supported by the protocol/library"
+      },
+      "b": {
+        "name": "Quantum-Safe Algorithms",
+        "description": "Secure against both classical and quantum attacks",
+        "strengths": ["Future-proof", "NIST standardised in 2024"],
+        "weaknesses": ["Larger keys/signatures than RSA/ECC", "New — less deployment experience"],
+        "useWhen": "New systems; migration priority: data with 10+ year confidentiality requirement"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "NIST Post-Quantum Standards (2024)"
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "migration.txt",
-      "code": "Current algorithms and status:\n  RSA-2048     — quantum-vulnerable (Shor's algorithm)\n  ECDSA P-256  — quantum-vulnerable (Shor's algorithm)\n  AES-256      — quantum-safe (Grover's halves effective key size; AES-256 still safe)\n  SHA-256      — quantum-safe (need SHA-384+ for long-term)\n\nNIST PQC Standards (2024):\n  ML-KEM  (CRYSTALS-Kyber)    — key encapsulation\n  ML-DSA  (CRYSTALS-Dilithium) — digital signatures\n  SLH-DSA (SPHINCS+)          — hash-based signatures"
+      "filename": "pqc_algorithms.txt",
+      "code": "NIST Post-Quantum Cryptography Standards (August 2024)\n\n=== Key Encapsulation (replaces ECDH/DH for key exchange) ===\nML-KEM (CRYSTALS-Kyber)  — FIPS 203\n  Basis: Module Learning With Errors (MLWE) — lattice problem\n  Key sizes: ML-KEM-512 (128-bit), ML-KEM-768 (192-bit), ML-KEM-1024 (256-bit)\n  Public key: 1184 bytes (ML-KEM-768) vs 32 bytes (X25519)\n\n=== Digital Signatures (replaces RSA/ECDSA) ===\nML-DSA (CRYSTALS-Dilithium)  — FIPS 204\n  Basis: MLWE + Module SIS — lattice problem\n  Signature sizes: 2420-4595 bytes vs 64 bytes (Ed25519)\n\nSLH-DSA (SPHINCS+)  — FIPS 205\n  Basis: Hash functions only — no new math assumptions\n  Stateless hash-based signatures; conservative security\n  Large signatures: 7856-49856 bytes\n\n=== Still Secure (no quantum algorithm breaks them efficiently) ===\nAES-256    — 128-bit quantum security (Grover halves to 128 bits from 256)\nSHA-384    — 192-bit quantum security\nAES-128    — 64-bit quantum security (too low for long-term use)\nSHA-256    — 128-bit quantum security (acceptable until large QC exist)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using ML-KEM in Python (liboqs)"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "pqc_kyber.py",
+      "code": "# pip install liboqs-python  (wraps liboqs C library)\nimport oqs\n\n# --- ML-KEM-768 Key Encapsulation ---\nalg = \"ML-KEM-768\"  # NIST FIPS 203 — 192-bit security\n\nwith oqs.KeyEncapsulation(alg) as kem:\n    # Recipient generates key pair\n    public_key = kem.generate_keypair()   # 1184 bytes\n    print(\"Public key size:\", len(public_key), \"bytes\")\n\n    # Sender encapsulates a shared secret using recipient's public key\n    ciphertext, shared_secret_sender = kem.encap_secret(public_key)\n    print(\"Ciphertext size:\", len(ciphertext), \"bytes\")\n    print(\"Shared secret:\", shared_secret_sender.hex())\n\n    # Recipient decapsulates using their private key\n    shared_secret_recipient = kem.decap_secret(ciphertext)\n\n    # Both have the same shared secret — use it to derive AES key with HKDF\n    assert shared_secret_sender == shared_secret_recipient\n    print(\"Shared secrets match!\")\n\n# --- Hybrid Key Exchange: X25519 + ML-KEM-768 ---\n# TLS 1.3 uses X25519MLKEM768 (hybrid) in Chrome/Firefox\n# Neither classical nor quantum alone can break it"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Migration Planning"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "filename": "migration_plan.txt",
+      "code": "POST-QUANTUM MIGRATION PRIORITY MATRIX\n\nPRIORITY 1 (Start now — data with 10+ year secrecy requirement)\n  - Long-lived TLS certificates (switch to hybrid ECDH+ML-KEM)\n  - Government/defence communications\n  - Financial data encrypted for long-term storage\n\nPRIORITY 2 (Plan for 2025-2027 migration)\n  - All public TLS certificates: add ML-DSA signatures\n  - API key exchange: hybrid X25519+ML-KEM\n  - Code signing certificates\n\nPRIORITY 3 (Already safe — verify parameters)\n  - AES-256 encrypted data at rest: SAFE (use AES-256 not AES-128)\n  - SHA-256 / SHA-384 hashing: SAFE\n  - Argon2 password hashing: SAFE\n\nSTEPS FOR MIGRATION:\n1. Inventory all cryptographic dependencies\n2. Identify algorithms (RSA, ECDSA, ECDH, DH)\n3. Assess data lifetime (1yr vs 10yr+ confidentiality need)\n4. Test hybrid key exchange (X25519+ML-KEM-768) in non-prod\n5. Enable hybrid TLS in production\n6. Migrate signatures (RSA certs → ML-DSA or hybrid ECDSA+ML-DSA)"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Hybrid key exchange</strong> is the recommended transition approach: combine classical ECDH (X25519) with post-quantum ML-KEM. The combined shared secret requires breaking <em>both</em> algorithms. This protects against: a quantum computer breaking ML-KEM (would need ECDH too), and a classical attack on ML-KEM (would still need X25519)."
+    },
+    {
+      "type": "info",
+      "text": "Chrome and Firefox already support X25519MLKEM768 (hybrid post-quantum TLS). Cloudflare has deployed it for all connections. TLS 1.3 supports it via the RFC 8446 key_share extension."
+    },
+    {
+      "type": "warning",
+      "text": "'Harvest now, decrypt later': Nation-state adversaries may be storing encrypted TLS traffic recorded today, planning to decrypt it once quantum computers exist. If your data must remain confidential for 10+ years, you need post-quantum key exchange NOW — not when large quantum computers exist."
     },
     {
       "type": "tip",
-      "text": "Start planning a migration to post-quantum algorithms now. TLS 1.3 already supports hybrid ECDH+Kyber in Chrome and Cloudflare."
+      "text": "AES-256 and SHA-384 are quantum-safe today. <strong>No action needed for symmetric encryption</strong> — just ensure you are using AES-256 (not AES-128) and SHA-384 for long-term commitments."
     },
     {
       "type": "quiz",
@@ -58,7 +125,33 @@
             "Diffie-Hellman"
           ],
           "correctAnswer": 2,
-          "explanation": "AES is a symmetric algorithm. Grover's algorithm halves its effective key size, but AES-256 retains ~128-bit quantum security — still safe."
+          "explanation": "AES is a symmetric algorithm. Grover's algorithm halves its effective key size, but AES-256 retains approximately 128-bit quantum security — still safe against quantum computers."
+        },
+        {
+          "id": "q2",
+          "question": "What is the 'harvest now, decrypt later' threat?",
+          "type": "multiple-choice",
+          "options": [
+            "Storing hash outputs to build rainbow tables for future use",
+            "Recording encrypted traffic today to decrypt it once quantum computers become available",
+            "Pre-computing AES keys for future brute-force attacks",
+            "Capturing public keys to forge signatures later"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Adversaries with large data centers can store today's encrypted TLS traffic. Once quantum computers break RSA/ECDH key exchange, the recorded traffic from years ago can be decrypted."
+        },
+        {
+          "id": "q3",
+          "question": "What is hybrid key exchange in post-quantum TLS?",
+          "type": "multiple-choice",
+          "options": [
+            "Using both RSA and ECDH simultaneously for double encryption",
+            "Combining classical ECDH (X25519) with post-quantum ML-KEM so both must be broken for the session to be compromised",
+            "Signing with RSA while encrypting with ML-KEM",
+            "Using different algorithms for client and server key exchange"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Hybrid key exchange combines X25519 (classical, well-understood) with ML-KEM (post-quantum). The shared secret requires breaking both — protecting against both a quantum break of classical algorithms and a hypothetical classical break of the new PQC algorithm."
         }
       ]
     }
@@ -66,23 +159,27 @@
   "faq": [
     {
       "q": "Should I migrate to post-quantum cryptography today?",
-      "a": "Begin inventory and planning now. For most apps, there is no urgency today. Prioritise long-lived secrets (keys, certificates) that protect data you need to keep private for 10+ years."
+      "a": "Begin inventory and planning now. For TLS and APIs serving ordinary web traffic, hybrid key exchange is a low-risk addition you can enable today. For long-lived secrets or high-value targets (government, finance, defence), migrate urgently. For data encrypted for <5 years, you have more time."
+    },
+    {
+      "q": "What is ML-KEM and how does it differ from ECDH?",
+      "a": "ML-KEM (CRYSTALS-Kyber, NIST FIPS 203) is a key encapsulation mechanism based on the hardness of the Module Learning With Errors problem — believed to be hard for quantum computers. ECDH is based on the elliptic curve discrete logarithm, which Shor's algorithm breaks."
+    },
+    {
+      "q": "Are the NIST post-quantum algorithms safe from classical attacks?",
+      "a": "Yes — NIST ran a 7-year competition with global cryptanalysis. The selected algorithms have no known classical weaknesses. The main concern is that they are newer and have less deployment history than RSA/ECC, which is why hybrid schemes are recommended during the transition."
     }
   ],
   "sources": [
-    {
-      "name": "NIST PQC",
-      "url": "https://csrc.nist.gov/projects/post-quantum-cryptography",
-      "verified": "2026-11-04"
-    }
+    { "name": "NIST PQC Standards (FIPS 203/204/205)", "url": "https://csrc.nist.gov/projects/post-quantum-cryptography", "verified": "2026-11-04" },
+    { "name": "Open Quantum Safe (liboqs)", "url": "https://openquantumsafe.org/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "future-proof systems",
-      "government/defence"
-    ],
+    "usedIn": ["TLS 1.3 hybrid key exchange (Chrome/Cloudflare)", "government communications", "long-term data storage", "post-quantum VPNs"],
     "examples": [
-      "Cloudflare deploying ECDH+Kyber hybrid key exchange in TLS 1.3"
+      "Google deployed X25519MLKEM768 in Chrome 131 (2024); Cloudflare enabled it for all TLS 1.3 connections",
+      "NIST published FIPS 203 (ML-KEM), 204 (ML-DSA), and 205 (SLH-DSA) in August 2024",
+      "Signal Protocol began testing post-quantum ratcheting (PQXDH with ML-KEM) in 2023"
     ]
   }
 }

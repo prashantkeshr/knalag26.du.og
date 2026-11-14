@@ -1,51 +1,126 @@
 {
   "id": "01-introduction",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "crypto-fundamentals",
   "title": "Introduction to Cryptography",
   "subtitle": "Goals of cryptography: confidentiality, integrity, authenticity",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 18,
   "status": "published",
   "prerequisites": [],
-  "skillsTaught": [
-    "crypto.basics"
-  ],
+  "skillsTaught": ["crypto.basics"],
+  "whyItExists": {
+    "problem": "Digital information can be read, copied, or altered by anyone with network access. Without protection, passwords, financial data, and messages travel in the open.",
+    "solution": "Cryptography uses mathematics to transform data so only authorised parties can read it, detect tampering, and prove identity — without requiring a physical secure channel.",
+    "whenToUse": "Whenever you store or transmit sensitive data: passwords, PII, API tokens, financial records, or private messages.",
+    "whenNotToUse": "Cryptography does not protect against bugs in your application logic, misconfigured servers, or social engineering attacks."
+  },
+  "explainModes": {
+    "beginner": "Cryptography is like putting a letter in a lockbox — only the person with the right key can open it and read it.",
+    "simple": "It uses math to scramble data (encryption) or prove it hasn't changed (hashing) so attackers who intercept it see only gibberish.",
+    "standard": "Cryptography provides four guarantees: confidentiality (data readable only by intended parties), integrity (tampering is detected), authentication (identity is verified), and non-repudiation (senders cannot deny actions).",
+    "technical": "Modern cryptography relies on computationally hard problems: integer factorisation (RSA), discrete logarithm (DH/ECDH), and preimage resistance (hashing). Security depends on key secrecy, not algorithm secrecy (Kerckhoffs's principle).",
+    "deepDive": "Cryptographic primitives are composed into schemes and protocols. A cipher provides confidentiality; a MAC provides integrity; combining them (AEAD) provides both. TLS is a protocol that orchestrates key exchange, authentication, and symmetric encryption using these primitives. The security proofs are in the random oracle model or standard model depending on the primitive."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "The Goals of Cryptography"
+      "text": "The Four Goals of Cryptography"
     },
     {
       "type": "paragraph",
-      "text": "Cryptography provides four security properties: confidentiality (data is secret), integrity (data is not modified), authentication (identity is verified), and non-repudiation (actions cannot be denied)."
+      "text": "Cryptography provides four core security properties. <strong>Confidentiality</strong> ensures data is readable only by authorised parties. <strong>Integrity</strong> ensures data has not been modified. <strong>Authentication</strong> verifies identity. <strong>Non-repudiation</strong> means a sender cannot later deny having sent a message."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Confidentiality — data is kept secret from unauthorised readers",
+        "Integrity — any modification of data is detectable",
+        "Authentication — parties can prove their identity",
+        "Non-repudiation — a signed action cannot be denied"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Core Vocabulary"
     },
     {
       "type": "definition",
       "term": "Plaintext",
-      "definition": "The original, readable data before encryption."
+      "definition": "The original, readable data before encryption. Also called cleartext."
     },
     {
       "type": "definition",
       "term": "Ciphertext",
-      "definition": "The encrypted, unreadable version of data produced by an encryption algorithm."
+      "definition": "The encrypted, unreadable form produced by an encryption algorithm. Looks like random bytes to an attacker."
     },
     {
       "type": "definition",
       "term": "Key",
-      "definition": "A secret value used by a cryptographic algorithm. The security of the system depends on the key, not the algorithm."
+      "definition": "A secret value used by a cryptographic algorithm. All security rests on the key — the algorithm itself is public knowledge (Kerckhoffs's principle)."
+    },
+    {
+      "type": "definition",
+      "term": "Algorithm (Cipher)",
+      "definition": "The mathematical procedure for encryption/decryption. Good algorithms are public, peer-reviewed, and standardised (e.g. AES, ChaCha20, RSA)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Your First Cryptographic Operation"
+    },
+    {
+      "type": "paragraph",
+      "text": "The simplest operation is <strong>hashing</strong>: a one-way function that turns any input into a fixed-size fingerprint. Even a one-character change produces a completely different hash."
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "crypto_intro.py",
-      "code": "from cryptography.hazmat.primitives import hashes\nfrom cryptography.hazmat.backends import default_backend\nimport os\n\n# Hash a message\ndigest = hashes.Hash(hashes.SHA256(), backend=default_backend())\ndigest.update(b\"Hello, cryptography!\")\nhash_value = digest.finalize()\nprint(hash_value.hex())"
+      "code": "import hashlib\nimport os\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\n\n# --- Hashing: one-way fingerprint ---\nmsg = b\"Hello, cryptography!\"\nhash_val = hashlib.sha256(msg).hexdigest()\nprint(\"SHA-256:\", hash_val)\n# 185f8db32921bd46d35... (always the same for the same input)\n\n# --- Symmetric encryption: reversible with a key ---\nkey   = AESGCM.generate_key(bit_length=256)   # random 256-bit key\nnonce = os.urandom(12)                          # random 96-bit nonce\naesgcm = AESGCM(key)\n\nciphertext = aesgcm.encrypt(nonce, msg, None)\nplaintext  = aesgcm.decrypt(nonce, ciphertext, None)\n\nprint(\"Ciphertext (hex):\", ciphertext.hex())\nprint(\"Decrypted:\", plaintext)   # b'Hello, cryptography!'"
     },
     {
       "type": "tip",
-      "text": "Kerckhoff's principle: a system should be secure even if everything about it except the key is public knowledge."
+      "text": "Kerckhoffs's principle: a cryptographic system must be secure even if everything about it except the key is public. Never rely on 'security by obscurity'."
+    },
+    {
+      "type": "comparison",
+      "title": "Hashing vs Encryption",
+      "a": {
+        "name": "Hashing",
+        "description": "One-way transformation — cannot be reversed",
+        "strengths": ["Fixed-size output for any input", "Fast integrity check", "No key needed to verify"],
+        "weaknesses": ["Cannot recover original data", "Not suitable for secrets you need to retrieve"],
+        "useWhen": "Verifying file integrity, storing passwords, digital signatures"
+      },
+      "b": {
+        "name": "Encryption",
+        "description": "Two-way transformation — reversible with the correct key",
+        "strengths": ["Recoverable with key", "Protects data in transit and at rest"],
+        "weaknesses": ["Key management is complex", "Slower than hashing"],
+        "useWhen": "Storing secrets you need to retrieve (API keys, messages, files)"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "Never invent your own cryptographic algorithm. Home-grown crypto is almost always broken. Use standardised algorithms (AES, ChaCha20, SHA-256, RSA, ECDSA) from audited libraries."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Cryptographic Stack"
+    },
+    {
+      "type": "paragraph",
+      "text": "Real-world security stacks layers of primitives. A <strong>primitive</strong> (AES, SHA-256) is a building block. A <strong>scheme</strong> (AES-GCM) combines primitives safely. A <strong>protocol</strong> (TLS) orchestrates multiple schemes to solve a full security problem."
+    },
+    {
+      "type": "info",
+      "text": "Python's <code>cryptography</code> library (pyca/cryptography) is the recommended choice. Install with: <code>pip install cryptography argon2-cffi pyjwt</code>."
     },
     {
       "type": "quiz",
@@ -55,38 +130,67 @@
           "question": "What does confidentiality mean in cryptography?",
           "type": "multiple-choice",
           "options": [
-            "Data cannot be modified",
+            "Data cannot be modified without detection",
             "Only authorised parties can read the data",
-            "Identities can be verified",
-            "Actions cannot be denied"
+            "Identities of communicating parties can be verified",
+            "Actions cannot be denied after the fact"
           ],
           "correctAnswer": 1,
-          "explanation": "Confidentiality ensures that data is accessible only to those authorised to read it."
+          "explanation": "Confidentiality ensures data is accessible only to those authorised to read it — the classic 'keep it secret' goal."
+        },
+        {
+          "id": "q2",
+          "question": "According to Kerckhoffs's principle, which part of a cryptosystem must be kept secret?",
+          "type": "multiple-choice",
+          "options": [
+            "The encryption algorithm",
+            "The hash function used",
+            "The key",
+            "The programming language"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Kerckhoffs's principle states that a system should remain secure even if everything except the key is public knowledge."
+        },
+        {
+          "id": "q3",
+          "question": "Which cryptographic property ensures a sender cannot deny having sent a message?",
+          "type": "multiple-choice",
+          "options": [
+            "Confidentiality",
+            "Integrity",
+            "Authentication",
+            "Non-repudiation"
+          ],
+          "correctAnswer": 3,
+          "explanation": "Non-repudiation, typically provided by digital signatures, means the sender cannot later deny having signed the message."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "Is secrecy of the algorithm important?",
-      "a": "No. Per Kerckhoff's principle, security must rely on the key, not on keeping the algorithm secret. Open algorithms are stronger because they are peer-reviewed."
+      "q": "Is keeping the algorithm secret a good idea?",
+      "a": "No. Per Kerckhoffs's principle, security must rest on the key, not the algorithm. Secret algorithms are hard to audit and historically break once discovered."
+    },
+    {
+      "q": "Can I write my own encryption algorithm?",
+      "a": "Only for learning. Production systems must use standardised, peer-reviewed algorithms. Creating secure cryptography requires years of cryptanalysis."
+    },
+    {
+      "q": "What is the difference between encoding and encryption?",
+      "a": "Encoding (Base64, URL encoding) transforms data for transport — it provides zero security. Encryption requires a key and provides confidentiality. Never confuse the two."
     }
   ],
   "sources": [
-    {
-      "name": "Cryptography Introduction",
-      "url": "https://cryptography.io/en/latest/",
-      "verified": "2026-11-04"
-    }
+    { "name": "pyca/cryptography docs", "url": "https://cryptography.io/en/latest/", "verified": "2026-11-04" },
+    { "name": "OWASP Cryptographic Storage Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "secure communications",
-      "data protection",
-      "digital signatures"
-    ],
+    "usedIn": ["HTTPS/TLS", "password storage", "file encryption", "digital signatures", "secure messaging apps"],
     "examples": [
-      "Encrypting sensitive user data before storing in a database"
+      "Every HTTPS request uses TLS to protect data in transit",
+      "Signal Protocol uses end-to-end encryption so even Signal cannot read your messages",
+      "Git uses SHA-1 (now migrating to SHA-256) to verify commit integrity"
     ]
   }
 }

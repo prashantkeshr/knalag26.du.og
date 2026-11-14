@@ -1,19 +1,28 @@
 {
   "id": "04-aes",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "symmetric-encryption",
   "title": "AES Encryption",
   "subtitle": "Advanced Encryption Standard: blocks, keys, and rounds",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "crypto.hashing"
-  ],
-  "skillsTaught": [
-    "crypto.aes"
-  ],
+  "prerequisites": ["crypto.hashing"],
+  "skillsTaught": ["crypto.aes"],
+  "whyItExists": {
+    "problem": "Before AES, the aging DES cipher (56-bit keys) was broken by brute force in 1998. NIST needed a modern, strong symmetric cipher that could be used worldwide.",
+    "solution": "NIST ran a public competition (1997-2001). Rijndael, submitted by Joan Daemen and Vincent Rijmen, won and became AES. It is now the global standard for symmetric encryption.",
+    "whenToUse": "Encrypting files, database fields, API payloads, full-disk encryption. AES-256-GCM for new code.",
+    "whenNotToUse": "Password storage (use Argon2 instead). Signing/authentication only (use HMAC). Very small IoT devices with no hardware AES (consider ChaCha20)."
+  },
+  "explainModes": {
+    "beginner": "AES is like a combination lock with a 256-bit combination. It scrambles your data using that combination, and you need the exact same combination to unscramble it.",
+    "simple": "AES takes a 128-bit block of data and applies 14 rounds of substitutions, shifts, and mixing operations. The key determines what the rounds do — same key means same output every time.",
+    "standard": "AES is a symmetric block cipher: same key encrypts and decrypts, operates on 128-bit (16-byte) blocks, supports 128/192/256-bit keys. AES-256 is recommended for new systems. Must be used with a mode of operation (never raw 'AES ECB').",
+    "technical": "AES uses a substitution-permutation network: SubBytes (S-box substitution), ShiftRows (byte permutation), MixColumns (GF(2^8) matrix multiply), AddRoundKey. 10/12/14 rounds for 128/192/256-bit keys. The best known attack (biclique) reduces effective key size by 2 bits — no practical break.",
+    "deepDive": "AES has hardware acceleration on all modern CPUs (AES-NI on x86, ARMv8 AES extensions). This makes software AES comparable to hardware speed. The key schedule derives round keys from the main key; a weak key schedule was a DES flaw AES avoids. For large data, AES-GCM runs AES in counter mode and uses GHASH for authentication, both parallelisable."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,58 +31,140 @@
     },
     {
       "type": "paragraph",
-      "text": "AES is the standard symmetric block cipher, used everywhere from TLS to full-disk encryption. It operates on 128-bit blocks and supports 128, 192, or 256-bit keys."
+      "text": "AES is the global standard for symmetric (shared-key) encryption. It's used in TLS, full-disk encryption, Wi-Fi (WPA2/3), and countless storage systems. The same key encrypts and decrypts, making key distribution the main challenge."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Block size: always 128 bits (16 bytes) — fixed regardless of key size",
+        "Key sizes: 128-bit (AES-128), 192-bit (AES-192), 256-bit (AES-256)",
+        "Rounds: 10 / 12 / 14 for 128 / 192 / 256-bit keys",
+        "No known practical attacks after 20+ years of cryptanalysis"
+      ]
+    },
+    {
+      "type": "definition",
+      "term": "Block Cipher",
+      "definition": "An encryption algorithm that operates on fixed-size blocks. AES processes exactly 16 bytes at a time. Longer messages require a mode of operation to chain blocks."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AES-CBC: The Classic Mode"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "aes.py",
-      "code": "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\nfrom cryptography.hazmat.backends import default_backend\nimport os\n\nkey = os.urandom(32)   # AES-256 key\niv  = os.urandom(16)   # Initialisation vector\n\n# Encrypt\ncipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())\nenc = cipher.encryptor()\nciphertext = enc.update(b\"Hello, AES-CBC!  \") + enc.finalize()  # must be 16-byte aligned\n\n# Decrypt\ndec = cipher.decryptor()\nplaintext = dec.update(ciphertext) + dec.finalize()\nprint(plaintext)"
+      "filename": "aes_cbc.py",
+      "code": "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\nfrom cryptography.hazmat.primitives import padding\nimport os\n\nkey = os.urandom(32)   # AES-256: 32-byte key\niv  = os.urandom(16)   # 128-bit IV, one per message\n\n# --- Encrypt ---\ndef aes_cbc_encrypt(key: bytes, iv: bytes, plaintext: bytes) -> bytes:\n    # PKCS7 padding to align to 16 bytes\n    padder = padding.PKCS7(128).padder()\n    padded = padder.update(plaintext) + padder.finalize()\n\n    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))\n    encryptor = cipher.encryptor()\n    return encryptor.update(padded) + encryptor.finalize()\n\n# --- Decrypt ---\ndef aes_cbc_decrypt(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:\n    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))\n    decryptor = cipher.decryptor()\n    padded = decryptor.update(ciphertext) + decryptor.finalize()\n\n    unpadder = padding.PKCS7(128).unpadder()\n    return unpadder.update(padded) + unpadder.finalize()\n\n# Usage\nmsg = b\"Top secret message\"\nciphertext = aes_cbc_encrypt(key, iv, msg)\nprint(\"Encrypted:\", ciphertext.hex())\nprint(\"Decrypted:\", aes_cbc_decrypt(key, iv, ciphertext))"
+    },
+    {
+      "type": "warning",
+      "text": "AES-CBC does not authenticate the ciphertext. An attacker can modify the ciphertext undetected and potentially decrypt it via a padding oracle attack. For new code, use AES-GCM instead."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AES-GCM: The Recommended Mode"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "aes_gcm.py",
+      "code": "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\nkey = AESGCM.generate_key(bit_length=256)  # 32-byte random key\nnonce = os.urandom(12)                      # 12-byte nonce (96-bit, recommended for GCM)\naad = b\"version:1,user:42\"                 # optional associated data (authenticated but not encrypted)\n\naesgcm = AESGCM(key)\n\n# Encrypt — produces ciphertext + 16-byte auth tag appended\nciphertext = aesgcm.encrypt(nonce, b\"Sensitive data\", aad)\n\n# Decrypt — raises InvalidTag if anything was tampered with\ntry:\n    plaintext = aesgcm.decrypt(nonce, ciphertext, aad)\n    print(\"Decrypted:\", plaintext)\nexcept Exception:\n    print(\"Tampering detected — authentication failed!\")"
+    },
+    {
+      "type": "comparison",
+      "title": "AES-CBC vs AES-GCM",
+      "a": {
+        "name": "AES-CBC",
+        "description": "Classic mode, encryption only",
+        "strengths": ["Widely supported", "Simple to understand"],
+        "weaknesses": ["No authentication (tamper detection)", "Vulnerable to padding oracle attacks", "Cannot encrypt random access"],
+        "useWhen": "Legacy systems; never for new code"
+      },
+      "b": {
+        "name": "AES-GCM",
+        "description": "Modern AEAD mode — encryption + authentication",
+        "strengths": ["Authenticates ciphertext (detects tampering)", "Parallelisable", "Supports associated data"],
+        "weaknesses": ["Nonce reuse is catastrophic (use random 96-bit nonce)", "96-bit nonce limit per key (~2^32 messages safely)"],
+        "useWhen": "All new applications — the default choice"
+      }
     },
     {
       "type": "tip",
-      "text": "AES-CBC requires a unique random IV for every encryption. Never reuse an IV with the same key."
+      "text": "AES-256 provides ~128-bit post-quantum security (Grover's algorithm halves effective key size). This makes AES-256 a future-proof choice even when quantum computers exist."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What block size does AES use?",
+          "question": "What block size does AES always use?",
           "type": "multiple-choice",
           "options": [
-            "64 bits",
-            "128 bits",
-            "256 bits",
-            "512 bits"
+            "64 bits (8 bytes)",
+            "128 bits (16 bytes)",
+            "256 bits (32 bytes)",
+            "It varies with the key size"
           ],
           "correctAnswer": 1,
-          "explanation": "AES always operates on 128-bit (16-byte) blocks regardless of key length."
+          "explanation": "AES always uses a 128-bit (16-byte) block size regardless of key length (128, 192, or 256 bits)."
+        },
+        {
+          "id": "q2",
+          "question": "Why is AES-GCM preferred over AES-CBC for new applications?",
+          "type": "multiple-choice",
+          "options": [
+            "GCM is 10x faster than CBC",
+            "GCM provides both encryption and authentication; CBC provides encryption only",
+            "GCM uses smaller keys",
+            "CBC is patented"
+          ],
+          "correctAnswer": 1,
+          "explanation": "GCM is an AEAD mode: it encrypts data AND appends an authentication tag. Any ciphertext modification causes decryption to fail with an InvalidTag error."
+        },
+        {
+          "id": "q3",
+          "question": "What happens if you reuse a nonce with the same AES-GCM key?",
+          "type": "multiple-choice",
+          "options": [
+            "The encryption is slightly slower",
+            "The authentication tag becomes invalid",
+            "An attacker can recover the plaintext and forge messages",
+            "Nothing — nonce reuse is harmless in GCM"
+          ],
+          "correctAnswer": 2,
+          "explanation": "GCM nonce reuse is catastrophic: two messages encrypted with the same key+nonce XOR together, exposing both plaintexts and allowing the attacker to forge authentication tags."
         }
       ]
     }
   ],
   "faq": [
     {
+      "q": "Should I use AES-128 or AES-256?",
+      "a": "AES-256 is recommended for new code. AES-128 has no known practical break, but AES-256 provides extra margin and post-quantum safety (128-bit quantum security vs 64-bit for AES-128)."
+    },
+    {
       "q": "Should I use AES-CBC in new code?",
-      "a": "Prefer AES-GCM (authenticated encryption). AES-CBC does not authenticate the ciphertext, so an attacker can tamper with it undetected."
+      "a": "No. Use AES-GCM. AES-CBC does not authenticate the ciphertext, making it vulnerable to padding oracle attacks when used with PKCS7 padding and error messages."
+    },
+    {
+      "q": "Does AES have any known weaknesses?",
+      "a": "No practical attacks exist. The best known attack (biclique) reduces effective key size by just 2 bits. After 20+ years of cryptanalysis, AES remains the gold standard."
     }
   ],
   "sources": [
-    {
-      "name": "AES",
-      "url": "https://en.wikipedia.org/wiki/Advanced_Encryption_Standard",
-      "verified": "2026-11-04"
-    }
+    { "name": "NIST AES Standard (FIPS 197)", "url": "https://csrc.nist.gov/publications/detail/fips/197/final", "verified": "2026-11-04" },
+    { "name": "cryptography.io AEAD", "url": "https://cryptography.io/en/latest/hazmat/primitives/aead/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "file encryption",
-      "database field encryption",
-      "full-disk encryption"
-    ],
+    "usedIn": ["TLS 1.3 (AES-GCM cipher suite)", "FileVault/BitLocker full-disk encryption", "WPA2/WPA3 Wi-Fi", "Signal and WhatsApp", "AWS S3 server-side encryption"],
     "examples": [
-      "Encrypting user PII before storing in a database"
+      "TLS 1.3 uses AES-256-GCM as its primary cipher suite",
+      "macOS FileVault encrypts the entire startup disk with AES-XTS-256",
+      "Signal Protocol uses AES-256-CBC for the message ratchet (now transitioning to GCM)"
     ]
   }
 }

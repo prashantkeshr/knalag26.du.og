@@ -1,19 +1,28 @@
 {
   "id": "06-authenticated-encryption",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "symmetric-encryption",
   "title": "Authenticated Encryption",
   "subtitle": "AES-GCM, ChaCha20-Poly1305, and AEAD",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 20,
   "status": "published",
-  "prerequisites": [
-    "crypto.block-modes"
-  ],
-  "skillsTaught": [
-    "crypto.aead"
-  ],
+  "prerequisites": ["crypto.block-modes"],
+  "skillsTaught": ["crypto.aead"],
+  "whyItExists": {
+    "problem": "Encryption without authentication is dangerous. An attacker who intercepts AES-CBC ciphertext can modify it undetected. The receiver decrypts the tampered data thinking it is legitimate.",
+    "solution": "AEAD (Authenticated Encryption with Associated Data) schemes provide confidentiality AND integrity in a single primitive. Any modification to the ciphertext causes decryption to fail immediately.",
+    "whenToUse": "Encrypting any data at rest or in transit. All new symmetric encryption should use an AEAD scheme. AES-256-GCM is the default; ChaCha20-Poly1305 for environments without AES hardware acceleration.",
+    "whenNotToUse": "If you only need integrity without confidentiality, use HMAC alone. If you are building a protocol, AEAD is still the right choice within that protocol."
+  },
+  "explainModes": {
+    "beginner": "AEAD is like a tamper-evident envelope. It seals your message so it's unreadable, AND puts a wax seal on it. If anyone opens the envelope and reseals it, the seal breaks — you know it was tampered with.",
+    "simple": "AES-GCM encrypts your data AND generates an authentication tag (a kind of checksum). When you decrypt, the tag is checked first. If the ciphertext was modified, the tag fails and you get an error — not corrupted data.",
+    "standard": "AEAD schemes produce ciphertext + an authentication tag. The tag is computed over both the ciphertext and any associated data (headers, IDs). Both must be valid for decryption to succeed. Use AESGCM from the Python cryptography library.",
+    "technical": "GCM uses CTR mode for encryption and GHASH (a GF(2^128) universal hash) for authentication. ChaCha20-Poly1305 uses the ChaCha20 stream cipher with a Poly1305 MAC — preferred when AES-NI is unavailable (ARM, embedded).",
+    "deepDive": "AEAD security proofs require the nonce to be unique per key. GCM nonce reuse exposes the keystream (attacker can XOR two ciphertexts to get plaintext XOR) and reveals the GHASH key (allowing tag forgery). AES-GCM-SIV is a nonce-misuse-resistant variant that only loses confidentiality (not authenticity) on nonce reuse."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +31,80 @@
     },
     {
       "type": "paragraph",
-      "text": "AEAD schemes provide both confidentiality and integrity in one operation. If the ciphertext is tampered with, decryption fails."
+      "text": "AEAD schemes provide <strong>both confidentiality and integrity</strong> in one operation. If the ciphertext is tampered with, decryption raises an error — you never see corrupted plaintext. This is the correct default for all modern encryption."
+    },
+    {
+      "type": "definition",
+      "term": "Authentication Tag",
+      "definition": "A short value (usually 16 bytes for GCM) appended to the ciphertext. If even one bit of the ciphertext is flipped, the tag fails to verify and decryption is refused."
+    },
+    {
+      "type": "definition",
+      "term": "Associated Data (AAD)",
+      "definition": "Data that is authenticated but not encrypted. Useful for headers, metadata, or IDs that must travel with the ciphertext and must not be modified independently."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AES-GCM in Practice"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "gcm.py",
-      "code": "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\nkey = AESGCM.generate_key(bit_length=256)\naesgcm = AESGCM(key)\n\nnonce = os.urandom(12)  # 96-bit nonce for GCM\naad = b\"user-id:1234\"   # associated data (not encrypted, but authenticated)\n\n# Encrypt\nciphertext = aesgcm.encrypt(nonce, b\"Secret message\", aad)\n\n# Decrypt (raises InvalidTag if tampered)\ntry:\n    plaintext = aesgcm.decrypt(nonce, ciphertext, aad)\n    print(plaintext)\nexcept Exception:\n    print(\"Authentication failed — data was tampered!\")"
+      "filename": "aesgcm.py",
+      "code": "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\n# --- Key setup ---\nkey = AESGCM.generate_key(bit_length=256)  # one key, reused with different nonces\naesgcm = AESGCM(key)\n\n# --- Encrypt ---\nnonce = os.urandom(12)             # unique 12-byte nonce per message\naad = b\"user_id:1234\"             # authenticated but not encrypted\nplaintext = b\"Account balance: $5000\"\n\nciphertext = aesgcm.encrypt(nonce, plaintext, aad)\nprint(\"Ciphertext:\", ciphertext.hex())  # plaintext + 16-byte tag\n\n# --- Decrypt (happy path) ---\nrecovered = aesgcm.decrypt(nonce, ciphertext, aad)\nprint(\"Decrypted:\", recovered)   # b'Account balance: $5000'\n\n# --- Tampered ciphertext ---\ntampered = bytearray(ciphertext)\ntampered[5] ^= 0x01    # flip one bit\ntry:\n    aesgcm.decrypt(nonce, bytes(tampered), aad)\nexcept Exception as e:\n    print(\"Tampering detected:\", e)  # InvalidTag\n\n# --- Wrong AAD ---\ntry:\n    aesgcm.decrypt(nonce, ciphertext, b\"user_id:9999\")\nexcept Exception:\n    print(\"AAD mismatch detected\")  # attacker cannot change the AAD"
+    },
+    {
+      "type": "warning",
+      "text": "Never reuse a nonce with the same AES-GCM key. Even one reuse exposes the keystream and allows the attacker to forge authentication tags. Use os.urandom(12) for every message, or use a counter-based nonce scheme."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ChaCha20-Poly1305: The Software-First Alternative"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>ChaCha20-Poly1305</strong> is an AEAD scheme designed by Daniel Bernstein. It provides equivalent security to AES-GCM but is faster on systems without AES hardware acceleration (many ARM devices, IoT hardware)."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "chacha20.py",
+      "code": "from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305\nimport os\n\nkey = ChaCha20Poly1305.generate_key()  # 32 bytes\nnonce = os.urandom(12)                 # 96-bit nonce\n\nchacha = ChaCha20Poly1305(key)\n\nciphertext = chacha.encrypt(nonce, b\"Encrypted message\", None)\nplaintext  = chacha.decrypt(nonce, ciphertext, None)\nprint(plaintext)"
+    },
+    {
+      "type": "comparison",
+      "title": "AES-256-GCM vs ChaCha20-Poly1305",
+      "a": {
+        "name": "AES-256-GCM",
+        "description": "Block cipher AEAD; hardware-accelerated on modern CPUs",
+        "strengths": ["Fastest with AES-NI hardware", "FIPS-approved", "Universally supported"],
+        "weaknesses": ["Slower without hardware acceleration", "Nonce reuse is catastrophic"],
+        "useWhen": "Server-side applications with modern CPUs (x86-64, Apple Silicon)"
+      },
+      "b": {
+        "name": "ChaCha20-Poly1305",
+        "description": "Stream cipher AEAD; fast in software",
+        "strengths": ["No hardware required", "Nonce reuse is less catastrophic than GCM", "Constant-time by design"],
+        "weaknesses": ["Slower than AES-GCM on AES-NI hardware"],
+        "useWhen": "Mobile apps, IoT, embedded systems, when you cannot rely on AES-NI"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "File Encryption with AEAD"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "file_encrypt.py",
+      "code": "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\ndef encrypt_file(key: bytes, path_in: str, path_out: str) -> None:\n    nonce = os.urandom(12)\n    aesgcm = AESGCM(key)\n    with open(path_in, \"rb\") as f:\n        data = f.read()\n    ciphertext = aesgcm.encrypt(nonce, data, None)\n    with open(path_out, \"wb\") as f:\n        f.write(nonce + ciphertext)  # prepend nonce so it travels with ciphertext\n\ndef decrypt_file(key: bytes, path_in: str) -> bytes:\n    aesgcm = AESGCM(key)\n    with open(path_in, \"rb\") as f:\n        raw = f.read()\n    nonce      = raw[:12]\n    ciphertext = raw[12:]\n    return aesgcm.decrypt(nonce, ciphertext, None)\n\nkey = AESGCM.generate_key(256)\nencrypt_file(key, \"report.pdf\", \"report.pdf.enc\")\noriginal = decrypt_file(key, \"report.pdf.enc\")"
     },
     {
       "type": "tip",
-      "text": "The nonce must be unique for every encryption. For AES-GCM, nonce reuse with the same key is catastrophic."
+      "text": "Prepend the nonce to the ciphertext — the nonce is not secret, just unique. Format: <code>nonce (12 bytes) | ciphertext | tag (16 bytes)</code>. The receiver extracts the first 12 bytes as the nonce."
     },
     {
       "type": "quiz",
@@ -42,13 +114,39 @@
           "question": "What does AEAD guarantee beyond confidentiality?",
           "type": "multiple-choice",
           "options": [
-            "Compression",
-            "Integrity — the receiver can detect tampering",
-            "Faster encryption",
+            "Compression of the plaintext",
+            "Integrity — the receiver can detect any tampering with the ciphertext",
+            "Faster encryption than non-AEAD schemes",
             "Post-quantum security"
           ],
           "correctAnswer": 1,
-          "explanation": "AEAD schemes produce an authentication tag so any ciphertext modification is detected on decryption."
+          "explanation": "AEAD schemes produce an authentication tag so any modification to the ciphertext is detected on decryption — the decryption function raises an error rather than returning corrupted plaintext."
+        },
+        {
+          "id": "q2",
+          "question": "What is 'associated data' (AAD) in AES-GCM?",
+          "type": "multiple-choice",
+          "options": [
+            "Extra plaintext that is also encrypted",
+            "Data that is authenticated but NOT encrypted",
+            "The encryption key stored alongside the ciphertext",
+            "A random padding value appended to the message"
+          ],
+          "correctAnswer": 1,
+          "explanation": "AAD is included in the authentication tag calculation but not encrypted. Useful for headers or metadata that must travel with the ciphertext and must not be modified."
+        },
+        {
+          "id": "q3",
+          "question": "When would you choose ChaCha20-Poly1305 over AES-GCM?",
+          "type": "multiple-choice",
+          "options": [
+            "When you need longer nonces",
+            "When targeting devices without AES hardware acceleration",
+            "When you need to encrypt very large files",
+            "When FIPS compliance is required"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ChaCha20-Poly1305 is fast in software without hardware acceleration — ideal for mobile, IoT, and ARM devices that may lack AES-NI."
         }
       ]
     }
@@ -56,24 +154,27 @@
   "faq": [
     {
       "q": "What is the associated data (AAD) used for?",
-      "a": "AAD is authenticated but not encrypted — useful for headers or metadata you need to verify (like a user ID or version number) without encrypting them."
+      "a": "AAD is authenticated but not encrypted. It is useful for headers or metadata you need to verify (like a user ID, record version, or API endpoint) without encrypting them. If AAD is modified, decryption fails."
+    },
+    {
+      "q": "Should I store the nonce with the ciphertext?",
+      "a": "Yes. The nonce is not secret — it only needs to be unique. The standard format is: nonce (12 bytes) | ciphertext | authentication tag (16 bytes). Store or transmit all three together."
+    },
+    {
+      "q": "What happens if AES-GCM authentication fails?",
+      "a": "The cryptography library raises an InvalidTag exception. You should NEVER fall back to returning the ciphertext if the tag fails. Treat InvalidTag as a critical security event and reject the message."
     }
   ],
   "sources": [
-    {
-      "name": "AESGCM",
-      "url": "https://cryptography.io/en/latest/hazmat/primitives/aead/",
-      "verified": "2026-11-04"
-    }
+    { "name": "cryptography.io AEAD", "url": "https://cryptography.io/en/latest/hazmat/primitives/aead/", "verified": "2026-11-04" },
+    { "name": "NIST GCM Specification (SP 800-38D)", "url": "https://csrc.nist.gov/publications/detail/sp/800-38d/final", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "API payload encryption",
-      "file encryption",
-      "secure messaging"
-    ],
+    "usedIn": ["TLS 1.3", "HTTPS", "Signal Protocol", "iOS Data Protection", "Android Keystore", "AWS S3 SSE"],
     "examples": [
-      "Encrypting JWTs with AES-GCM instead of HMAC signing"
+      "TLS 1.3 uses AES-256-GCM and ChaCha20-Poly1305 as its two approved cipher suites",
+      "Signal Protocol encrypts each message with AES-256-GCM, using a fresh key derived from the Double Ratchet",
+      "Google Chrome uses ChaCha20-Poly1305 for HTTPS connections to mobile users"
     ]
   }
 }

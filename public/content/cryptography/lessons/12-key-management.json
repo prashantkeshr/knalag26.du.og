@@ -1,19 +1,28 @@
 {
   "id": "12-key-management",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "tls-pki",
   "title": "Key Management",
-  "subtitle": "Generating, storing, rotating, and revoking keys",
+  "subtitle": "Generating, storing, rotating, revoking, and distributing cryptographic keys",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "crypto.certificates"
-  ],
-  "skillsTaught": [
-    "crypto.key-management"
-  ],
+  "prerequisites": ["crypto.certificates"],
+  "skillsTaught": ["crypto.key-management"],
+  "whyItExists": {
+    "problem": "Even perfect encryption is useless if the key is exposed, stored in plaintext, or never rotated. The vast majority of cryptographic failures are key management failures, not algorithm failures.",
+    "solution": "Dedicated key management systems (KMS, HSMs) store, rotate, and audit key usage without ever exposing plaintext keys to application code. Envelope encryption keeps master keys out of reach.",
+    "whenToUse": "Any system that encrypts data: database field encryption, file encryption, secrets management, certificate private keys.",
+    "whenNotToUse": "If you have zero sensitive data, there is nothing to protect. For trivial personal projects, a securely generated random key in an environment variable may be sufficient — but this doesn't scale."
+  },
+  "explainModes": {
+    "beginner": "Key management is about keeping your encryption keys safe. If your house key is under the mat, the lock doesn't matter. Same with encryption: a key stored in the same database as the encrypted data defeats the purpose.",
+    "simple": "Keys should be stored separately from the data they protect, should expire and be rotated regularly, and access should be audited. Use a dedicated key manager (AWS KMS, HashiCorp Vault) rather than environment variables.",
+    "standard": "Envelope encryption: data is encrypted with a data encryption key (DEK), and the DEK is encrypted with a key encryption key (KEK) stored in a KMS. The plaintext KEK never leaves the KMS. The KMS logs all decryption operations.",
+    "technical": "Key lifecycle: generation (CSPRNG), distribution (key exchange protocols), use (encrypt/decrypt operations), rotation (periodic new keys + re-encryption), and destruction (secure erasure). NIST SP 800-57 defines key management recommendations. HSMs provide tamper-resistant key storage with FIPS 140-2 certification.",
+    "deepDive": "AWS KMS uses an HSM cluster. Each master key never leaves the HSM in plaintext. Data key plaintext is returned only for the duration needed. Automatic rotation (annual) generates a new backing key but old keys are retained for decryption of existing data. Key policies provide IAM-based access control per key."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,38 +31,129 @@
     },
     {
       "type": "paragraph",
-      "text": "Key management is usually the weakest link. Even perfect encryption is useless if the key is exposed."
+      "text": "Key management is usually the weakest link in any cryptographic system. Cryptographic algorithms are strong; <strong>key management is where real-world breaches happen</strong>. A key stored in the same database as the encrypted data, hardcoded in source code, or checked into Git is an immediate critical vulnerability."
     },
     {
-      "type": "code",
-      "lang": "python",
-      "filename": "kms.py",
-      "code": "import boto3\n\n# AWS KMS: generate a data key\nkms = boto3.client(\"kms\", region_name=\"us-east-1\")\n\n# Generate a 256-bit data key\nresponse = kms.generate_data_key(\n    KeyId=\"arn:aws:kms:us-east-1:123456789:key/your-key-id\",\n    KeySpec=\"AES_256\"\n)\nplaintext_key = response[\"Plaintext\"]   # encrypt data with this\nencrypted_key = response[\"CiphertextBlob\"]  # store this, NOT the plaintext key\n\n# Later: decrypt the data key when you need to decrypt data\nresponse = kms.decrypt(CiphertextBlob=encrypted_key)\nrecovered_key = response[\"Plaintext\"]"
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Never hardcode keys in source code or config files",
+        "Never store keys in the same location as the encrypted data",
+        "Never commit keys to Git (even accidentally — rotate immediately if this happens)",
+        "Keys should expire and be rotated regularly",
+        "All key usage should be logged and auditable"
+      ]
+    },
+    {
+      "type": "definition",
+      "term": "Envelope Encryption",
+      "definition": "A two-layer scheme: data is encrypted with a DEK (Data Encryption Key); the DEK is encrypted with a KEK (Key Encryption Key) stored in a KMS. The plaintext KEK never leaves the KMS."
+    },
+    {
+      "type": "definition",
+      "term": "HSM (Hardware Security Module)",
+      "definition": "A tamper-resistant hardware device that generates and stores cryptographic keys. Keys never leave the HSM in plaintext. FIPS 140-2/3 Level 3+ rated HSMs are used by CAs and financial institutions."
     },
     {
       "type": "definition",
       "term": "Key Rotation",
-      "definition": "Regularly generating new keys and re-encrypting data. Limits exposure if a key is compromised."
+      "definition": "Generating a new key and re-encrypting data (or just old keys). Limits the exposure window if a key is compromised. Best practice: rotate annually or on suspected compromise."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Envelope Encryption with AWS KMS"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "kms_envelope.py",
+      "code": "import boto3\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport os\n\nkms = boto3.client(\"kms\", region_name=\"us-east-1\")\nKMS_KEY_ARN = \"arn:aws:kms:us-east-1:123456789:key/your-key-id\"\n\ndef encrypt_data(plaintext: bytes) -> dict:\n    # 1. Ask KMS for a data key (plaintext + encrypted copy)\n    response = kms.generate_data_key(KeyId=KMS_KEY_ARN, KeySpec=\"AES_256\")\n    dek_plaintext  = response[\"Plaintext\"]       # use to encrypt; discard after\n    dek_encrypted  = response[\"CiphertextBlob\"]  # store with ciphertext\n\n    # 2. Encrypt data with the DEK\n    nonce = os.urandom(12)\n    aesgcm = AESGCM(dek_plaintext)\n    ciphertext = aesgcm.encrypt(nonce, plaintext, None)\n\n    # 3. Discard plaintext DEK (zero it from memory)\n    del dek_plaintext\n\n    # Store: encrypted_dek + nonce + ciphertext\n    return {\"encrypted_dek\": dek_encrypted, \"nonce\": nonce, \"ciphertext\": ciphertext}\n\ndef decrypt_data(envelope: dict) -> bytes:\n    # 1. Decrypt the DEK using KMS (KMS checks IAM permissions, logs the call)\n    response = kms.decrypt(CiphertextBlob=envelope[\"encrypted_dek\"])\n    dek_plaintext = response[\"Plaintext\"]\n\n    # 2. Decrypt data with the DEK\n    aesgcm = AESGCM(dek_plaintext)\n    return aesgcm.decrypt(envelope[\"nonce\"], envelope[\"ciphertext\"], None)"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "HashiCorp Vault for Secrets Management"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "vault.sh",
+      "code": "# Start Vault dev server (testing only)\nvault server -dev\n\n# Store a secret\nvault kv put secret/myapp db_password=\"s3cret\"\n\n# Read a secret\nvault kv get secret/myapp\nvault kv get -field=db_password secret/myapp\n\n# Transit engine: encrypt/decrypt without storing keys\nvault secrets enable transit\nvault write -f transit/keys/myapp-key\n\n# Encrypt\nvault write transit/encrypt/myapp-key plaintext=$(base64 <<< \"my secret data\")\n# Returns: vault:v1:...\n\n# Decrypt\nvault write transit/decrypt/myapp-key ciphertext=\"vault:v1:...\"\n# Returns base64-encoded plaintext"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "secrets_env.py",
+      "code": "import os\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nimport base64\n\n# --- Minimal approach: environment variable (acceptable for small projects) ---\n# In production, inject from Vault/AWS Secrets Manager, never bake into image\nkey_hex = os.environ.get(\"ENCRYPTION_KEY\")  # 64 hex chars = 32 bytes\nif not key_hex:\n    raise ValueError(\"ENCRYPTION_KEY not set\")\n\nkey = bytes.fromhex(key_hex)\naesgcm = AESGCM(key)\n\n# This is acceptable if:\n# 1. The env var is injected at runtime (not in Dockerfile/docker-compose)\n# 2. The key was generated with os.urandom(32)\n# 3. You rotate it periodically\n# 4. Access to the deployment system is restricted\n\n# --- Generate a fresh key (do this once, store in KMS/Vault) ---\nnew_key = os.urandom(32)\nprint(\"Store this in KMS/Vault:\", new_key.hex())"
+    },
+    {
+      "type": "comparison",
+      "title": "Environment Variables vs KMS for Key Storage",
+      "a": {
+        "name": "Environment Variables",
+        "description": "Key injected at runtime via env var",
+        "strengths": ["Simple", "No external dependency", "Works everywhere"],
+        "weaknesses": ["Key visible in process list (ps aux)", "No audit log", "Manual rotation", "Risk of accidental logging"],
+        "useWhen": "Small projects, development, early stage — with strict discipline"
+      },
+      "b": {
+        "name": "AWS KMS / HashiCorp Vault",
+        "description": "Dedicated key management service",
+        "strengths": ["Keys never in plaintext outside HSM", "Full audit log", "Automatic rotation", "Fine-grained access control"],
+        "weaknesses": ["External dependency", "Cost (AWS KMS: $1/key/month + $0.03/10k API calls)", "More complex setup"],
+        "useWhen": "Production systems, compliance requirements, any sensitive data"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "If a secret key is accidentally committed to Git, treat it as permanently compromised. Rotate it immediately — Git history is public and tools like TruffleHog scan GitHub automatically for exposed credentials."
     },
     {
       "type": "tip",
-      "text": "Never store encryption keys alongside encrypted data. Use a HSM or cloud KMS like AWS KMS or HashiCorp Vault."
+      "text": "Use <strong>git-secrets</strong> or <strong>pre-commit hooks</strong> to prevent committing keys to Git. Run <code>git secrets --scan</code> before every push. Add patterns like <code>AESGCM|private_key|AES_KEY</code> to the blocklist."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "Where should you store encryption keys in production?",
+          "question": "Where should encryption keys be stored in production?",
           "type": "multiple-choice",
           "options": [
-            "In the same database as the encrypted data",
-            "In a .env file",
-            "In a HSM or dedicated KMS like AWS KMS",
-            "Hardcoded in the application"
+            "In the same database as the encrypted data, for convenience",
+            "In a .env file committed to Git",
+            "In a Hardware Security Module (HSM) or dedicated KMS like AWS KMS",
+            "Hardcoded in the application source code"
           ],
           "correctAnswer": 2,
-          "explanation": "Keys should be stored in a Hardware Security Module (HSM) or dedicated Key Management Service, never alongside the data they protect."
+          "explanation": "Keys must be stored separately from the data they protect. HSMs and KMS services keep the plaintext key inside tamper-resistant hardware that never exposes it."
+        },
+        {
+          "id": "q2",
+          "question": "What is envelope encryption?",
+          "type": "multiple-choice",
+          "options": [
+            "Encrypting the same data twice with different algorithms",
+            "Encrypting the data with a DEK, then encrypting the DEK with a KEK stored in KMS",
+            "Wrapping plaintext in Base64 before encryption",
+            "Using HMAC to authenticate ciphertext before storing"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Envelope encryption uses two levels: a data key (DEK) for the actual data, and a key-encryption key (KEK) in KMS to protect the DEK. Only the encrypted DEK is stored with the ciphertext."
+        },
+        {
+          "id": "q3",
+          "question": "What should you do if a cryptographic key is accidentally committed to a public GitHub repository?",
+          "type": "multiple-choice",
+          "options": [
+            "Delete the commit and the key is safe",
+            "Make the repository private and the key is safe",
+            "Treat the key as permanently compromised and rotate it immediately",
+            "Change the key after 24 hours — that is enough time to remove it"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Git history is permanent and widely cached/mirrored. Automated scanners like TruffleHog scan GitHub in real time. Once pushed, assume the key is compromised and rotate immediately."
         }
       ]
     }
@@ -61,23 +161,27 @@
   "faq": [
     {
       "q": "What is envelope encryption?",
-      "a": "Encrypting the data with a data key, then encrypting the data key with a master key (stored in KMS). The plaintext master key never leaves the KMS."
+      "a": "A two-layer scheme: data is encrypted with a DEK (Data Encryption Key). The DEK is then encrypted with a KEK (Key Encryption Key) stored in a KMS. You store the encrypted DEK alongside the ciphertext. The plaintext KEK never leaves the KMS."
+    },
+    {
+      "q": "How often should I rotate encryption keys?",
+      "a": "NIST recommends annual rotation for symmetric keys used for encryption. Rotate immediately on any suspected compromise. Modern KMS services support automatic rotation without requiring data re-encryption."
+    },
+    {
+      "q": "What is the difference between a KMS and a secret manager?",
+      "a": "A KMS (Key Management Service) focuses on cryptographic keys — generating, storing, and using them without exposing plaintext keys. A secret manager (Vault, AWS Secrets Manager) stores arbitrary secrets (API keys, passwords, certificates) and provides access control and audit logging."
     }
   ],
   "sources": [
-    {
-      "name": "Key Management",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-57-part-1/rev-5/final",
-      "verified": "2026-11-04"
-    }
+    { "name": "NIST SP 800-57 Key Management", "url": "https://csrc.nist.gov/publications/detail/sp/800-57-part-1/rev-5/final", "verified": "2026-11-04" },
+    { "name": "AWS KMS Developer Guide", "url": "https://docs.aws.amazon.com/kms/latest/developerguide/overview.html", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "database field encryption",
-      "secrets management"
-    ],
+    "usedIn": ["database field encryption", "file storage encryption", "secrets management", "certificate private keys", "API key storage"],
     "examples": [
-      "Storing database encryption keys in AWS KMS with automatic rotation"
+      "AWS S3 SSE-KMS uses envelope encryption: each object gets a unique DEK encrypted by your KMS key",
+      "HashiCorp Vault's Transit engine acts as an 'encryption-as-a-service' so app code never sees raw keys",
+      "The 2019 Capital One breach happened partly because an EC2 role had overly broad KMS permissions"
     ]
   }
 }

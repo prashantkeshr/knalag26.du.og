@@ -1,43 +1,100 @@
 {
   "id": "02-entropy-randomness",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "crypto-fundamentals",
   "title": "Entropy and Randomness",
   "subtitle": "Why randomness matters and how to generate it securely",
   "difficulty": "beginner",
-  "estimatedMinutes": 10,
+  "estimatedMinutes": 16,
   "status": "published",
-  "prerequisites": [
-    "crypto.basics"
-  ],
-  "skillsTaught": [
-    "crypto.randomness"
-  ],
+  "prerequisites": ["crypto.basics"],
+  "skillsTaught": ["crypto.randomness"],
+  "whyItExists": {
+    "problem": "Cryptographic keys and tokens must be unpredictable. Using weak randomness (time-based seeds, predictable sequences) lets attackers guess keys and forge tokens.",
+    "solution": "Operating systems collect hardware entropy (keyboard timing, disk latency, network jitter) into an entropy pool and expose a CSPRNG that is safe for cryptographic use.",
+    "whenToUse": "Generating keys, nonces, session tokens, password reset links, OTP seeds, IVs, and salts.",
+    "whenNotToUse": "Statistical simulations and games can use standard PRNGs for speed — just never use them for anything security-related."
+  },
+  "explainModes": {
+    "beginner": "Randomness in cryptography is like rolling a truly fair die — each face must be equally likely. If the die is loaded (predictable), an attacker can guess your 'random' numbers.",
+    "simple": "Your OS collects unpredictable real-world events (key presses, mouse movements, disk timing) into an entropy pool, then uses that to generate secure random numbers.",
+    "standard": "CSPRNGs (Cryptographically Secure PRNGs) are seeded from hardware entropy sources. Python's os.urandom() and secrets module both read from the OS CSPRNG (/dev/urandom on Linux, CryptGenRandom on Windows).",
+    "technical": "Linux uses a Fortuna-like CSPRNG seeded from hardware interrupts, /dev/random in early versions blocked on low entropy. /dev/urandom (and Python's os.urandom) is non-blocking and safe. The secrets module wraps os.urandom for user-facing randomness.",
+    "deepDive": "NIST SP 800-90A defines approved CSPRNG constructions: Hash_DRBG, HMAC_DRBG, CTR_DRBG. The dual_ec_drbg (now deprecated) had a suspected NSA backdoor. For high-assurance systems, use a hardware true RNG (TRNG) as the entropy source."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Cryptographic Randomness"
+      "text": "Why Weak Randomness Is Catastrophic"
     },
     {
       "type": "paragraph",
-      "text": "Cryptographic security depends on unpredictable random numbers. Weak randomness has caused catastrophic breaks in real systems."
+      "text": "In 2012, researchers found <strong>thousands of HTTPS certificates sharing the same RSA private key</strong> because embedded devices had not collected enough entropy before generating keys at boot. Weak randomness has also broken Android Bitcoin wallets, Debian OpenSSL, and PlayStation 3 signing keys."
+    },
+    {
+      "type": "definition",
+      "term": "Entropy",
+      "definition": "A measure of unpredictability in a system. High entropy means outputs are hard to predict. Low entropy means they can be guessed."
     },
     {
       "type": "definition",
       "term": "CSPRNG",
-      "definition": "Cryptographically Secure Pseudo-Random Number Generator. Suitable for key generation, nonces, and tokens."
+      "definition": "Cryptographically Secure Pseudo-Random Number Generator. Seeded from hardware entropy, safe for key generation, tokens, and nonces. Example: os.urandom() in Python."
+    },
+    {
+      "type": "definition",
+      "term": "Nonce",
+      "definition": "Number Used Once. A unique value that prevents replay attacks and nonce-reuse vulnerabilities. Must be generated from a CSPRNG."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using Randomness Correctly in Python"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "random_secure.py",
-      "code": "import os\nimport secrets\n\n# Generate 32 cryptographically random bytes\nkey = os.urandom(32)\nprint(key.hex())\n\n# Secure token for password reset links\ntoken = secrets.token_urlsafe(32)\nprint(token)  # e.g., \"jLDQvb3rFMBk9N2...\"\n\n# NEVER use random.random() for security\n# import random\n# random.random()  <- NOT CRYPTOGRAPHICALLY SECURE"
+      "code": "import os\nimport secrets\nimport random  # DANGEROUS for security\n\n# --- CORRECT: OS CSPRNG ---\nkey = os.urandom(32)          # 32 cryptographically random bytes (AES-256 key)\nnonce = os.urandom(12)        # 12-byte nonce for AES-GCM\niv = os.urandom(16)           # 16-byte IV for AES-CBC\n\nprint(\"Key:\", key.hex())\n\n# --- CORRECT: secrets module (wraps os.urandom, easier API) ---\ntoken = secrets.token_urlsafe(32)   # URL-safe base64 token for password reset links\npin   = secrets.token_hex(3)        # 6 hex chars → 3-byte random PIN\napi_key = secrets.token_bytes(32)   # raw bytes\n\nprint(\"Reset token:\", token)  # e.g. jLDQvb3rFMBk9N2...\n\n# --- WRONG: standard random module ---\n# NEVER use for security: it is seeded with time and is predictable\nbad_token = random.randint(100000, 999999)   # attacker can guess this\nbad_key   = hex(random.getrandbits(256))     # completely insecure"
+    },
+    {
+      "type": "warning",
+      "text": "Never use Python's <code>random</code> module for security. It is seeded with the current time and can be predicted by an attacker who knows roughly when your server started."
+    },
+    {
+      "type": "comparison",
+      "title": "random vs secrets / os.urandom",
+      "a": {
+        "name": "random module",
+        "description": "Standard PRNG — seeded from system time",
+        "strengths": ["Fast", "Reproducible (good for simulations)"],
+        "weaknesses": ["Predictable seed", "Not cryptographically secure"],
+        "useWhen": "Statistical simulations, games, shuffling non-sensitive data"
+      },
+      "b": {
+        "name": "secrets / os.urandom",
+        "description": "OS CSPRNG — seeded from hardware entropy",
+        "strengths": ["Unpredictable", "NIST-approved", "Platform-consistent"],
+        "weaknesses": ["Slightly slower", "Not reproducible (good thing for security)"],
+        "useWhen": "Keys, tokens, nonces, salts, OTP seeds, session IDs"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Secure Token Patterns"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "tokens.py",
+      "code": "import secrets\nimport hashlib\nimport hmac\n\n# Password reset token (store in DB, email to user)\ndef generate_reset_token():\n    return secrets.token_urlsafe(32)   # 256-bit URL-safe token\n\n# API key (show once at creation, store hashed)\ndef generate_api_key():\n    raw = secrets.token_bytes(32)\n    hashed = hashlib.sha256(raw).hexdigest()  # store this hash in DB\n    return raw.hex(), hashed  # return raw to user, store hashed\n\n# Constant-time comparison (prevents timing attacks)\ndef verify_token(user_token: str, stored_token: str) -> bool:\n    return hmac.compare_digest(user_token, stored_token)\n\n# NEVER:\n# if user_token == stored_token:  # timing oracle!"
     },
     {
       "type": "tip",
-      "text": "Always use os.urandom() or the secrets module for security-critical randomness in Python. Never use the random module."
+      "text": "Always use <code>hmac.compare_digest()</code> or <code>secrets.compare_digest()</code> when comparing tokens. Regular string comparison leaks timing information that lets attackers reconstruct the expected value byte by byte."
     },
     {
       "type": "quiz",
@@ -53,32 +110,61 @@
             "uuid.uuid1()"
           ],
           "correctAnswer": 2,
-          "explanation": "os.urandom() reads from the OS CSPRNG (/dev/urandom on Linux). The random module is not cryptographically secure."
+          "explanation": "os.urandom() reads from the OS CSPRNG (/dev/urandom on Linux). uuid.uuid1() uses MAC address + time — not cryptographically secure."
+        },
+        {
+          "id": "q2",
+          "question": "What is a nonce in cryptography?",
+          "type": "multiple-choice",
+          "options": [
+            "A random password used once",
+            "A number used exactly once per key to prevent replay attacks",
+            "A type of hash function",
+            "A certificate authority identifier"
+          ],
+          "correctAnswer": 1,
+          "explanation": "A nonce (Number Used Once) must be unique for every encryption operation under a given key. Reusing a nonce with AES-GCM destroys the key's security."
+        },
+        {
+          "id": "q3",
+          "question": "Why should you use hmac.compare_digest() instead of == for token comparison?",
+          "type": "multiple-choice",
+          "options": [
+            "It is faster",
+            "It prevents timing attacks by comparing in constant time",
+            "It handles Unicode better",
+            "It automatically hashes the token"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Regular string comparison short-circuits on the first mismatch. Attackers can measure response times to discover the expected token byte-by-byte."
         }
       ]
     }
   ],
   "faq": [
     {
-      "q": "What is a nonce?",
-      "a": "A Number used ONCE. A nonce is a random value that must never be reused with the same key. Reusing a nonce with stream ciphers or GCM can be catastrophic."
+      "q": "What is a nonce vs an IV?",
+      "a": "They serve the same purpose — a unique value per encryption — but naming differs by context. 'IV' (Initialisation Vector) is used with block ciphers (AES-CBC). 'Nonce' is used with stream ciphers and AEAD (AES-GCM, ChaCha20). Both must be generated with os.urandom()."
+    },
+    {
+      "q": "How long should tokens be?",
+      "a": "32 bytes (256 bits) is the standard for session tokens and password-reset links. 16 bytes (128 bits) is acceptable for short-lived tokens. Never less than 16 bytes."
+    },
+    {
+      "q": "What is a timing attack?",
+      "a": "An attack where the attacker measures how long a comparison takes to infer information. A string comparison that returns early on mismatch reveals how many characters matched. Use hmac.compare_digest() to compare in fixed time."
     }
   ],
   "sources": [
-    {
-      "name": "Python secrets module",
-      "url": "https://docs.python.org/3/library/secrets.html",
-      "verified": "2026-11-04"
-    }
+    { "name": "Python secrets module", "url": "https://docs.python.org/3/library/secrets.html", "verified": "2026-11-04" },
+    { "name": "NIST SP 800-90A — CSPRNG", "url": "https://csrc.nist.gov/publications/detail/sp/800-90a/rev-1/final", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "key generation",
-      "session tokens",
-      "password reset links"
-    ],
+    "usedIn": ["key generation", "session tokens", "password reset links", "OTP seeds", "CSRF tokens"],
     "examples": [
-      "Generating a secure password reset token with secrets.token_urlsafe()"
+      "Django uses os.urandom() for session keys and CSRF tokens",
+      "Let's Encrypt generates certificate private keys with the OS CSPRNG",
+      "The 2012 Debian OpenSSL bug (predictable keys) exposed millions of servers because the entropy source was accidentally removed"
     ]
   }
 }

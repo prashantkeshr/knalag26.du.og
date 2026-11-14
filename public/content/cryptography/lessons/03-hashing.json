@@ -1,19 +1,28 @@
 {
   "id": "03-hashing",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "crypto-fundamentals",
   "title": "Cryptographic Hash Functions",
   "subtitle": "SHA-256, SHA-3, and hash properties",
   "difficulty": "intermediate",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 18,
   "status": "published",
-  "prerequisites": [
-    "crypto.randomness"
-  ],
-  "skillsTaught": [
-    "crypto.hashing"
-  ],
+  "prerequisites": ["crypto.randomness"],
+  "skillsTaught": ["crypto.hashing"],
+  "whyItExists": {
+    "problem": "You need to verify data integrity without storing the full data, detect file tampering, and create unique fingerprints for large datasets.",
+    "solution": "Cryptographic hash functions produce a fixed-size digest that acts as a data fingerprint. Any change to the input produces a completely different output.",
+    "whenToUse": "File integrity checks, digital signatures (sign the hash not the data), content addressing (Git, IPFS), data deduplication.",
+    "whenNotToUse": "Password storage (use bcrypt/Argon2 instead — SHA-256 is too fast). Encrypting data (hashing is one-way, not reversible)."
+  },
+  "explainModes": {
+    "beginner": "A hash function is like a fingerprint scanner for data. The same file always gives the same fingerprint, but you cannot reconstruct the file from the fingerprint.",
+    "simple": "It converts any amount of data into a fixed-length string. If even one byte changes, the hash changes completely — this is called the avalanche effect.",
+    "standard": "Cryptographic hash functions must be: deterministic, fast to compute, one-way (preimage resistant), second-preimage resistant, and collision resistant. SHA-256 produces 32 bytes; SHA-3-256 also produces 32 bytes but uses a different internal structure.",
+    "technical": "SHA-256 uses a Merkle-Damgård construction with 64 rounds of bitwise operations. SHA-3 uses a Keccak sponge construction, making it structurally different from SHA-2 and immune to length-extension attacks.",
+    "deepDive": "Length-extension attacks exploit Merkle-Damgård: given hash(msg), you can compute hash(msg || padding || extra) without knowing msg. HMAC prevents this. SHA-3 (Keccak) is immune by design. For keyed hashing, always use HMAC-SHA256 or BLAKE2 — never bare SHA256(key || msg)."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,22 +31,75 @@
     },
     {
       "type": "paragraph",
-      "text": "A cryptographic hash function takes any input and produces a fixed-size output. It must be: deterministic, one-way (preimage resistant), and collision resistant."
+      "text": "A cryptographic hash function takes any input and produces a fixed-size output (digest). Every good hash function satisfies five properties: <strong>deterministic</strong>, <strong>fast</strong>, <strong>preimage resistant</strong> (one-way), <strong>second-preimage resistant</strong>, and <strong>collision resistant</strong>."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Deterministic — same input always produces same output",
+        "Avalanche effect — tiny input change flips ~50% of output bits",
+        "Preimage resistant — given hash(x), cannot find x",
+        "Second-preimage resistant — given x, cannot find y≠x with hash(y)=hash(x)",
+        "Collision resistant — cannot find any two inputs with the same hash"
+      ]
     },
     {
       "type": "definition",
       "term": "Collision Resistance",
-      "definition": "It should be computationally infeasible to find two different inputs that produce the same hash."
+      "definition": "It must be computationally infeasible to find two different inputs that produce the same hash. MD5 and SHA-1 have practical collisions; SHA-256 does not."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Using Hash Functions in Python"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "hashing.py",
-      "code": "import hashlib\n\n# SHA-256\nhash1 = hashlib.sha256(b\"hello\").hexdigest()\nprint(hash1)  # 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\n\n# SHA-3 (more modern)\nhash2 = hashlib.sha3_256(b\"hello\").hexdigest()\n\n# NEVER use MD5 or SHA-1 for security\n# hashlib.md5(b\"hello\")  # broken, do not use for security\n\n# HMAC for keyed hashing (message authentication)\nimport hmac\nmac = hmac.new(key=b\"secret\", msg=b\"message\", digestmod=\"sha256\")\nprint(mac.hexdigest())"
+      "code": "import hashlib\nimport hmac\n\n# --- SHA-256: standard choice ---\ndata = b\"Important document content\"\nhash_sha256 = hashlib.sha256(data).hexdigest()\nprint(\"SHA-256:\", hash_sha256)  # 32 bytes = 64 hex chars\n\n# --- SHA-3: modern alternative ---\nhash_sha3 = hashlib.sha3_256(data).hexdigest()\nprint(\"SHA3-256:\", hash_sha3)\n\n# --- BLAKE2b: fastest option, good for checksums ---\nhash_blake = hashlib.blake2b(data, digest_size=32).hexdigest()\nprint(\"BLAKE2b:\", hash_blake)\n\n# --- HMAC: keyed hash for message authentication ---\nkey = b\"my_secret_key\"\nmac = hmac.new(key=key, msg=data, digestmod=\"sha256\")\nprint(\"HMAC-SHA256:\", mac.hexdigest())\n\n# --- File integrity check ---\ndef sha256_file(path: str) -> str:\n    h = hashlib.sha256()\n    with open(path, \"rb\") as f:\n        for chunk in iter(lambda: f.read(65536), b\"\"):\n            h.update(chunk)\n    return h.hexdigest()\n\n# --- WRONG: MD5 and SHA-1 are broken ---\n# hashlib.md5(data)   # broken for security, avoid\n# hashlib.sha1(data)  # collision attacks proven, avoid"
+    },
+    {
+      "type": "warning",
+      "text": "MD5 and SHA-1 have practical collision attacks. Never use them for security. Use SHA-256, SHA-3-256, or BLAKE2 at minimum. Never use SHA-256 to store passwords — use Argon2id or bcrypt."
+    },
+    {
+      "type": "comparison",
+      "title": "SHA-256 vs SHA-3-256",
+      "a": {
+        "name": "SHA-256",
+        "description": "SHA-2 family, Merkle-Damgård construction, NIST standard",
+        "strengths": ["Widely supported", "Hardware acceleration (Intel SHA extensions)", "FIPS-approved"],
+        "weaknesses": ["Vulnerable to length-extension attacks (use HMAC)", "Same family as SHA-1 (different math but same design)"],
+        "useWhen": "General purpose: TLS, certificates, Git, file integrity"
+      },
+      "b": {
+        "name": "SHA-3-256",
+        "description": "Keccak sponge construction, completely different design from SHA-2",
+        "strengths": ["Immune to length-extension attacks", "Structurally different from SHA-2 (hedge against SHA-2 breaks)"],
+        "weaknesses": ["Slower without hardware acceleration", "Less widely deployed"],
+        "useWhen": "New protocols, Ethereum, when you want design diversity"
+      }
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "HMAC — Keyed Hashing"
+    },
+    {
+      "type": "paragraph",
+      "text": "A plain hash authenticates data but not <em>who sent it</em>. HMAC (Hash-based Message Authentication Code) combines a hash with a secret key to prove both integrity and origin."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "hmac_example.py",
+      "code": "import hmac, hashlib, os\n\nkey = os.urandom(32)  # shared secret between sender and receiver\nmessage = b\"Transfer $1000 to account 9876\"\n\n# Sender computes MAC\nmy_mac = hmac.new(key=key, msg=message, digestmod=\"sha256\").hexdigest()\n\n# Receiver verifies (constant-time comparison)\nreceived_mac = my_mac  # from the message packet\nif hmac.compare_digest(my_mac, received_mac):\n    print(\"Message is authentic\")\nelse:\n    print(\"Message was tampered!\")"
     },
     {
       "type": "tip",
-      "text": "MD5 and SHA-1 are broken for security purposes. Use SHA-256 or SHA-3-256 at minimum."
+      "text": "Use HMAC-SHA256 for API request signing, webhook verification, and cookie integrity checks. It prevents length-extension attacks that bare SHA-256 is vulnerable to."
     },
     {
       "type": "quiz",
@@ -48,12 +110,38 @@
           "type": "multiple-choice",
           "options": [
             "Finding two inputs with the same hash",
-            "Finding the input from a known hash",
+            "Finding the input from a known hash output",
             "Breaking the encryption key",
-            "Brute-forcing the salt"
+            "Brute-forcing the salt value"
           ],
           "correctAnswer": 1,
-          "explanation": "A preimage attack tries to find an input M such that hash(M) equals a known hash value."
+          "explanation": "A preimage attack tries to find an input M such that hash(M) equals a known hash — reversing the hash function."
+        },
+        {
+          "id": "q2",
+          "question": "Why should you NOT use SHA-256 to store passwords?",
+          "type": "multiple-choice",
+          "options": [
+            "SHA-256 produces hashes that are too long",
+            "SHA-256 is too fast — attackers can try billions of guesses per second",
+            "SHA-256 is not supported on most systems",
+            "SHA-256 adds automatic salting that interferes with login"
+          ],
+          "correctAnswer": 1,
+          "explanation": "SHA-256 is designed to be fast. An attacker with a GPU can try ~10 billion SHA-256 hashes per second, making offline brute force trivial. Use Argon2id."
+        },
+        {
+          "id": "q3",
+          "question": "What does HMAC add to a regular hash?",
+          "type": "multiple-choice",
+          "options": [
+            "Encryption of the hash output",
+            "Authentication — proves the message came from someone with the secret key",
+            "Compression of the data before hashing",
+            "Post-quantum security"
+          ],
+          "correctAnswer": 1,
+          "explanation": "HMAC uses a secret key to authenticate both the data and its origin. Without the key, an attacker cannot forge a valid MAC."
         }
       ]
     }
@@ -61,24 +149,27 @@
   "faq": [
     {
       "q": "Can I use SHA-256 to store passwords?",
-      "a": "No. SHA-256 is too fast — an attacker can try billions of guesses per second. Use bcrypt, Argon2, or scrypt, which are intentionally slow."
+      "a": "No. SHA-256 is too fast — an attacker can try billions of guesses per second on a GPU. Use bcrypt, Argon2id, or scrypt, which are intentionally slow and memory-intensive."
+    },
+    {
+      "q": "What is a length-extension attack?",
+      "a": "With SHA-256 (Merkle-Damgård construction), given hash(msg), an attacker can compute hash(msg || extra_data) without knowing the original msg. HMAC prevents this by double-wrapping the key."
+    },
+    {
+      "q": "What is the best hash algorithm to use today?",
+      "a": "SHA-256 for general use; SHA-3-256 for new protocols where design diversity matters; BLAKE2 for high-performance hashing. SHA-1 and MD5 must not be used for security."
     }
   ],
   "sources": [
-    {
-      "name": "hashlib",
-      "url": "https://docs.python.org/3/library/hashlib.html",
-      "verified": "2026-11-04"
-    }
+    { "name": "Python hashlib", "url": "https://docs.python.org/3/library/hashlib.html", "verified": "2026-11-04" },
+    { "name": "NIST SHA Standards", "url": "https://csrc.nist.gov/projects/hash-functions", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "data integrity checks",
-      "digital signatures",
-      "content addressing"
-    ],
+    "usedIn": ["file integrity verification", "digital signatures", "Git commit IDs", "HTTPS certificates", "HMAC API signing"],
     "examples": [
-      "Verifying a downloaded file has not been tampered with using SHA-256"
+      "Git identifies every commit, file, and tree by its SHA-1 hash (migrating to SHA-256)",
+      "AWS uses HMAC-SHA256 to sign API requests and verify they were not tampered with in transit",
+      "Package managers (pip, npm) publish SHA-256 checksums to verify downloaded packages"
     ]
   }
 }

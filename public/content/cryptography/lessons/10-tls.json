@@ -1,19 +1,28 @@
 {
   "id": "10-tls",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "tls-pki",
   "title": "TLS/SSL",
-  "subtitle": "The TLS handshake, cipher suites, and HTTPS",
+  "subtitle": "The TLS handshake, cipher suites, forward secrecy, and HTTPS",
   "difficulty": "advanced",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "crypto.ecc"
-  ],
-  "skillsTaught": [
-    "crypto.tls"
-  ],
+  "prerequisites": ["crypto.ecc"],
+  "skillsTaught": ["crypto.tls"],
+  "whyItExists": {
+    "problem": "HTTP sends all data in plaintext. Any network device between client and server (ISP, router, café Wi-Fi) can read passwords, cookies, and credit card numbers.",
+    "solution": "TLS (Transport Layer Security) wraps the connection: the client and server negotiate keys, authenticate the server via its certificate, and all data is encrypted with AES-GCM. The whole handshake takes under 1ms with TLS 1.3.",
+    "whenToUse": "Every web application, API, database connection, and email server. TLS is the foundation of HTTPS. Never deploy without it.",
+    "whenNotToUse": "Internal loopback connections (localhost) where there is no network path for interception. Even then, consider TLS for consistency."
+  },
+  "explainModes": {
+    "beginner": "TLS is what puts the 'S' in HTTPS. It creates a secure tunnel between your browser and the website so nobody in the middle can read your data or pretend to be the website.",
+    "simple": "TLS has two phases: a handshake where both sides agree on encryption keys and verify the server's identity using a certificate, then a data phase where all communication is encrypted with AES.",
+    "standard": "TLS 1.3 handshake: Client Hello (key share + cipher list), Server Hello (key share + certificate), Both sides derive symmetric keys from ECDH, all subsequent traffic uses AES-256-GCM or ChaCha20-Poly1305.",
+    "technical": "TLS 1.3 reduces handshake to 1 RTT (or 0-RTT for resumption). Key exchange uses ECDHE for forward secrecy. The server's certificate is signed by a CA. Session keys are derived using HKDF from the ECDH shared secret. TLS 1.0/1.1 are deprecated (RFC 8996).",
+    "deepDive": "TLS 1.3 eliminated all weak cipher suites (RC4, 3DES, DES, CBC-based), required forward secrecy (no RSA key exchange), and removed renegotiation. 0-RTT resumption allows replaying data but is vulnerable to replay attacks, so it must only be used for idempotent requests. Certificate Transparency logs (CT) are required for all certificates since 2018."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,35 +31,117 @@
     },
     {
       "type": "paragraph",
-      "text": "TLS (Transport Layer Security) encrypts data in transit between client and server. TLS 1.3 is the current version; TLS 1.0/1.1 are deprecated."
+      "text": "TLS (Transport Layer Security) encrypts data in transit between client and server. It provides <strong>confidentiality</strong> (eavesdropping prevention), <strong>integrity</strong> (tampering detection), and <strong>authentication</strong> (server identity verification). TLS 1.3 is the current version — TLS 1.0 and 1.1 are deprecated and must not be used."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The TLS 1.3 Handshake"
     },
     {
       "type": "code",
       "lang": "text",
-      "filename": "tls_handshake.txt",
-      "code": "TLS 1.3 Handshake (simplified):\n1. Client Hello  — supported cipher suites, random nonce\n2. Server Hello  — chosen cipher, certificate, key share (ECDH)\n3. Client        — verifies certificate, sends key share\n4. Both sides    — derive symmetric session keys from ECDH shared secret\n5. All data      — encrypted with AES-GCM or ChaCha20-Poly1305"
+      "filename": "tls13_handshake.txt",
+      "code": "TLS 1.3 Handshake (1 round-trip)\n\nClient → Server: ClientHello\n  - Supported cipher suites: TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256\n  - Key share: X25519 public key (for ECDHE)\n  - Random nonce\n\nServer → Client: ServerHello + Certificate + CertificateVerify + Finished\n  - Chosen cipher suite\n  - Key share: X25519 public key\n  - Certificate (signed by CA) → proves server identity\n  - CertificateVerify: signature over handshake using private key\n  - Finished: HMAC over entire handshake (tamper detection)\n\nBoth sides:\n  - Compute ECDHE shared secret from key shares\n  - Derive session keys using HKDF\n  - All further data encrypted with AES-256-GCM\n\nTotal: 1 round-trip before data flows"
+    },
+    {
+      "type": "paragraph",
+      "text": "<strong>Forward secrecy</strong> is a critical TLS 1.3 feature. Each connection uses fresh ECDHE key pairs that are discarded after the session. Even if the server's private key is later compromised, past sessions cannot be decrypted because the session keys were derived from ephemeral keys that no longer exist."
+    },
+    {
+      "type": "definition",
+      "term": "Forward Secrecy (PFS)",
+      "definition": "Property that ensures past sessions cannot be decrypted even if long-term keys are later compromised. Achieved in TLS 1.3 by using ephemeral ECDHE for key exchange."
+    },
+    {
+      "type": "definition",
+      "term": "Cipher Suite",
+      "definition": "A named combination of algorithms for key exchange, authentication, encryption, and MAC. TLS 1.3 only permits 5 suites, all using AEAD and ephemeral key exchange."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuring TLS in Python"
     },
     {
       "type": "code",
       "lang": "python",
       "filename": "tls_server.py",
-      "code": "import ssl, socket\n\ncontext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\ncontext.minimum_version = ssl.TLSVersion.TLSv1_2\ncontext.load_cert_chain(\"cert.pem\", \"key.pem\")\n\nwith socket.socket() as sock:\n    sock.bind((\"localhost\", 4443))\n    sock.listen(1)\n    with context.wrap_socket(sock, server_side=True) as ssock:\n        conn, addr = ssock.accept()\n        data = conn.recv(1024)\n        conn.send(b\"Hello over TLS!\")"
+      "code": "import ssl\nimport socket\n\n# --- TLS Server ---\ncontext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\ncontext.minimum_version = ssl.TLSVersion.TLSv1_2   # enforce TLS 1.2 minimum\ncontext.load_cert_chain(\"cert.pem\", \"key.pem\")     # certificate + private key\n\nwith socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:\n    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n    sock.bind((\"0.0.0.0\", 4443))\n    sock.listen(5)\n    with context.wrap_socket(sock, server_side=True) as ssock:\n        while True:\n            conn, addr = ssock.accept()\n            with conn:\n                data = conn.recv(4096)\n                conn.send(b\"HTTP/1.1 200 OK\\r\\n\\r\\nHello over TLS!\")\n\n# --- TLS Client (verify certificate) ---\nclient_context = ssl.create_default_context()   # loads system trust store\nwith socket.create_connection((\"example.com\", 443)) as raw:\n    with client_context.wrap_socket(raw, server_hostname=\"example.com\") as tls:\n        tls.send(b\"GET / HTTP/1.1\\r\\nHost: example.com\\r\\n\\r\\n\")\n        print(tls.recv(4096))"
+    },
+    {
+      "type": "code",
+      "lang": "bash",
+      "filename": "openssl_check.sh",
+      "code": "# Check a server's TLS configuration\nopenssl s_client -connect example.com:443 -tls1_3 2>/dev/null | head -20\n\n# See which protocols and cipher suites are supported\nnmap --script ssl-enum-ciphers -p 443 example.com\n\n# Test with curl (shows TLS version used)\ncurl -v https://example.com 2>&1 | grep -E 'TLS|SSL|cipher'\n\n# Check certificate expiry\necho | openssl s_client -connect example.com:443 2>/dev/null \\\n  | openssl x509 -noout -dates"
+    },
+    {
+      "type": "comparison",
+      "title": "TLS 1.2 vs TLS 1.3",
+      "a": {
+        "name": "TLS 1.2",
+        "description": "2008 standard; widely supported; more flexible but weaker defaults",
+        "strengths": ["Universal compatibility", "Supports many cipher suites"],
+        "weaknesses": ["Allows weak cipher suites (RC4, 3DES, CBC)", "2 RTT handshake", "RSA key exchange allowed (no forward secrecy)"],
+        "useWhen": "Only when legacy clients require it; still acceptable with strong cipher suite configuration"
+      },
+      "b": {
+        "name": "TLS 1.3",
+        "description": "2018 standard; faster, more secure, forward secrecy required",
+        "strengths": ["1 RTT handshake", "All cipher suites are AEAD", "Forward secrecy mandatory", "Encrypted handshake (less metadata leakage)"],
+        "weaknesses": ["Older clients (pre-2018) may not support it"],
+        "useWhen": "All new deployments — the default choice"
+      }
+    },
+    {
+      "type": "warning",
+      "text": "Never disable TLS certificate verification in production (<code>verify=False</code> in requests, <code>ssl.CERT_NONE</code>). It makes the connection vulnerable to man-in-the-middle attacks. If you need to test with self-signed certificates, add the CA certificate to the trust store instead."
+    },
+    {
+      "type": "tip",
+      "text": "Use <strong>HSTS</strong> (HTTP Strict Transport Security) to tell browsers to always use HTTPS: <code>Strict-Transport-Security: max-age=31536000; includeSubDomains</code>. This prevents protocol-downgrade attacks."
     },
     {
       "type": "quiz",
       "questions": [
         {
           "id": "q1",
-          "question": "What does TLS protect against?",
+          "question": "What does TLS protect against on a public Wi-Fi network?",
           "type": "multiple-choice",
           "options": [
-            "SQL injection",
-            "Eavesdropping and tampering of data in transit",
-            "XSS attacks",
-            "Weak passwords"
+            "SQL injection from the server",
+            "Eavesdropping and man-in-the-middle interception of data in transit",
+            "XSS attacks injected by the server",
+            "Brute-force attacks on user passwords"
           ],
           "correctAnswer": 1,
-          "explanation": "TLS encrypts and authenticates data in transit between client and server, preventing eavesdropping and man-in-the-middle attacks."
+          "explanation": "TLS encrypts and authenticates data in transit, preventing network-level eavesdroppers from reading or modifying the communication."
+        },
+        {
+          "id": "q2",
+          "question": "What is forward secrecy in TLS?",
+          "type": "multiple-choice",
+          "options": [
+            "The ability to decrypt future sessions without a certificate",
+            "Past sessions remain secure even if the server's long-term private key is later compromised",
+            "The ability to predict which cipher suite will be used",
+            "A technique for reducing handshake latency"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Forward secrecy (PFS) uses ephemeral ECDHE keys discarded after each session. Even if the server's certificate private key leaks, past sessions cannot be decrypted."
+        },
+        {
+          "id": "q3",
+          "question": "Which of these is a TLS 1.3 improvement over TLS 1.2?",
+          "type": "multiple-choice",
+          "options": [
+            "TLS 1.3 supports RC4 for faster encryption",
+            "TLS 1.3 reduces the handshake to 1 round-trip and requires forward secrecy",
+            "TLS 1.3 uses RSA exclusively for key exchange",
+            "TLS 1.3 allows CBC cipher suites for compatibility"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TLS 1.3 reduces the handshake from 2 RTT to 1 RTT, eliminates all weak cipher suites, and mandates forward secrecy via ECDHE."
         }
       ]
     }
@@ -58,24 +149,27 @@
   "faq": [
     {
       "q": "What is HSTS?",
-      "a": "HTTP Strict Transport Security — a header that tells browsers to only connect via HTTPS for a specified duration, preventing protocol downgrade attacks."
+      "a": "HTTP Strict Transport Security — a response header that tells browsers to only connect via HTTPS for a specified duration (max-age). It prevents protocol downgrade attacks where an attacker tries to redirect HTTPS traffic to HTTP."
+    },
+    {
+      "q": "What is a man-in-the-middle (MitM) attack on TLS?",
+      "a": "An attacker intercepts the connection and presents their own certificate instead of the real server's. TLS prevents this because the attacker cannot create a valid certificate signed by a trusted CA for a domain they don't control — unless they compromise a CA."
+    },
+    {
+      "q": "Should I disable TLS 1.0 and 1.1?",
+      "a": "Yes. TLS 1.0 is vulnerable to BEAST and POODLE attacks. TLS 1.1 is marginally better. Both are deprecated by RFC 8996 (2021) and browsers have removed support. Configure your server to require TLS 1.2 as the minimum."
     }
   ],
   "sources": [
-    {
-      "name": "TLS",
-      "url": "https://www.cloudflare.com/learning/ssl/what-is-ssl/",
-      "verified": "2026-11-04"
-    }
+    { "name": "TLS 1.3 RFC 8446", "url": "https://www.rfc-editor.org/rfc/rfc8446", "verified": "2026-11-04" },
+    { "name": "Cloudflare TLS explainer", "url": "https://www.cloudflare.com/learning/ssl/what-is-ssl/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "HTTPS",
-      "email encryption",
-      "VPNs"
-    ],
+    "usedIn": ["HTTPS", "SMTPS (email)", "IMAPS", "database connections", "VPNs (OpenVPN)", "gRPC"],
     "examples": [
-      "Configuring TLS 1.3 and HSTS on an Nginx server"
+      "Every HTTPS request uses TLS — the padlock in your browser confirms the certificate is valid and the connection is encrypted",
+      "The 2014 Heartbleed bug in OpenSSL let attackers read server memory including private keys from TLS servers",
+      "TLS 1.3 deployment grew from 0% to 90%+ of connections between 2018 and 2022"
     ]
   }
 }

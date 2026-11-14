@@ -1,49 +1,99 @@
 {
   "id": "14-secure-protocols",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "applied-cryptography",
   "title": "Secure Communication Protocols",
-  "subtitle": "SSH, JWT signing, and secure API authentication",
+  "subtitle": "SSH, JWT signing, TOTP, and secure API authentication",
   "difficulty": "advanced",
-  "estimatedMinutes": 12,
+  "estimatedMinutes": 24,
   "status": "published",
-  "prerequisites": [
-    "crypto.passwords"
-  ],
-  "skillsTaught": [
-    "crypto.protocols"
-  ],
+  "prerequisites": ["crypto.passwords"],
+  "skillsTaught": ["crypto.protocols"],
+  "whyItExists": {
+    "problem": "Connecting to servers, issuing API tokens, and implementing 2FA each require applying cryptographic primitives in a specific, correct sequence. Getting any step wrong (e.g., using the wrong JWT algorithm, weak SSH keys, or non-TOTP 2FA) creates exploitable vulnerabilities.",
+    "solution": "Established protocols (SSH, JWT, TOTP/HOTP) encode the correct sequence of cryptographic operations, parameter choices, and security checks. Using proven implementations is safer than assembling primitives yourself.",
+    "whenToUse": "SSH for server access, JWTs for stateless API authentication, TOTP for 2FA, HMAC-signed tokens for API keys.",
+    "whenNotToUse": "Do not use JWTs to store sensitive data (they are base64, not encrypted, unless you use JWE). Do not implement your own authentication protocol from scratch."
+  },
+  "explainModes": {
+    "beginner": "These are pre-built, proven ways to prove identity or protect communication. SSH lets you log into servers safely. JWTs let APIs recognize you without looking up a database on every request. TOTP generates those 6-digit codes that change every 30 seconds.",
+    "simple": "SSH uses public-key cryptography for authentication — your private key proves you are you, without sending a password. JWTs are signed JSON tokens a server issues to prove who you are. TOTP generates time-based codes from a shared secret.",
+    "standard": "SSH: Ed25519 or RSA key pairs; server verifies client's public key against authorized_keys. JWT: header.payload.signature — HS256 (HMAC) for single-service, RS256/ES256 (asymmetric) for multi-service. TOTP: HMAC-SHA1 of shared_secret + time_counter, 6-digit output per RFC 6238.",
+    "technical": "SSH handshake: Diffie-Hellman key exchange → symmetric session key → public key authentication (client proves possession of private key by signing a challenge). JWT vulnerabilities: alg:none attack, RS256→HS256 confusion attack, weak HS256 secrets. TOTP window: ±1 step (±30s) for clock drift tolerance.",
+    "deepDive": "JWT alg:none attack: some libraries that accept multiple algorithms will verify a token with 'alg':'none' as always valid — always whitelist algorithms explicitly. RS256→HS256 confusion: if a library that expects RS256 receives a JWT with alg:HS256 and verifies it using the public key as the HMAC secret, an attacker with the public key can forge tokens. TOTP: HOTP (counter-based) is the base; TOTP adds time = floor(unix_time / 30) as the counter."
+  },
   "content": [
     {
       "type": "heading",
       "level": 2,
-      "text": "SSH"
+      "text": "SSH: Secure Shell"
     },
     {
       "type": "paragraph",
-      "text": "SSH uses public-key cryptography for authentication and symmetric encryption for the session. Use Ed25519 keys instead of RSA for new setups."
+      "text": "SSH uses public-key cryptography for authentication. Your private key proves your identity without ever sending a password over the network. The server stores your public key in <code>~/.ssh/authorized_keys</code> and verifies that you can produce a signature matching it."
     },
     {
       "type": "code",
       "lang": "bash",
-      "filename": "",
-      "code": "# Generate Ed25519 SSH key\nssh-keygen -t ed25519 -C \"your@email.com\"\n\n# View public key to copy to server\ncat ~/.ssh/id_ed25519.pub\n\n# Secure SSH config\n# /etc/ssh/sshd_config\nPasswordAuthentication no\nPermitRootLogin no\nAllowUsers youruser"
+      "filename": "ssh_setup.sh",
+      "code": "# --- Generate Ed25519 key pair (recommended) ---\nssh-keygen -t ed25519 -C \"your@email.com\" -f ~/.ssh/id_ed25519\n# -C: comment for identification  -f: output file\n\n# --- Generate RSA key pair (if Ed25519 not supported) ---\nssh-keygen -t rsa -b 4096 -C \"your@email.com\"\n\n# --- Copy public key to server ---\nssh-copy-id -i ~/.ssh/id_ed25519.pub user@server.com\n# or manually: cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys (on server)\n\n# --- Verify key fingerprint (confirm server identity on first connect) ---\nssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub\n\n# --- Secure SSH server config (/etc/ssh/sshd_config) ---\n# PasswordAuthentication no       <- disable password login\n# PermitRootLogin no              <- never allow root SSH\n# AllowUsers youruser             <- whitelist users\n# PubkeyAuthentication yes\n# AuthorizedKeysFile .ssh/authorized_keys\n# Protocol 2                      <- SSHv1 is broken\n# KexAlgorithms curve25519-sha256@libssh.org  <- prefer modern key exchange\n\nsudo systemctl restart sshd  # apply changes"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "JWT Signing"
+      "text": "JWT: JSON Web Tokens"
     },
     {
       "type": "paragraph",
-      "text": "JSON Web Tokens should be signed with RS256 (asymmetric) or HS256 (symmetric HMAC). Asymmetric signing lets any service verify tokens without the secret."
+      "text": "JWTs are <strong>signed JSON tokens</strong> for stateless API authentication. Format: <code>base64url(header).base64url(payload).signature</code>. The server signs the token; any service that knows the key (HS256) or has the public key (RS256/ES256) can verify it without a database lookup."
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "jwt_sign.py",
-      "code": "import jwt  # pip install pyjwt\nimport datetime\n\n# HS256 (symmetric)\npayload = {\"sub\": \"user123\", \"exp\": datetime.datetime.utcnow() + datetime.timedelta(hours=1)}\ntoken = jwt.encode(payload, \"secret_key\", algorithm=\"HS256\")\ndecoded = jwt.decode(token, \"secret_key\", algorithms=[\"HS256\"])"
+      "filename": "jwt_example.py",
+      "code": "import jwt\nimport datetime\nfrom cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey\n\n# --- HS256: symmetric (single service) ---\nSECRET = \"super-secret-key-at-least-256-bits-long\"\n\npayload = {\n    \"sub\": \"user:1234\",\n    \"role\": \"admin\",\n    \"iat\": datetime.datetime.utcnow(),\n    \"exp\": datetime.datetime.utcnow() + datetime.timedelta(hours=1),\n    \"jti\": __import__('secrets').token_hex(16)  # unique ID prevents replay\n}\n\ntoken = jwt.encode(payload, SECRET, algorithm=\"HS256\")\nprint(\"Token:\", token)\n\n# Verify (always specify allowed algorithms — prevents alg:none attack)\ndecoded = jwt.decode(token, SECRET, algorithms=[\"HS256\"])\nprint(\"User:\", decoded[\"sub\"])\n\n# --- RS256: asymmetric (multiple services) ---\nfrom cryptography.hazmat.primitives.asymmetric import rsa\nfrom cryptography.hazmat.primitives import serialization\n\nprivate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npublic_key_pem = private_key.public_key().public_bytes(\n    serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo\n)\n\n# Auth service signs with private key\ntoken_rs256 = jwt.encode(payload, private_key, algorithm=\"RS256\")\n\n# Any service verifies with public key (never needs the private key)\ndecoded_rs256 = jwt.decode(token_rs256, public_key_pem, algorithms=[\"RS256\"])\nprint(\"Verified by any service:\", decoded_rs256[\"sub\"])"
+    },
+    {
+      "type": "warning",
+      "text": "Always whitelist algorithms when decoding JWTs: <code>algorithms=[\"RS256\"]</code>. Never use <code>algorithms=[\"RS256\", \"HS256\"]</code> together — this enables the RS256→HS256 confusion attack where an attacker uses your public key as an HS256 secret to forge tokens."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "TOTP: Time-Based One-Time Passwords"
+    },
+    {
+      "type": "paragraph",
+      "text": "TOTP (RFC 6238) generates 6-digit codes that change every 30 seconds from a shared secret. It is the basis of Google Authenticator, Authy, and hardware tokens. The server and client independently compute HMAC-SHA1(secret + current_time_step) and compare results."
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "totp.py",
+      "code": "import pyotp  # pip install pyotp\nimport qrcode  # pip install qrcode[pil]\n\n# --- Setup: generate secret for a new user ---\nsecret = pyotp.random_base32()  # 32-char base32 secret\nprint(\"Store in DB (encrypted):\", secret)\n\n# --- Generate QR code for authenticator app ---\ntotp = pyotp.TOTP(secret)\nuri = totp.provisioning_uri(name=\"user@example.com\", issuer_name=\"MyApp\")\nqr = qrcode.make(uri)\nqr.save(\"qr.png\")\n\n# --- Verify a 6-digit code ---\ndef verify_totp(user_secret: str, code: str) -> bool:\n    t = pyotp.TOTP(user_secret)\n    # valid_window=1 allows ±30 seconds for clock drift\n    return t.verify(code, valid_window=1)\n\n# Example: user submits \"123456\"\nif verify_totp(secret, \"123456\"):\n    print(\"2FA valid\")\nelse:\n    print(\"2FA invalid or expired\")\n\n# --- HOTP (counter-based OTP, e.g. hardware tokens) ---\nhotp = pyotp.HOTP(secret)\nprint(\"Code for counter 0:\", hotp.at(0))\nprint(\"Code for counter 1:\", hotp.at(1))"
+    },
+    {
+      "type": "comparison",
+      "title": "HS256 vs RS256 for JWTs",
+      "a": {
+        "name": "HS256 (HMAC-SHA256)",
+        "description": "Symmetric — same secret for signing and verifying",
+        "strengths": ["Simple", "Fast", "No key pair management"],
+        "weaknesses": ["All services that verify tokens must know the secret", "Secret exposure means all tokens can be forged"],
+        "useWhen": "Single service issues AND verifies tokens (monolith, single API)"
+      },
+      "b": {
+        "name": "RS256 / ES256 (Asymmetric)",
+        "description": "Asymmetric — private key signs, public key verifies",
+        "strengths": ["Verification services never see the signing key", "Public key can be published (JWKS endpoint)", "One key pair for many verifying services"],
+        "weaknesses": ["More complex key management", "Slightly slower"],
+        "useWhen": "OAuth 2.0 / OIDC, microservices, any multi-service verification"
+      }
+    },
+    {
+      "type": "tip",
+      "text": "JWTs are <strong>not encrypted by default</strong> — the payload is just base64-encoded and readable by anyone. Never put sensitive data (SSNs, credit card numbers, passwords) in a JWT payload. Use JWE if you need an encrypted token."
     },
     {
       "type": "quiz",
@@ -53,13 +103,39 @@
           "question": "Why should you disable PasswordAuthentication in SSH?",
           "type": "multiple-choice",
           "options": [
-            "It is slower",
-            "Passwords are vulnerable to brute force; key-based auth uses unforgeable cryptographic proofs",
-            "Password auth requires root access",
-            "Key auth is free but password auth costs money"
+            "Password authentication is slower than key authentication",
+            "Passwords can be brute-forced; key-based auth requires the private key which never crosses the network",
+            "Password auth requires root access on the server",
+            "SSH passwords cannot be longer than 32 characters"
           ],
           "correctAnswer": 1,
-          "explanation": "SSH keys cannot be brute-forced (the private key never crosses the network). Disabling password auth eliminates that attack surface."
+          "explanation": "SSH passwords can be brute-forced over the network. With key authentication, the private key never leaves the client — the server only receives a cryptographic signature."
+        },
+        {
+          "id": "q2",
+          "question": "What is the alg:none JWT attack?",
+          "type": "multiple-choice",
+          "options": [
+            "An attack that removes the signature from a JWT",
+            "Setting the algorithm to 'none' makes some libraries skip signature verification entirely",
+            "An attack that replaces HS256 with a weaker algorithm",
+            "An attack that guesses the HMAC secret"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Some JWT libraries that accept multiple algorithms will treat alg:none as valid, skipping signature verification. Always whitelist exactly the algorithms you expect."
+        },
+        {
+          "id": "q3",
+          "question": "What is TOTP based on?",
+          "type": "multiple-choice",
+          "options": [
+            "Asymmetric encryption with a user's public key",
+            "HMAC of a shared secret and the current 30-second time window",
+            "A random number generated by the server on each login",
+            "SMS delivery of a one-time password"
+          ],
+          "correctAnswer": 1,
+          "explanation": "TOTP computes HMAC-SHA1(shared_secret, floor(unix_time / 30)). Both the server and authenticator app know the secret and time, so they compute the same 6-digit code independently."
         }
       ]
     }
@@ -67,24 +143,27 @@
   "faq": [
     {
       "q": "What algorithm should I use to sign JWTs in production?",
-      "a": "RS256 (RSA) or ES256 (ECDSA) for services where multiple parties verify tokens. HS256 for a single service that both signs and verifies."
+      "a": "RS256 (RSA-SHA256) or ES256 (ECDSA-P256) for services where multiple parties verify tokens. HS256 for a single service that both signs and verifies. Never use RS256 and HS256 in the same library configuration — it enables key confusion attacks."
+    },
+    {
+      "q": "Are JWTs safe to store in localStorage?",
+      "a": "They are vulnerable to XSS attacks — any JavaScript on the page can read localStorage. Use HttpOnly cookies instead: they cannot be accessed by JavaScript. If you must use localStorage, ensure you have strong XSS prevention."
+    },
+    {
+      "q": "Can TOTP be phished?",
+      "a": "Yes, in a real-time phishing attack. A phishing page can collect both the password and TOTP code from the user and immediately use them on the real site within the 30-second window. FIDO2/WebAuthn (passkeys) is phishing-resistant. TOTP is still much better than no 2FA."
     }
   ],
   "sources": [
-    {
-      "name": "JWT Best Practices",
-      "url": "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html",
-      "verified": "2026-11-04"
-    }
+    { "name": "PyJWT documentation", "url": "https://pyjwt.readthedocs.io/", "verified": "2026-11-04" },
+    { "name": "OWASP JWT Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "API authentication",
-      "microservice trust",
-      "server access"
-    ],
+    "usedIn": ["API authentication (JWT)", "server access (SSH)", "2FA login (TOTP)", "OAuth 2.0 / OIDC (JWT)"],
     "examples": [
-      "Issuing RS256-signed JWTs in an OAuth 2.0 authorization server"
+      "GitHub requires Ed25519 or ECDSA SSH keys; RSA-1024 and DSA keys were deprecated in 2021",
+      "Auth0 and Okta issue RS256 JWTs and publish their public key at a JWKS endpoint for verification",
+      "Google Authenticator, Authy, and Microsoft Authenticator all implement TOTP (RFC 6238)"
     ]
   }
 }

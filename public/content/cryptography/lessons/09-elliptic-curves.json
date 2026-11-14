@@ -1,19 +1,28 @@
 {
   "id": "09-elliptic-curves",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "technology": "cryptography",
   "module": "asymmetric-crypto",
   "title": "Elliptic Curve Cryptography",
-  "subtitle": "ECDSA, ECDH, and why ECC beats RSA for size",
+  "subtitle": "ECDSA, ECDH, Ed25519, and why ECC beats RSA for size",
   "difficulty": "intermediate",
-  "estimatedMinutes": 14,
+  "estimatedMinutes": 22,
   "status": "published",
-  "prerequisites": [
-    "crypto.rsa"
-  ],
-  "skillsTaught": [
-    "crypto.ecc"
-  ],
+  "prerequisites": ["crypto.rsa"],
+  "skillsTaught": ["crypto.ecc"],
+  "whyItExists": {
+    "problem": "RSA requires large keys (2048+ bits) because factoring large integers, while hard, is not as hard as it could be. With better algorithms, RSA key sizes must keep growing to maintain security.",
+    "solution": "ECC uses the Elliptic Curve Discrete Logarithm Problem (ECDLP), which is significantly harder than integer factorisation. A 256-bit ECC key provides the same security as a 3072-bit RSA key.",
+    "whenToUse": "Digital signatures (ECDSA, Ed25519), key agreement (ECDH, X25519), TLS certificates. Use for all new asymmetric cryptography work.",
+    "whenNotToUse": "Post-quantum environments (ECC is broken by Shor's algorithm, same as RSA)."
+  },
+  "explainModes": {
+    "beginner": "ECC does the same job as RSA but with much smaller keys. A 256-bit ECC key is as strong as a 3072-bit RSA key — that's 12x fewer bits for the same security.",
+    "simple": "ECC uses the mathematics of points on special curves. Adding two points on the curve is easy; finding which number you multiplied by to get a given point is extremely hard — that's the security.",
+    "standard": "ECC uses a group of points on an elliptic curve over a finite field. The private key is a scalar; the public key is the scalar multiplied by the base point. Security comes from the discrete logarithm being hard on elliptic curves.",
+    "technical": "ECDSA: sign with private key scalar d, verify with public key Q = d×G. ECDH: both parties derive shared secret from each other's public keys: Alice: d_A × Q_B; Bob: d_B × Q_A — these are equal because d_A × d_B × G = d_B × d_A × G. P-256 (NIST), secp256k1 (Bitcoin), Curve25519 (modern) are common curves.",
+    "deepDive": "Ed25519 (Edwards curve) is designed for constant-time operations — no timing side channels. ECDSA with P-256 requires a fresh random nonce per signature; nonce reuse (k-reuse) is catastrophic (Sony PlayStation 3 hack used this). Ed25519 is deterministic — no nonce needed. X25519 is the ECDH version of Curve25519."
+  },
   "content": [
     {
       "type": "heading",
@@ -22,17 +31,90 @@
     },
     {
       "type": "paragraph",
-      "text": "ECC provides the same security as RSA with much smaller key sizes. A 256-bit ECC key is as strong as a 3072-bit RSA key."
+      "text": "ECC provides the same security as RSA with <strong>dramatically smaller keys</strong>. A 256-bit ECC key provides equivalent security to a 3072-bit RSA key. Smaller keys mean faster operations, less storage, and reduced bandwidth — critical for TLS certificates and mobile devices."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "256-bit ECC ≈ 3072-bit RSA ≈ 128-bit symmetric security",
+        "384-bit ECC ≈ 7680-bit RSA ≈ 192-bit symmetric security",
+        "521-bit ECC ≈ 15360-bit RSA ≈ 256-bit symmetric security"
+      ]
+    },
+    {
+      "type": "definition",
+      "term": "ECDSA",
+      "definition": "Elliptic Curve Digital Signature Algorithm. Uses a private key to sign, public key to verify. Requires a unique random nonce per signature (nonce reuse breaks the system)."
+    },
+    {
+      "type": "definition",
+      "term": "ECDH",
+      "definition": "Elliptic Curve Diffie-Hellman. A key agreement protocol. Two parties exchange public keys and independently compute the same shared secret without transmitting it."
+    },
+    {
+      "type": "definition",
+      "term": "Ed25519",
+      "definition": "A modern signing scheme based on Edwards Curve 25519. Deterministic (no random nonce per signature), constant-time, and significantly faster than ECDSA P-256."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ECDSA Signatures"
     },
     {
       "type": "code",
       "lang": "python",
-      "filename": "ecc.py",
-      "code": "from cryptography.hazmat.primitives.asymmetric import ec\nfrom cryptography.hazmat.primitives import hashes\n\n# Generate ECDSA key pair (P-256 / secp256r1)\nprivate_key = ec.generate_private_key(ec.SECP256R1())\npublic_key = private_key.public_key()\n\n# Sign\nsignature = private_key.sign(b\"document\", ec.ECDSA(hashes.SHA256()))\n\n# Verify\npublic_key.verify(signature, b\"document\", ec.ECDSA(hashes.SHA256()))\nprint(\"ECDSA signature valid\")\n\n# ECDH key exchange\nother_private = ec.generate_private_key(ec.SECP256R1())\nshared_key = private_key.exchange(ec.ECDH(), other_private.public_key())\nprint(len(shared_key), \"bytes shared secret\")"
+      "filename": "ecdsa.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import ec\nfrom cryptography.hazmat.primitives import hashes, serialization\nimport os\n\n# --- Generate ECDSA key pair (P-256 curve) ---\nprivate_key = ec.generate_private_key(ec.SECP256R1())\npublic_key = private_key.public_key()\n\n# --- Sign ---\ndocument = b\"Git commit hash: abc123def456\"\nsignature = private_key.sign(document, ec.ECDSA(hashes.SHA256()))\nprint(\"Signature length:\", len(signature), \"bytes\")  # ~70 bytes (DER encoded)\n\n# --- Verify ---\ntry:\n    public_key.verify(signature, document, ec.ECDSA(hashes.SHA256()))\n    print(\"ECDSA signature VALID\")\nexcept Exception:\n    print(\"ECDSA signature INVALID\")\n\n# --- Export public key to PEM ---\npem = public_key.public_bytes(\n    encoding=serialization.Encoding.PEM,\n    format=serialization.PublicFormat.SubjectPublicKeyInfo\n)\nprint(pem.decode())"
+    },
+    {
+      "type": "warning",
+      "text": "ECDSA requires a unique random nonce (k) for every signature. If you sign two different messages with the same k and the same private key, an attacker can recover your private key. This is how the PlayStation 3 was hacked in 2010. Prefer Ed25519 which is deterministic."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Ed25519: The Modern Choice"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "ed25519.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey\nfrom cryptography.hazmat.primitives import serialization\n\n# --- Generate Ed25519 key pair ---\nprivate_key = Ed25519PrivateKey.generate()\npublic_key = private_key.public_key()\n\n# --- Sign (no hash parameter needed; Ed25519 handles it internally) ---\ndocument = b\"This is the message to sign\"\nsignature = private_key.sign(document)\nprint(\"Ed25519 signature length:\", len(signature), \"bytes\")  # always 64 bytes\n\n# --- Verify ---\ntry:\n    public_key.verify(signature, document)\n    print(\"Ed25519 signature VALID\")\nexcept Exception:\n    print(\"Ed25519 signature INVALID\")\n\n# --- Export for SSH / API ---\nssh_pub = public_key.public_bytes(\n    encoding=serialization.Encoding.OpenSSH,\n    format=serialization.PublicFormat.OpenSSH\n)\nprint(ssh_pub.decode())  # ssh-ed25519 AAAA..."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ECDH Key Agreement"
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "filename": "ecdh.py",
+      "code": "from cryptography.hazmat.primitives.asymmetric import ec\nfrom cryptography.hazmat.primitives.kdf.hkdf import HKDF\nfrom cryptography.hazmat.primitives import hashes\nimport os\n\n# --- Alice and Bob each generate their own key pairs ---\nalice_private = ec.generate_private_key(ec.SECP256R1())\nbob_private   = ec.generate_private_key(ec.SECP256R1())\n\nalice_public = alice_private.public_key()\nbob_public   = bob_private.public_key()\n\n# --- Alice computes shared secret using Bob's public key ---\nalice_shared = alice_private.exchange(ec.ECDH(), bob_public)\n\n# --- Bob computes shared secret using Alice's public key ---\nbob_shared = bob_private.exchange(ec.ECDH(), alice_public)\n\n# They get the same 32 bytes WITHOUT transmitting the secret!\nassert alice_shared == bob_shared\nprint(\"Shared secret established:\", alice_shared.hex()[:16], \"...\")\n\n# --- Derive AES key from shared secret using HKDF ---\naes_key = HKDF(\n    algorithm=hashes.SHA256(),\n    length=32,\n    salt=None,\n    info=b\"handshake session key\"\n).derive(alice_shared)\nprint(\"AES session key ready:\", len(aes_key), \"bytes\")"
+    },
+    {
+      "type": "comparison",
+      "title": "ECDSA P-256 vs Ed25519",
+      "a": {
+        "name": "ECDSA P-256",
+        "description": "NIST curve, requires random nonce per signature",
+        "strengths": ["Universally supported", "FIPS-approved", "Used in TLS certificates"],
+        "weaknesses": ["Nonce reuse destroys key", "Not constant-time by default", "Larger signatures than Ed25519 (DER encoded)"],
+        "useWhen": "TLS certificates, JWT ES256, FIPS compliance required"
+      },
+      "b": {
+        "name": "Ed25519",
+        "description": "Modern Edwards curve, deterministic signing",
+        "strengths": ["Deterministic — no nonce reuse risk", "Constant-time (no timing attacks)", "64-byte signatures always", "Fastest signing/verification"],
+        "weaknesses": ["Newer — less legacy support", "Not FIPS-approved (FIPS 186-5 adds it, but adoption lags)"],
+        "useWhen": "New systems — SSH, TLS client certs, Wireguard, modern JWTs"
+      }
     },
     {
       "type": "tip",
-      "text": "Use P-256 (secp256r1) or X25519 for new applications. Avoid P-192."
+      "text": "For new applications: use <strong>Ed25519</strong> for signing and <strong>X25519</strong> (Curve25519 ECDH) for key agreement. Both are constant-time, fast, and use the safest known curve parameters."
     },
     {
       "type": "quiz",
@@ -42,13 +124,39 @@
           "question": "What is the main advantage of ECC over RSA?",
           "type": "multiple-choice",
           "options": [
-            "ECC is easier to implement",
+            "ECC is easier to implement from scratch",
             "ECC provides equivalent security with much smaller key sizes",
-            "ECC is quantum-resistant",
-            "ECC has no known vulnerabilities"
+            "ECC is resistant to quantum computer attacks",
+            "ECC keys never expire"
           ],
           "correctAnswer": 1,
-          "explanation": "ECC achieves the same security level as RSA with dramatically smaller keys, reducing computation and bandwidth."
+          "explanation": "A 256-bit ECC key provides the same security as a 3072-bit RSA key. Smaller keys mean faster computation, less bandwidth, and simpler storage."
+        },
+        {
+          "id": "q2",
+          "question": "Why is Ed25519 preferred over ECDSA P-256 for new systems?",
+          "type": "multiple-choice",
+          "options": [
+            "Ed25519 produces longer signatures that are harder to fake",
+            "Ed25519 is deterministic — no random nonce needed per signature",
+            "Ed25519 provides post-quantum security",
+            "Ed25519 uses larger key sizes"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ECDSA requires a fresh random nonce per signature. If nonces are reused, the private key is recoverable. Ed25519 derives its nonce deterministically — this class of attack is impossible."
+        },
+        {
+          "id": "q3",
+          "question": "What does ECDH (Elliptic Curve Diffie-Hellman) achieve?",
+          "type": "multiple-choice",
+          "options": [
+            "It encrypts a message with the recipient's public key",
+            "It allows two parties to derive the same shared secret without transmitting it",
+            "It signs a document to prove authorship",
+            "It hashes a message to verify integrity"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ECDH is a key agreement protocol. Alice and Bob exchange public keys and each independently computes the same shared secret — which was never transmitted."
         }
       ]
     }
@@ -56,24 +164,27 @@
   "faq": [
     {
       "q": "What is Curve25519?",
-      "a": "A modern elliptic curve designed by Bernstein for high security and performance. Used in TLS 1.3, SSH, and Signal Protocol."
+      "a": "An elliptic curve designed by Daniel Bernstein for high security and performance. Used in TLS 1.3, SSH, WireGuard, and Signal Protocol. The signing variant is Ed25519; the key agreement variant is X25519."
+    },
+    {
+      "q": "Is ECC quantum-safe?",
+      "a": "No. Shor's algorithm running on a sufficiently large quantum computer can solve the elliptic curve discrete logarithm, breaking ECC just as it breaks RSA. NIST's post-quantum standards (ML-KEM, ML-DSA) are the replacements."
+    },
+    {
+      "q": "What is the difference between ECDH and ECDHE?",
+      "a": "ECDHE uses ephemeral keys — fresh key pairs generated for each connection. This provides forward secrecy: even if the server's long-term private key is later compromised, past sessions cannot be decrypted."
     }
   ],
   "sources": [
-    {
-      "name": "ECC",
-      "url": "https://en.wikipedia.org/wiki/Elliptic-curve_cryptography",
-      "verified": "2026-11-04"
-    }
+    { "name": "ECC (Wikipedia)", "url": "https://en.wikipedia.org/wiki/Elliptic-curve_cryptography", "verified": "2026-11-04" },
+    { "name": "cryptography.io EC", "url": "https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ec/", "verified": "2026-11-04" }
   ],
   "realWorld": {
-    "usedIn": [
-      "TLS certificates",
-      "JWT signing",
-      "Signal protocol"
-    ],
+    "usedIn": ["TLS certificates (ECDSA)", "SSH keys (Ed25519)", "JWT ES256", "Bitcoin (secp256k1)", "Signal Protocol (Curve25519)", "WireGuard (Curve25519)"],
     "examples": [
-      "Using ECDSA P-256 instead of RSA-2048 to halve certificate size"
+      "GitHub requires Ed25519 or ECDSA for SSH keys; RSA-1024 is no longer accepted",
+      "TLS 1.3 uses X25519 or P-256 for key exchange in almost all HTTPS connections",
+      "The Sony PlayStation 3 (2010) ECDSA nonce-reuse vulnerability exposed the console's private key"
     ]
   }
 }
